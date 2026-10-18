@@ -20,4 +20,4 @@ Web app that auto-captions talking-head video and adds AI B-roll (generated or s
 - Shot taxonomy copied from captions.ai: `Hook | B-Roll | Talking Head | Talking Head & B-Roll`.
 
 ## State (2026-10-18)
-Scaffold only: health + projects CRUD (memory + pg repos), frontend list/create, docker compose, schema. No pipeline modules yet (assets/upload, transcription, edit-plan, captions, broll, render, agent). Next: implementation plan from `docs/blueprint.md` §10.3.
+Scaffold committed (`4a5a9f8`): health + projects CRUD (memory + pg repos), frontend list/create, docker compose, schema. Plans: `docs/superpowers/plans/README.md` (5-plan sequence); plan 1 `2026-10-18-caption-pipeline-v1.md` (upload → whisperX → captions → Remotion MP4 + SRT/VTT) written, not started. Local ffmpeg has no libass/freetype — text rendering is Remotion only.
