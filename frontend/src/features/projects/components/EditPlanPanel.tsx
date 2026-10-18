@@ -82,7 +82,6 @@ export function EditPlanPanel({ project, busy, onPlan, onUpdate, onSeek }: Props
   const layout = shotLayout(plan.shots, durationMs);
   const trimOf = (c: Cut) => draft.trim[c.id] ?? c.shouldTrim;
   const kindOf = (s: Shot) => draft.kinds[s.id] ?? s.kind;
-  const sel = plan.shots.find((s) => s.id === selected);
   const changes = planChanges(project, draft);
 
   return (
@@ -104,14 +103,21 @@ export function EditPlanPanel({ project, busy, onPlan, onUpdate, onSeek }: Props
         {SHOT_KINDS.map((k) => <li key={k} className="flex items-center gap-1"><span className={`size-3 rounded-sm ${KIND_COLOR[k]}`} />{k}</li>)}
         <li className="flex items-center gap-1"><span className="h-3 w-0.5 bg-red-500" />Cut</li>
       </ul>
-      {sel && (
-        <label className="flex items-center gap-2 text-sm">
-          Shot at {at(sel.startMs)}
-          <select className={select} value={kindOf(sel)} disabled={busy} onChange={(e) => setDraft((d) => ({ ...d, kinds: { ...d.kinds, [sel.id]: e.target.value as ShotKind } }))}>
-            {SHOT_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-          </select>
-        </label>
-      )}
+      {/* The scrubber is the overview; short shots are too narrow to tap on a phone, so every shot also gets a ≥ 44 px row. */}
+      <ul className="space-y-1">
+        {plan.shots.map((s) => (
+          <li key={s.id} className={`flex min-h-11 items-center gap-2 rounded-md pl-3 ${s.id === selected ? "bg-neutral-800" : "bg-neutral-900"}`}>
+            <span className={`size-3 shrink-0 rounded-sm ${KIND_COLOR[kindOf(s)]}`} />
+            <button type="button" className="min-h-11 min-w-16 text-left text-sm tabular-nums" onClick={() => { setSelected(s.id); onSeek(s.startMs); }}>
+              {at(s.startMs)}
+            </button>
+            <select aria-label={`Shot at ${at(s.startMs)}`} className={select} value={kindOf(s)} disabled={busy}
+              onChange={(e) => setDraft((d) => ({ ...d, kinds: { ...d.kinds, [s.id]: e.target.value as ShotKind } }))}>
+              {SHOT_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </li>
+        ))}
+      </ul>
       {plan.cuts.length > 0 ? (
         <ul className="space-y-1">
           {plan.cuts.map((c) => (

@@ -1,4 +1,5 @@
-import { planChanges, shotLayout } from "./EditPlanPanel";
+import { renderToStaticMarkup } from "react-dom/server";
+import { EditPlanPanel, planChanges, shotLayout } from "./EditPlanPanel";
 import type { Project, Shot } from "@shared/types";
 
 const shot = (id: string, startMs: number, endMs: number, kind: Shot["kind"] = "Talking Head"): Shot => ({ id, kind, startMs, endMs });
@@ -21,5 +22,17 @@ describe("EditPlanPanel helpers", () => {
       .toEqual({ cuts: [{ id: "cut-0", shouldTrim: false }], shots: [{ id: "shot-1", kind: "B-Roll" }] });
     expect(planChanges(project, { trim: {}, kinds: { "shot-0": "Hook" }, burnIn: null })).toBeNull();
     expect(planChanges(project, { trim: {}, kinds: {}, burnIn: "es" })).toEqual({ cuts: [], shots: [], burnInLanguage: "es" });
+  });
+});
+
+describe("EditPlanPanel", () => {
+  it("lists every shot with its own kind select, so small shots stay tappable on a phone", () => {
+    // 3-minute clip, 20 shots: each scrubber block would be ~17 px wide at 375 px.
+    const shots = Array.from({ length: 20 }, (_, i) => shot(`shot-${i}`, i * 9000, (i + 1) * 9000, i ? "Talking Head" : "Hook"));
+    const p = { ...project, translations: [], editPlan: { cuts: [], shots } } as unknown as Project;
+    const html = renderToStaticMarkup(<EditPlanPanel project={p} busy={false} onPlan={() => {}} onUpdate={() => {}} onSeek={() => {}} />);
+    const selects = html.match(/<select[^>]*aria-label="Shot at [^"]*"/g) ?? [];
+    expect(selects).toHaveLength(20);
+    expect(selects[3]).toContain('aria-label="Shot at 0:27.0"');
   });
 });
