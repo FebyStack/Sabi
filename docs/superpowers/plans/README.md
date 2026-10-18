@@ -4,7 +4,7 @@ The locked spec (`docs/spec.md`) spans several subsystems. Each plan below ships
 
 | # | Plan | Delivers | Blueprint steps |
 |---|---|---|---|
-| 1 | `2026-10-18-caption-pipeline-v1.md` | Upload → whisperX transcript → segmented captions → Remotion MP4 + SRT/VTT, job progress over SSE, phrase editing, mobile-first project page | 1, 2, 4, 6, 7 |
+| 1 ✅ | `2026-10-18-caption-pipeline-v1.md` | Upload → whisperX transcript → segmented captions → Remotion MP4 + SRT/VTT, job progress over SSE, phrase editing, mobile-first project page (done on `feat/caption-pipeline-v1`; real-speech run pending whisperX env) | 1, 2, 4, 6, 7 |
 | 2 | edit-plan-and-shots (next) | Ollama planner: filler/pause cuts, typed shots `Hook/B-Roll/Talking Head/Talking Head & B-Roll`, emphasis tagging (nouns/keywords/pictorial), emoji placement, translation tracks | 3 |
 | 3 | broll-and-overlays | Beat planner → Pexels stock / fal.ai image+video (per-project `mediaSource`), overlay layers in the Remotion composition, caption-aware placement | 5 |
 | 4 | editor-ui | Touch-first timeline, overlay/B-roll panels, template customisation, consent banner, demo project, staged progress polish | §10.2, §10.6, spec 11.1/11.2/11.5 |
