@@ -48,6 +48,12 @@ export const UploadStartInput = z.object({
   sizeBytes: z.number().int().positive(),
 });
 
+export const CAPTION_TEMPLATE_IDS = ["clean", "bold", "karaoke"] as const;
+export const CaptionTemplateId = z.enum(CAPTION_TEMPLATE_IDS);
+
+export const WordSchema = z.object({ id: z.string(), text: z.string(), startMs: z.number(), endMs: z.number(), confidence: z.number().optional() });
+export const PhraseSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), words: z.array(WordSchema), lineBreaksAfter: z.array(z.number()) });
+
 export const JobStateSchema = z.object({
   id: z.string(),
   projectId: z.string(),
