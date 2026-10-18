@@ -12,21 +12,22 @@
 
 ## Global Constraints
 
-- **No Anthropic API anywhere.** LLM = Ollama at `OLLAMA_URL` (default `http://localhost:11434`), model `OLLAMA_MODEL` (default `qwen2.5:3b` — ~1.9 GB, multilingual, good at constrained JSON; the Mac has ~5 GB free, so model blobs go to the SSD via `OLLAMA_MODELS=$DATA_DIR/ollama`).
-- Cuts are never decided by the LLM: pause = ASR gap > `600` ms, trimmed to leave `150` ms padding each side; filler = word whose letters-only lowercase form is in `um uh umm uhm erm er ah hmm mm`. Leading/trailing silence uses the same rule against `0` and the source duration.
+- **No Anthropic API anywhere.** LLM = Ollama at `OLLAMA_URL` (default `http://localhost:11434`), model `OLLAMA_MODEL` (default `qwen2.5:3b` — ~1.9 GB, multilingual, fast enough on a base Apple-Silicon chip; `qwen2.5:7b` (4.7 GB, fits 16 GB RAM) is the translation-quality upgrade, one env var away). Ollama is **not installed**: `brew install ollama` (CLI only — the menu-bar app autostarts its own server with models on the Mac disk and would eat the ~5 GB free). Model blobs live on the SSD via `OLLAMA_MODELS=$DATA_DIR/ollama`, so `ollama pull` must run while `npm run ai:ollama` is the server on :11434. Structured output (`format` = JSON schema) needs Ollama ≥ 0.5; every array the LLM emits carries `maxItems` so a looping small model is cut off by the grammar, not by a timeout.
+- Cuts are never decided by the LLM: pause = ASR gap > `600` ms, trimmed to leave `150` ms padding next to speech (none at `0` / the clip end); filler = word whose letters-only lowercase form is in `um uh umm uhm erm er ah hmm mm`. Leading/trailing silence uses the same rule against `0` and the source duration. A clip with no non-filler word (silence, or "um" only) gets no cuts.
+- Durations: the source asset's `durationMs` is the truth for cuts and renders; `project.sourceDurationMs` is a copy for the UI (scrubber, preview length).
 - Shot kinds exactly `Hook | B-Roll | Talking Head | Talking Head & B-Roll`; emphasis kinds exactly `noun | keyword | pictorial`.
 - Translation targets: `en es fr de pt it ja ko zh hi tl id` (names in `LANGUAGE_NAMES`), at most 3 per plan; a target equal to the transcript language is skipped.
 - Single wire contract: every new schema lives in `shared/contract.ts`; `shared/types.ts` only re-exports `z.infer` types.
 - `/run` stays captions-only and must keep working with Ollama down; planning is its own job (`kind: "plan"`).
 - Mobile-first: every control ≥ 44 px, one column under 768 px.
 - TDD, colocated `*.test.ts`; `npm run verify` green after every task. Backend imports stay relative.
-- `database/schema/schema.sql` changes are `ADD COLUMN IF NOT EXISTS` and apply on api boot; Docker is not running now, so say so in PROJECT.md (unapplied until the next `npm run dev:server`).
+- `database/schema/schema.sql` changes are `ADD COLUMN IF NOT EXISTS` and apply on api boot; Docker is not running now, so say so in PROJECT.md (unapplied until `make db && npm run dev:server`). The Pg repository has no live test: the `COL` record type (`Record<keyof Project, …>`) is what forces every new field to get a column mapping.
 
 ## Review Focus
 
 1. **Ollama not running / model not pulled** — the plan job fails with `llm_unavailable` / `llm_model_missing`, the project returns to its previous status (`ready`) with its existing MP4/SRT/VTT, and the error shows on the page. → Task 6 test `plan failure keeps previous outputs`.
 2. **Small model returns sloppy JSON** — out-of-range phrase indices, words not in the phrase, `"smile"` instead of an emoji, unsorted/duplicate shots, every word emphasised: ignored or clamped, shots still contiguous over `[0, duration]`, ≤ 2 emphasised words per phrase. → Task 4 test `normalizes out-of-range llm output`.
-3. **Silence-only or no-speech clip** — no cuts (never cut the whole clip); `POST /plan` on a project without phrases is `400 no_captions`. → Task 2 test `no words, no cuts`; Task 6 test `rejects plan without captions`.
+3. **Silence-only, filler-only or no-speech clip** — no cuts (never cut the whole clip); `POST /plan` on a project without phrases is `400 no_captions`. → Task 2 test `no words or only fillers, no cuts`; Task 6 test `rejects plan without captions`.
 4. **Edits after planning** — template change keeps emphasis, emoji and translations; a fresh `/run` (new transcript) clears plan, translations and burn-in. → Task 6 test `template change keeps plan data; re-run clears it`.
 5. **One timeline for every output** — with enabled cuts the MP4 duration, burned captions and all SRT/VTT tracks use the cut timeline; translated tracks lose no words to filler cuts. → Task 5 test `subtitles follow enabled cuts`.
 
@@ -35,7 +36,7 @@
 ### Task 1: Contract and persistence
 
 **Files:**
-- Modify: `shared/contract.ts`, `shared/types.ts`, `backend/modules/projects/routes.ts`, `backend/modules/projects/repository.ts`, `backend/modules/projects/repository.test.ts`, `backend/modules/pipeline/routes.ts`, `database/schema/schema.sql`, `.gitignore`
+- Modify: `shared/contract.ts`, `shared/types.ts`, `backend/modules/projects/routes.ts`, `backend/modules/projects/repository.ts`, `backend/modules/projects/repository.test.ts`, `backend/app/app.test.ts`, `backend/modules/pipeline/routes.ts`, `backend/modules/pipeline/pipeline.test.ts`, `database/schema/schema.sql`, `.gitignore` (the three test edits are already in the working tree, uncommitted — keep them)
 
 **Interfaces:**
 - Produces in `shared/contract.ts`:
@@ -47,26 +48,24 @@
   - `PlanInput = { languages: TranslationLanguage[] (max 3, default []), burnInLanguage: TranslationLanguage|null (default null) }`, refined: burn-in ∈ languages.
   - `UpdatePlanInput = { cuts: {id, shouldTrim}[] (default []), shots: {id, kind}[] (default []), burnInLanguage?: TranslationLanguage|null }`.
   - `api.projectPlan(id) = /api/projects/${id}/plan`.
-- `shared/types.ts`: `Phrase`, `ShotKind`, `Shot` become `z.infer`; add `EmphasisKind, Cut, EditPlan, Translation, TranslationLanguage, PlanInput (z.input), UpdatePlanInput (z.input)`; `CaptionTemplate.colors` gains `emphasis: Record<EmphasisKind, string>` (filled in Task 5 — add the field there, not here).
+- `shared/types.ts`: `Phrase`, `ShotKind`, `Shot` become `z.infer`; add `EmphasisKind, Cut, EditPlan, Translation, TranslationLanguage, PlanInput (z.input), UpdatePlanInput (z.input)`.
 
-- [ ] **Step 1: Failing tests** — extend `repository.test.ts` `base` with the four new fields, and add:
+- [ ] **Step 1: Failing tests** — `repository.test.ts` `base` gains the four new fields; in `app.test.ts`:
 
 ```ts
 it("new projects start with no plan, translations or burn-in", async () => {
-  const a = createApp(makeTestDeps());
-  const { body } = await request(a).post("/api/projects").send({ title: "t" });
+  const { body } = await request(app()).post("/api/projects").send({ title: "t" });
   expect(body).toMatchObject({ sourceDurationMs: null, editPlan: null, translations: [], burnInLanguage: null });
-});
-it("source stores the probed duration", async () => { /* upload + POST /source as in pipeline.test.ts */
-  expect(project.sourceDurationMs).toBe(21000);
 });
 it("PlanInput rejects burn-in of an untranslated language", () => {
   expect(PlanInput.safeParse({ languages: ["es"], burnInLanguage: "fr" }).success).toBe(false);
+  expect(PlanInput.safeParse({ languages: ["es", "fr", "de", "ja"] }).success).toBe(false);
   expect(PlanInput.parse({})).toEqual({ languages: [], burnInLanguage: null });
 });
 ```
-- [ ] **Step 2: Run `npx vitest run backend/modules/projects` — FAIL** (fields missing).
-- [ ] **Step 3: Implement** the schemas; project create defaults; `/source` sets `sourceDurationMs: asset.durationMs ?? null`; Pg: `COL`/`JSON_COLS`/`toProject`/`create` for `source_duration_ms INTEGER`, `edit_plan JSONB`, `translations JSONB NOT NULL DEFAULT '[]'`, `burn_in_language TEXT` (+ the four `ALTER TABLE … ADD COLUMN IF NOT EXISTS` lines); `.gitignore`: `node_modules` (no slash, so a symlinked worktree `node_modules` is ignored) and `.claude/worktrees/`.
+and in `pipeline.test.ts`: `it("source stores the probed duration")` → `projectWithSource(makeTestDeps())` → `project.sourceDurationMs === 21000`.
+- [ ] **Step 2: Run `npx vitest run backend` — FAIL** (fields missing).
+- [ ] **Step 3: Implement** the schemas; project create defaults; `/source` sets `sourceDurationMs: asset.durationMs ?? null` and clears `editPlan: null, translations: [], burnInLanguage: null` (a plan belongs to one source); Pg: `COL`/`JSON_COLS`/`toProject`/`create` for `source_duration_ms INTEGER`, `edit_plan JSONB`, `translations JSONB NOT NULL DEFAULT '[]'`, `burn_in_language TEXT` (+ the four `ALTER TABLE … ADD COLUMN IF NOT EXISTS` lines); `.gitignore`: `node_modules` (no slash, so a symlinked worktree `node_modules` is ignored) and `.claude/worktrees/`.
 - [ ] **Step 4: `npm run verify` — PASS.**
 - [ ] **Step 5: Commit** `feat(contract): edit plan, cuts, shots, emphasis, emoji, translations`
 
@@ -77,7 +76,7 @@ it("PlanInput rejects burn-in of an untranslated language", () => {
 
 **Interfaces:**
 - Produces: `PAUSE_MIN_MS = 600`, `PAUSE_PAD_MS = 150`, `type Segment = { startMs: number; endMs: number }`;
-  `detectCuts(words: Word[], durationMs: number): Cut[]` (sorted, ids `cut-0…`, all `shouldTrim: true`, pause `text: ""`, filler `text` = the word);
+  `detectCuts(words: Word[], durationMs: number): Cut[]` (sorted, ids `cut-0…`, all `shouldTrim: true`, pause `text: ""`, filler `text` = the word; `[]` when no word is a non-filler — padding would otherwise leave a sliver of an "um"-only clip);
   `keptSegments(durationMs: number, cuts: Cut[]): Segment[]` (complement of merged `shouldTrim` cuts);
   `mapTime(ms: number, cuts: Cut[]): number` (source → output ms; a time inside a cut maps to the cut's start);
   `applyCuts(phrases: Phrase[], cuts: Cut[], dropCutWords = true): Phrase[]` (remaps word + phrase times; drops words fully inside an enabled cut when `dropCutWords`; drops phrases left empty).
@@ -97,7 +96,10 @@ it("detects filler words", () => {
 it("cuts leading and trailing silence", () => {
   expect(detectCuts([w("a", "Hi", 1000, 2000)], 5000).map((c) => [c.startMs, c.endMs])).toEqual([[0, 850], [2150, 5000]]);
 });
-it("no words, no cuts", () => expect(detectCuts([], 10_000)).toEqual([]));
+it("no words or only fillers, no cuts", () => {
+  expect(detectCuts([], 10_000)).toEqual([]);
+  expect(detectCuts([w("a", "Um", 1000, 1500)], 3000)).toEqual([]); // leading + filler + trailing would remove everything
+});
 it("keptSegments complements enabled cuts only", () => {
   const cuts = [cut(1000, 1500, true), cut(2000, 2500, false)];
   expect(keptSegments(3000, cuts)).toEqual([{ startMs: 0, endMs: 1000 }, { startMs: 1500, endMs: 3000 }]);
@@ -125,10 +127,10 @@ it("applyCuts keeps every word when dropCutWords is false", () => { /* same inpu
 - Produces: `type LlmRequest = { system: string; user: string; format: Record<string, unknown> }`; `interface Llm { chat(req: LlmRequest): Promise<string> }`;
   `class OllamaLlm(baseUrl: string, model: string, opts?: { timeoutMs?: number })` — `POST ${baseUrl}/api/chat` body `{ model, stream: false, format, options: { temperature: 0, num_ctx: 8192 }, messages: [{role:"system"}, {role:"user"}] }` → `message.content`; HTTP 404 → `Error("llm_model_missing")`; anything else failing (down, non-2xx, timeout default 10 min, body without `message.content` string) → `Error("llm_unavailable")`;
   `class FakeLlm(respond: (req: LlmRequest) => unknown)` with `calls: LlmRequest[]` (non-string answers are `JSON.stringify`ed; a thrown error propagates);
-  `askJson<T>(llm: Llm, schema: z.ZodType<T>, system: string, input: unknown): Promise<T>` — `user = JSON.stringify(input)`, `format = z.toJSONSchema(schema)`, 2 attempts (JSON.parse + safeParse), then `Error("llm_invalid_output")`; transport errors are not retried.
+  `askJson<T>(llm: Llm, schema: z.ZodType<T>, system: string, input: unknown): Promise<T>` — `user = JSON.stringify(input)`, `format = z.toJSONSchema(schema)`, 2 attempts (JSON.parse + safeParse); the second attempt's `user` is the first plus `"\n\nYour previous answer was rejected: <'not JSON' | first zod issue>. Answer again."` (at temperature 0 an identical prompt would just repeat the bad answer); then `Error("llm_invalid_output")`; transport errors are not retried.
 - `AppDeps.llm: Llm`. `makeTestDeps` → `new FakeLlm(fakeLlmResponder)`; `fakeLlmResponder` (exported from `testing.ts`, deterministic from the request input): translation input `{language, lines}` → `{ lines: lines.map(l => `${language}: ${l}`) }`; plan input `{phrases:[{i,text}]}` → shots `from` every 3rd phrase (kinds cycle `Hook`, then `Talking Head`/`B-Roll`), emphasis = first word of every phrase as `keyword`, emoji `🔥` on every phrase with `i % 3 === 0`.
 - `makeMemoryDeps` and `index.ts`: `new OllamaLlm(process.env.OLLAMA_URL ?? "http://localhost:11434", process.env.OLLAMA_MODEL ?? "qwen2.5:3b")`; `makeMemoryDeps` with `FAKE_AI=1` uses `FakeTranscriber(sample)` + `FakeLlm(fakeLlmResponder)` so the UI can be driven without whisperX/Ollama.
-- `package.json` `"ai:ollama": "OLLAMA_MODELS=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/ollama ollama serve"`; launch.json entry `ollama` (port 11434); `.env.example` `OLLAMA_MODEL=qwen2.5:3b`.
+- `package.json` `"ai:ollama": "OLLAMA_MODELS=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/ollama ollama serve"`; launch.json entry `ollama` (port 11434); `.env.example` `OLLAMA_MODEL=qwen2.5:3b` with a comment naming `qwen2.5:7b` as the quality upgrade. Install/pull order (also goes into PROJECT.md): `brew install ollama` → `npm run ai:ollama` in its own tab → `ollama pull qwen2.5:3b` (served by that instance, so the blob lands on the SSD).
 
 - [ ] **Step 1: Failing tests** (stub server like `transcriber.test.ts`, capturing the request):
 
@@ -149,6 +151,7 @@ it("askJson retries once on invalid output", async () => {
   expect(await askJson(llm, z.object({ ok: z.boolean() }), "S", { a: 1 })).toEqual({ ok: true });
   expect(llm.calls).toHaveLength(2);
   expect(llm.calls[0].user).toBe('{"a":1}');
+  expect(llm.calls[1].user).toContain("rejected");
 });
 it("askJson throws llm_invalid_output after two bad answers", …);
 ```
@@ -165,16 +168,16 @@ it("askJson throws llm_invalid_output after two bad answers", …);
 
 **Interfaces:**
 - Consumes: `askJson`, `Llm` (Task 3); `Phrase`, `Shot`, `TranslationLanguage`, `LANGUAGE_NAMES` (Task 1).
-- Produces in `ai/llm/prompts.ts`: `PLAN_SYSTEM: string` (defines the four shot kinds — Hook only at the opening, change shot every 2–6 phrases; ≤ 2 emphasis words per phrase copied verbatim with kind `noun` = concrete thing, `keyword` = key idea, `pictorial` = something you can picture; emoji on about one phrase in three, only where it fits); `translateSystem(languageName: string): string` (same meaning and tone, one output line per input line, no notes); `LlmPlanSchema = z.object({ shots: {from: int, kind: ShotKind}[], emphasis: {phrase: int, word: string, kind: EmphasisKind}[], emoji: {phrase: int, emoji: string}[] })`; `llmLinesSchema(n) = z.object({ lines: z.array(z.string()).length(n) })` (the length reaches Ollama as `minItems/maxItems`).
+- Produces in `ai/llm/prompts.ts`: `PLAN_SYSTEM: string` (defines the four shot kinds — Hook only at the opening, change shot every 2–6 phrases; ≤ 2 emphasis words per phrase copied verbatim with kind `noun` = concrete thing, `keyword` = key idea, `pictorial` = something you can picture; emoji on about one phrase in three, only where it fits); `translateSystem(languageName: string): string` (same meaning and tone, one output line per input line, no notes); `llmPlanSchema(n) = z.object({ shots: {from: int, kind: ShotKind}[] (max n), emphasis: {phrase: int, word: string, kind: EmphasisKind}[] (max 2n), emoji: {phrase: int, emoji: string}[] (max n) })` for a batch of `n` phrases; `llmLinesSchema(n) = z.object({ lines: z.array(z.string()).length(n) })`. zod 4 emits `.length/.max` as `minItems/maxItems` (verified), which Ollama's grammar enforces.
 - Produces in `planner.ts`: `PLAN_BATCH = 60`, `TRANSLATE_BATCH = 40`;
   `planEdit(llm: Llm, phrases: Phrase[], durationMs: number): Promise<{ shots: Shot[]; phrases: Phrase[] }>` — input per batch `{ phrases: [{ i, text }] }` with global `i`; clears old `emphasis`/`emoji`, then normalizes:
-  shots → keep integer `from` in range, sort, first per `from` wins, earliest `from` forced to 0, merge consecutive equal kinds; `startMs` = 0 for the first else `phrases[from].startMs`, `endMs` = next start or `max(durationMs, last phrase end)`; ids `shot-0…`; none valid → one `Talking Head` shot.
+  shots → keep integer `from` in range, sort, first per `from` wins, earliest `from` forced to 0, a `Hook` not at 0 becomes `Talking Head` (Hook = the opening only), merge consecutive equal kinds; `startMs` = 0 for the first else `phrases[from].startMs`, `endMs` = next start or `max(durationMs, last phrase end)`; ids `shot-0…`; none valid → one `Talking Head` shot.
   emphasis → phrase in range, word matched by letters/digits-only lowercase against that phrase's unflagged words, ≤ 2 per phrase.
   emoji → phrase in range, first grapheme (`Intl.Segmenter`) must match `/\p{Extended_Pictographic}/u`, first per phrase wins.
-  `translatePhrases(llm: Llm, phrases: Phrase[], language: TranslationLanguage): Promise<Phrase[]>` — batches input `{ language: LANGUAGE_NAMES[language], lines }`; each line → `retimePhrase({ ...src, lineBreaksAfter: [] }, line.trim() || sourceText)`, words without `emphasis`, `emoji` kept.
+  `translatePhrases(llm: Llm, phrases: Phrase[], language: TranslationLanguage): Promise<Phrase[]>` — batches input `{ language: LANGUAGE_NAMES[language], lines }`; each line → `retimePhrase({ ...src, lineBreaksAfter: [] }, line.trim() || sourceText)` with `emphasis` stripped from every word (same word count keeps the source words' timings — and would keep their flags), `emoji` kept. Known limit, accepted: `ja`/`zh` have no spaces, so a translated phrase is one "word" (karaoke highlights the whole line; CSS wraps it).
 - `shared/captions/retime.ts`: `retimePhrase(phrase: Phrase, text: string): Phrase` moved verbatim from `PhraseEditor.tsx`.
 
-- [ ] **Step 1: Failing tests** (phrases = `segmentCaptions(sample.words, getCaptionTemplate("clean").layout)`, durations 21000):
+- [ ] **Step 1: Failing tests** (phrases = `segmentCaptions(sample.words, getCaptionTemplate("clean").layout)` → 9 phrases, `phrases[2].startMs === 4259`; duration 21000; the 130- and 45-phrase inputs repeat the sample phrases with fresh ids):
 
 ```ts
 it("turns llm shots into contiguous ms ranges covering the clip", async () => {
@@ -219,8 +222,8 @@ it("fails with llm_invalid_output when a batch returns the wrong line count", as
 - Consumes: `applyCuts`, `keptSegments`, `Segment` (Task 2).
 - Produces:
   - Template emphasis colours — clean `{ keyword: "#FF9F0A", noun: "#64D2FF", pictorial: "#30D158" }`, bold `{ keyword: "#FFD60A", noun: "#64D2FF", pictorial: "#FF6B9A" }`, karaoke `{ keyword: "#FFD60A", noun: "#64D2FF", pictorial: "#30D158" }`.
-  - `activeWord.ts`: `wordColor(template: CaptionTemplate, word: Word, isActive: boolean): string` (karaoke active → `activeWord`, else emphasis colour, else `text`); `segmentFrames(segments: Segment[], fps: number): { trimBefore: number; durationInFrames: number }[]` (frames from cumulative output ms, so durations sum to `round(total·fps/1000)`; zero-length dropped).
-  - `CaptionVideoProps.segments?: Segment[]` — when present the source plays as a `<Series>` of `<Series.Sequence>` with `trimBefore` (video and audio-only alike); `phrase.emoji` renders above the caption block at `1.2 × fontSize`.
+  - `activeWord.ts`: `wordColor(template: CaptionTemplate, word: Word, isActive: boolean): string` (karaoke active → `activeWord`, else emphasis colour, else `text`); `segmentFrames(segments: Segment[], fps: number): { trimBefore: number; durationInFrames: number }[]` (`trimBefore` = `round(startMs·fps/1000)` in source frames; boundaries from cumulative output ms with `round`, the last one with `ceil`, so the frames sum to exactly the `Math.ceil(durationMs·fps/1000)` that `Root.calculateMetadata` and `CaptionPreview` use — otherwise the final frame falls outside the `<Series>`; zero-length dropped).
+  - `CaptionVideoProps.segments?: Segment[]` — when present the source plays as a `<Series>` of `<Series.Sequence durationInFrames trimBefore>` (`trimBefore` on the Sequence shifts the child's frame; works for `OffthreadVideo`, `Video` and `Audio` alike). Captions keep reading the top-level `useCurrentFrame()`, i.e. output time — which is why `applyCuts` remaps them. `phrase.emoji` renders in a row above the caption block at `1.2 × fontSize`; the row is always laid out (empty when no emoji) so the caption block does not jump between phrases.
   - `segment.ts`: `carryEmoji(prev: Phrase[], next: Phrase[]): Phrase[]` (each emoji moves to the new phrase containing the old phrase's first word id).
   - `renderProps.ts`: `DIMS` (moved from pipeline.ts/CaptionPreview.tsx); `enabledCuts(project: Project): Cut[]`; `captionVideoProps(project: Project, opts: { videoSrc: string; sourceDurationMs: number }): CaptionVideoProps` (burn-in translation if present else `phrases`, cuts applied — words dropped only for the original track — `segments` + shortened `durationMs` only when a cut is enabled); `subtitleTracks(project: Project): { language: TranslationLanguage | null; phrases: Phrase[] }[]` (original first, then each translation, cut-applied the same way).
   - `pipeline.ts`: `renderOutputs(deps: AppDeps, project: Project, source: Asset, report: (p: number, stage?: string) => void): Promise<Project["outputs"]>` — stages `render` (70) and `subtitles` (95); files `${jobKey}.mp4`, `${jobKey}.srt|vtt`, `${jobKey}.${lang}.srt|vtt`. `startCaptionJob` uses it; with `transcribe` it also clears `editPlan`, `translations`, `burnInLanguage`; a resegment without transcribe applies `carryEmoji`.
@@ -230,9 +233,10 @@ it("fails with llm_invalid_output when a batch returns the wrong line count", as
 ```ts
 // activeWord.test.ts
 it("wordColor: active beats emphasis beats text", () => { /* clean template: active → #FFD60A, {emphasis:"noun"} → #64D2FF, plain → #FFFFFF */ });
-it("segmentFrames rounds on the cumulative timeline", () => {
+it("segmentFrames rounds on the cumulative timeline and ends on the composition's last frame", () => {
   expect(segmentFrames([{ startMs: 0, endMs: 1010 }, { startMs: 2000, endMs: 3010 }], 30))
-    .toEqual([{ trimBefore: 0, durationInFrames: 30 }, { trimBefore: 60, durationInFrames: 31 }]);
+    .toEqual([{ trimBefore: 0, durationInFrames: 30 }, { trimBefore: 60, durationInFrames: 31 }]); // 30.3 → 30; total 60.6 → ceil 61
+  expect(segmentFrames([{ startMs: 0, endMs: 2010 }], 30)).toEqual([{ trimBefore: 0, durationInFrames: 61 }]); // round would give 60
 });
 // segment.test.ts
 it("carryEmoji follows the old phrase's first word", () => { /* resegmented with a narrower layout; emoji lands on the phrase holding that word id */ });
@@ -248,7 +252,7 @@ it("subtitles follow enabled cuts", () => {
 ```
 - [ ] **Step 2: Run `npx vitest run shared` — FAIL.**
 - [ ] **Step 3: Implement**; extend `tests/integration/render.test.ts` with a second case rendering `segments: [{0,800},{1200,2000}]` (`durationMs: 1600`) and an emphasised word + emoji.
-- [ ] **Step 4: `npm run verify` — PASS (existing 12 pipeline tests unchanged); `npm run render:sample` — 2 passed.**
+- [ ] **Step 4: `npm run verify` — PASS (the 13 existing pipeline tests unchanged); `npm run render:sample` — 2 passed.**
 - [ ] **Step 5: Commit** `feat(render): emphasis colours, emoji, cut timeline, burn-in and translated subtitle tracks`
 
 ### Task 6: Plan API and job
@@ -259,11 +263,11 @@ it("subtitles follow enabled cuts", () => {
 
 **Interfaces:**
 - Consumes: `planEdit`, `translatePhrases` (Task 4); `detectCuts` (Task 2); `renderOutputs`, `startCaptionJob` (Task 5).
-- Produces: `editPlanRouter(deps: AppDeps): Router`; `startPlanJob(deps: AppDeps, project: Project, input: PlanInput): JobState` (job kind `"plan"`; status `planning` → stage `plan` (10) → `translate` (40, only with languages) → status `rendering` → `renderOutputs` → `ready`; an error before rendering restores the previous status and rethrows; a render error sets `failed`). Cuts come from `detectCuts(project.transcript.words, sourceDurationMs)` (ASR words, not edited phrases).
+- Produces: `editPlanRouter(deps: AppDeps): Router`; `startPlanJob(deps: AppDeps, project: Project, input: PlanInput): JobState` (job kind `"plan"`; status `planning` → stage `plan` (10) → `translate` (40 + 30·done/total per batch, only with languages; targets equal to `project.language` skipped) → save `editPlan`, `phrases` (with emphasis/emoji), `translations`, `burnInLanguage` → status `rendering` → `renderOutputs` → `ready`; an error before the save restores the previous status, saves nothing and rethrows; a render error sets `failed` (plan data kept, so a later PATCH can re-render). Cuts come from `detectCuts(project.transcript.words, source.durationMs ?? 0)` — ASR words, not edited phrases, and the same duration `renderOutputs` uses.
   - `POST /api/projects/:id/plan` `PlanInput` → `202 {jobId}`; `400 invalid_input`; `404 not_found`; `400 no_captions` (no transcript or no phrases); `409 busy`.
   - `GET /api/projects/:id/plan` → `200 EditPlan`; `404 no_plan`.
   - `PATCH /api/projects/:id/plan` `UpdatePlanInput` → `400 unknown_id` (any cut/shot id not in the plan, nothing saved); `400 bad_burn_in` (language without a translation); `409 busy`; saves; if a `shouldTrim` or the burn-in changed → `startCaptionJob(…, { transcribe: false, resegment: false })` and `202 {jobId}`, else `200 EditPlan`.
-- `apiTestHelpers.ts`: `projectWithSource(deps)`, `untilStatus(app, id, status)`, `readyProject(deps)` (source + `/run` + ready).
+- `apiTestHelpers.ts`: `projectWithSource(deps)`, `untilStatus(app, id, status)`, `readyProject(deps)` (source + `/run` + ready); `untilPlanned` (ready **and** `editPlan` set) stays local to `routes.test.ts`.
 
 - [ ] **Step 1: Failing tests**
 
@@ -335,5 +339,5 @@ it("tracks the job kind", () => { /* PROCESSING plan job → state.kind === "pla
 ## Finish
 
 - [ ] One fresh review pass over the whole branch (`git diff main…`), fix Critical/Important findings with tests.
-- [ ] `PROJECT.md` State + Run (Ollama: `npm run ai:ollama`, `ollama pull qwen2.5:3b`, `FAKE_AI=1`, schema columns unapplied until the next `dev:server` boot); README plan table row 2 ✅; test count.
-- [ ] `npm run verify` green; commit `docs: plan 2 complete`.
+- [ ] `PROJECT.md` State + Run (Ollama: `brew install ollama` → `npm run ai:ollama` → `ollama pull qwen2.5:3b`; never the menu-bar app; `OLLAMA_MODEL=qwen2.5:7b` for better translations; `FAKE_AI=1`; schema columns unapplied until `make db && npm run dev:server`); README plan table row 2 ✅; test count.
+- [ ] `npm run verify` green; commit `docs: plan 2 complete`; file this plan as a note in `/Users/febrielotud/Obsidian/Astro/Claude Code/` with `[[wiki-links]]` (global rule).
