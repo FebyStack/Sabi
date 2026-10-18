@@ -1,9 +1,8 @@
 import { Player } from "@remotion/player";
 import { CaptionVideo, FPS } from "@shared/remotion/CaptionVideo";
 import { getCaptionTemplate } from "@shared/captions/templates";
+import { DIMS } from "@shared/editing/renderProps";
 import type { Project } from "@shared/types";
-
-const DIMS = { "9:16": { width: 1080, height: 1920 }, "16:9": { width: 1920, height: 1080 } } as const;
 
 export function CaptionPreview({ project, videoSrc, durationMs }: { project: Project; videoSrc: string; durationMs: number }) {
   const { width, height } = DIMS[project.aspectRatio];

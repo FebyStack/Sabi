@@ -29,7 +29,7 @@ export interface CaptionTemplate {
   id: string;
   name: string;
   font: { family: string; weight: number; sizePx: number };
-  colors: { text: string; activeWord: string; background?: string };
+  colors: { text: string; activeWord: string; background?: string; emphasis: Record<EmphasisKind, string> };
   position: { y: number }; // 0..1 from the top
   layout: CaptionLayout;
   animation: "karaoke" | "none";
