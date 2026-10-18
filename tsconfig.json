@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "types": ["vite/client", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["frontend/src/*"],
+      "@ai/*": ["ai/*"],
+      "@shared/*": ["shared/*"]
+    }
+  },
+  "include": ["frontend/src", "shared", "ai"],
+  "exclude": ["**/._*"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

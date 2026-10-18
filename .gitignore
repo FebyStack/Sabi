@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-server/
+.tsbuild/
+.env
+.DS_Store
+._*
+coverage/
+database/backups/*
+!database/backups/.gitkeep

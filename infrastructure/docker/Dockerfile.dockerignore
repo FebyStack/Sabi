@@ -1,0 +1,9 @@
+node_modules
+dist
+dist-server
+.tsbuild
+.git
+.env
+**/.venv
+**/*.mp4
+**/*.mov
