@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
@@ -11,6 +12,6 @@
     "resolveJsonModule": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["./**/*.ts", "../shared/**/*.ts", "../ai/**/*.ts"],
+  "include": ["./**/*.ts", "../shared/**/*", "../ai/**/*.ts"],
   "exclude": ["**/._*"]
 }

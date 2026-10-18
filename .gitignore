@@ -9,3 +9,4 @@ coverage/
 database/backups/*
 !database/backups/.gitkeep
 .superpowers/
+.remotion-bundle/
