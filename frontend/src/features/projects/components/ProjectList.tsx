@@ -1,11 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { createProject, listProjects } from "@/services/http";
 
 export function ProjectList() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
-  const create = useMutation({ mutationFn: createProject, onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }) });
+  const create = useMutation({
+    mutationFn: createProject,
+    onSuccess: (p) => { qc.invalidateQueries({ queryKey: ["projects"] }); navigate(`/p/${p.id}`); },
+  });
   const [title, setTitle] = useState("");
 
   return (
@@ -20,9 +25,11 @@ export function ProjectList() {
       {projects.data?.length === 0 && <p className="text-neutral-400">No projects yet — create one to start.</p>}
       <ul className="divide-y divide-neutral-800">
         {projects.data?.map((p) => (
-          <li key={p.id} className="flex min-h-11 items-center justify-between py-2">
-            <span>{p.title}</span>
-            <span className="text-xs text-neutral-400">{p.aspectRatio} · {p.mediaSource} · {p.status}</span>
+          <li key={p.id}>
+            <Link to={`/p/${p.id}`} className="flex min-h-11 items-center justify-between py-2 hover:text-white">
+              <span>{p.title}</span>
+              <span className="text-xs text-neutral-400">{p.aspectRatio} · {p.mediaSource} · {p.status}</span>
+            </Link>
           </li>
         ))}
       </ul>
