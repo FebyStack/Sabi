@@ -1,16 +1,13 @@
 import { Router, type Request, type Response } from "express";
 import { RunInput, SetSourceInput, UpdatePhrasesInput, UpdateTemplateInput, api } from "../../../shared/contract";
 import type { AppDeps } from "../../shared/deps";
+import { projectLoader } from "../../shared/routes";
 import { startCaptionJob, type RunOptions } from "./pipeline";
 
 export function pipelineRouter(deps: AppDeps) {
   const r = Router();
 
-  const load = async (req: Request<{ id: string }>, res: Response) => {
-    const project = await deps.projects.get(req.params.id);
-    if (!project) res.status(404).json({ error: "not_found" });
-    return project;
-  };
+  const load = projectLoader(deps);
 
   const run = async (req: Request<{ id: string }>, res: Response, opts: RunOptions) => {
     const project = await load(req, res);

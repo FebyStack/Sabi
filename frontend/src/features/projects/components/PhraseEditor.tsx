@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { retimePhrase } from "@shared/captions/retime";
 import type { Phrase } from "@shared/types";
 
-export { retimePhrase };
-
 // A cleared textarea deletes the caption.
 export const applyPhraseEdits = (phrases: Phrase[], texts: string[]) =>
   phrases.map((p, i) => retimePhrase(p, texts[i] ?? "")).filter((p) => p.words.length > 0);

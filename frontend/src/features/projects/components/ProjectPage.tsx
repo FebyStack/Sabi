@@ -33,7 +33,9 @@ export function ProjectPage() {
 
   const p = project.data;
   if (!p) return <main className="p-4 text-neutral-300">{project.isError ? "Project not found." : "Loading…"}</main>;
-  const busy = RUNNING.includes(p.status) || run.isPending || phrases.isPending || template.isPending || plan.isPending || planUpdate.isPending;
+  const mutations = [run, phrases, template, plan, planUpdate];
+  const busy = RUNNING.includes(p.status) || mutations.some((m) => m.isPending);
+  const failure = events.error ?? mutations.find((m) => m.error)?.error?.message ?? (p.status === "failed" ? "see server logs" : null);
   const sourceUrl = p.sourceAssetId ? assetFileUrl(p.sourceAssetId) : null;
   const durationMs = p.sourceDurationMs ?? sourceDuration(p);
   // Plan times are source time; the player runs on the cut timeline.
@@ -65,7 +67,7 @@ export function ProjectPage() {
               </button>
             </div>
             {busy && <StageProgress kind={events.kind} stage={events.stage} progress={events.progress} />}
-            {(events.error || p.status === "failed") && <p className="text-sm text-red-400">Failed: {events.error ?? "see server logs"}</p>}
+            {failure && <p className="text-sm text-red-400">Failed: {failure}</p>}
             {p.warnings.includes("no_speech") && <p className="text-sm text-amber-400">No speech detected in this clip.</p>}
             {p.status === "ready" && (
               <div className="flex flex-wrap gap-2 text-sm">
@@ -81,7 +83,7 @@ export function ProjectPage() {
               </div>
             )}
             {p.transcript && p.phrases.length > 0 && (
-              <EditPlanPanel project={p} busy={busy} onPlan={(input) => plan.mutate(input)} onUpdate={(input) => planUpdate.mutate(input)} onSeek={seek} />
+              <EditPlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} onUpdate={(input) => planUpdate.mutate(input)} onSeek={seek} />
             )}
           </section>
           <section>

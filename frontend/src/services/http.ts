@@ -3,7 +3,7 @@ import type { CreateProjectInput, Project } from "@shared/types";
 
 export async function json<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(input, { headers: { "content-type": "application/json" }, ...init });
-  if (!res.ok) throw new Error(`${init?.method ?? "GET"} ${input} → ${res.status}`);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error ?? `${init?.method ?? "GET"} ${input} → ${res.status}`);
   return res.json() as Promise<T>;
 }
 

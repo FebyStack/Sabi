@@ -56,11 +56,12 @@ export function applyCuts(phrases: Phrase[], cuts: Cut[], dropCutWords = true): 
   const isCut = (w: Word) => dropCutWords && gone.some((r) => w.startMs >= r.startMs && w.endMs <= r.endMs);
   return phrases.flatMap((p) => {
     const kept = p.words.map((w, i) => ({ w, i })).filter(({ w }) => !isCut(w));
-    if (!kept.length) return [];
+    const startMs = mapTime(p.startMs, cuts), endMs = mapTime(p.endMs, cuts);
+    if (!kept.length || endMs <= startMs) return []; // a fully cut phrase would be a zero-length cue
     // A line break after a dropped word moves to the last kept word before it.
     const breaks = [...new Set(p.lineBreaksAfter.map((b) => kept.filter(({ i }) => i <= b).length - 1))].filter((b) => b >= 0 && b < kept.length - 1);
     return [{
-      ...p, startMs: mapTime(p.startMs, cuts), endMs: mapTime(p.endMs, cuts), lineBreaksAfter: breaks,
+      ...p, startMs, endMs, lineBreaksAfter: breaks,
       words: kept.map(({ w }) => ({ ...w, startMs: mapTime(w.startMs, cuts), endMs: mapTime(w.endMs, cuts) })),
     }];
   });

@@ -1,9 +1,10 @@
-import { Router, type Request, type Response } from "express";
+import { Router } from "express";
 import type { z } from "zod";
 import { PlanInput, UpdatePlanInput, api } from "../../../shared/contract";
 import { detectCuts } from "../../../shared/editing/cuts";
 import type { JobState, Project, ProjectStatus, Translation } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
+import { projectLoader } from "../../shared/routes";
 import { renderOutputs, startCaptionJob } from "../pipeline/pipeline";
 import { TRANSLATE_BATCH, planEdit, translatePhrases } from "./planner";
 
@@ -50,11 +51,7 @@ export function startPlanJob(deps: AppDeps, project: Project, input: z.infer<typ
 export function editPlanRouter(deps: AppDeps) {
   const r = Router();
 
-  const load = async (req: Request<{ id: string }>, res: Response) => {
-    const project = await deps.projects.get(req.params.id);
-    if (!project) res.status(404).json({ error: "not_found" });
-    return project;
-  };
+  const load = projectLoader(deps);
 
   r.post<{ id: string }>(api.projectPlan(":id"), async (req, res) => {
     const parsed = PlanInput.safeParse(req.body ?? {});
@@ -95,8 +92,8 @@ export function editPlanRouter(deps: AppDeps) {
     };
     const burnInChanged = burnInLanguage !== undefined && burnInLanguage !== project.burnInLanguage;
     const updated = await deps.projects.update(project.id, { editPlan, ...(burnInChanged ? { burnInLanguage } : {}) });
-    // Shot kinds don't change the render yet (no B-roll), so only cuts and burn-in re-render.
-    if (!burnInChanged && editPlan.cuts.every((c, i) => c.shouldTrim === plan.cuts[i].shouldTrim)) return res.json(editPlan);
+    // Shot kinds don't change the render yet (no B-roll), so only cuts, burn-in and a failed previous render re-render.
+    if (!burnInChanged && project.status !== "failed" && editPlan.cuts.every((c, i) => c.shouldTrim === plan.cuts[i].shouldTrim)) return res.json(editPlan);
     res.status(202).json({ jobId: startCaptionJob(deps, updated, { transcribe: false, resegment: false }).id });
   });
 

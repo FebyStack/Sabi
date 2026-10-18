@@ -10,7 +10,9 @@ const unavailable = () => new Error("llm_unavailable");
 
 // Local Ollama (never the Anthropic API). `format` is a JSON schema, so the model's grammar enforces shape and array bounds.
 export class OllamaLlm implements Llm {
-  constructor(private baseUrl: string, private model: string, private opts: { timeoutMs?: number } = {}) {}
+  constructor(private baseUrl: string, private model: string, private opts: { timeoutMs?: number } = {}) {
+    this.baseUrl = baseUrl.replace(/\/+$/, "");
+  }
 
   async chat({ system, user, format }: LlmRequest): Promise<string> {
     const res = await fetch(`${this.baseUrl}/api/chat`, {

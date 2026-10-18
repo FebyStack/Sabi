@@ -1,8 +1,8 @@
 import request from "supertest";
 import type { createApp } from "../../app/app";
-import { projectWithSource, readyProject } from "../../shared/apiTestHelpers";
+import { projectWithSource, readyProject, untilStatus } from "../../shared/apiTestHelpers";
 import { FakeLlm } from "../../shared/llm";
-import type { FakeRenderer } from "../../shared/renderer";
+import { FakeRenderer } from "../../shared/renderer";
 import { makeTestDeps } from "../../shared/testing";
 import type { Project, ProjectEvent } from "../../../shared/types";
 
@@ -88,6 +88,20 @@ describe("edit plan api", () => {
     expect(res.status).toBe(200);
     expect(res.body.shots[0].kind).toBe("B-Roll");
     expect(renderer.calls.length).toBe(calls);
+  });
+
+  it("re-renders on any plan change after a failed render", async () => {
+    const renderer = new FakeRenderer();
+    let fail = false;
+    const deps = makeTestDeps({ renderer: { render: (r) => { if (fail) throw new Error("render_boom"); return renderer.render(r); } } });
+    const { a, project } = await readyProject(deps);
+    fail = true;
+    await request(a).post(`/api/projects/${project.id}/plan`).send({});
+    await untilStatus(a, project.id, "failed");
+    fail = false;
+    const res = await request(a).patch(`/api/projects/${project.id}/plan`).send({ shots: [{ id: "shot-0", kind: "B-Roll" }] });
+    expect(res.status).toBe(202);
+    expect((await untilStatus(a, project.id, "ready")).editPlan!.shots[0].kind).toBe("B-Roll");
   });
 
   it("unknown ids and untranslated burn-in are rejected", async () => {

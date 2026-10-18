@@ -71,8 +71,12 @@ describe("cut timeline", () => {
 
   it("applyCuts keeps every word when dropCutWords is false", () => {
     const out = applyCuts(input, fillers, false);
-    expect(out.map((p) => p.words.length)).toEqual([3, 1, 1]);
+    expect(out.map((p) => p.words.length)).toEqual([3, 1]);
     expect(out[0].words[1]).toMatchObject({ startMs: 300, endMs: 300 });
     expect(out[0].lineBreaksAfter).toEqual([1]);
+  });
+
+  it("applyCuts drops a phrase whose whole span is cut, so no zero-length cue", () => {
+    expect(applyCuts(input, fillers, false).map((p) => [p.id, p.startMs, p.endMs])).toEqual([["p0", 0, 600], ["p2", 900, 1200]]);
   });
 });

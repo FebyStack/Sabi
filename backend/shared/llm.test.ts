@@ -37,6 +37,14 @@ describe("OllamaLlm", () => {
     });
   });
 
+  it("ignores a trailing slash in the base URL", async () => {
+    const seen: Seen = {};
+    const { server, url } = await serve(200, JSON.stringify({ message: { content: "{}" } }), seen);
+    await new OllamaLlm(`${url}/`, "m").chat(req);
+    server.close();
+    expect(seen.path).toBe("/api/chat");
+  });
+
   it("maps a 404 to llm_model_missing", async () => {
     const { server, url } = await serve(404, JSON.stringify({ error: "model 'qwen2.5:3b' not found" }));
     await expect(new OllamaLlm(url, "qwen2.5:3b").chat(req)).rejects.toThrow("llm_model_missing");
