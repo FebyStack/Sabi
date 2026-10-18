@@ -18,4 +18,9 @@ describe("reduceProjectEvents", () => {
     expect(s.error).toBeNull();
     expect(s.progress).toBe(0);
   });
+
+  it("tracks the job kind", () => {
+    const s = reduceProjectEvents(initialEventsState, { type: "job", job: { id: "j", projectId: "p", kind: "plan", state: "PROCESSING", stage: "plan", progress: 10 } });
+    expect(s.kind).toBe("plan");
+  });
 });

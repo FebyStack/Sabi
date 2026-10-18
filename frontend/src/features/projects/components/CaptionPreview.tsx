@@ -1,21 +1,23 @@
-import { Player } from "@remotion/player";
+import { Player, type PlayerRef } from "@remotion/player";
+import { useMemo, type RefObject } from "react";
 import { CaptionVideo, FPS } from "@shared/remotion/CaptionVideo";
-import { getCaptionTemplate } from "@shared/captions/templates";
-import { DIMS } from "@shared/editing/renderProps";
+import { captionVideoProps } from "@shared/editing/renderProps";
 import type { Project } from "@shared/types";
 
-export function CaptionPreview({ project, videoSrc, durationMs }: { project: Project; videoSrc: string; durationMs: number }) {
-  const { width, height } = DIMS[project.aspectRatio];
+// Same props as the server render (cuts, burn-in, emphasis, emoji), so preview = export.
+export function CaptionPreview({ project, videoSrc, durationMs, playerRef }: { project: Project; videoSrc: string; durationMs: number; playerRef: RefObject<PlayerRef | null> }) {
+  const props = useMemo(() => captionVideoProps(project, { videoSrc, sourceDurationMs: durationMs }), [project, videoSrc, durationMs]);
   return (
     <Player
+      ref={playerRef}
       component={CaptionVideo}
-      inputProps={{ videoSrc, sourceKind: project.sourceKind ?? "video", phrases: project.phrases, template: getCaptionTemplate(project.captionTemplateId), width, height, durationMs }}
-      durationInFrames={Math.max(1, Math.ceil((durationMs / 1000) * FPS))}
+      inputProps={props}
+      durationInFrames={Math.max(1, Math.ceil((props.durationMs / 1000) * FPS))}
       fps={FPS}
-      compositionWidth={width}
-      compositionHeight={height}
+      compositionWidth={props.width}
+      compositionHeight={props.height}
       controls
-      style={{ width: "100%", aspectRatio: `${width} / ${height}`, maxHeight: "70vh" }}
+      style={{ width: "100%", aspectRatio: `${props.width} / ${props.height}`, maxHeight: "70vh" }}
     />
   );
 }

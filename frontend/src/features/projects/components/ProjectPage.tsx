@@ -1,10 +1,16 @@
+import type { PlayerRef } from "@remotion/player";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Fragment, useRef } from "react";
 import { Link, useParams } from "react-router";
 import { CAPTION_TEMPLATES } from "@shared/captions/templates";
-import type { Project } from "@shared/types";
-import { assetFileUrl, getProject, runProject, setSource, updatePhrases, updateTemplate } from "../api/projects";
+import { mapTime } from "@shared/editing/cuts";
+import { enabledCuts } from "@shared/editing/renderProps";
+import { FPS } from "@shared/remotion/CaptionVideo";
+import type { PlanInput, Project, UpdatePlanInput } from "@shared/types";
+import { assetFileUrl, getProject, planProject, runProject, setSource, updatePhrases, updatePlan, updateTemplate } from "../api/projects";
 import { useProjectEvents } from "../hooks/useProjectEvents";
 import { CaptionPreview } from "./CaptionPreview";
+import { EditPlanPanel } from "./EditPlanPanel";
 import { PhraseEditor } from "./PhraseEditor";
 import { StageProgress } from "./StageProgress";
 import { UploadDropzone } from "./UploadDropzone";
@@ -21,12 +27,18 @@ export function ProjectPage() {
   const run = useMutation({ mutationFn: () => runProject(id), onSuccess: refresh });
   const phrases = useMutation({ mutationFn: (p: Project["phrases"]) => updatePhrases(id, p), onSuccess: refresh });
   const template = useMutation({ mutationFn: (t: Project["captionTemplateId"]) => updateTemplate(id, t), onSuccess: refresh });
+  const plan = useMutation({ mutationFn: (input: PlanInput) => planProject(id, input), onSuccess: refresh });
+  const planUpdate = useMutation({ mutationFn: (input: UpdatePlanInput) => updatePlan(id, input), onSuccess: refresh });
+  const playerRef = useRef<PlayerRef>(null);
 
   const p = project.data;
   if (!p) return <main className="p-4 text-neutral-300">{project.isError ? "Project not found." : "Loading…"}</main>;
-  const busy = RUNNING.includes(p.status) || run.isPending || phrases.isPending || template.isPending;
+  const busy = RUNNING.includes(p.status) || run.isPending || phrases.isPending || template.isPending || plan.isPending || planUpdate.isPending;
   const sourceUrl = p.sourceAssetId ? assetFileUrl(p.sourceAssetId) : null;
-  const durationMs = sourceDuration(p);
+  const durationMs = p.sourceDurationMs ?? sourceDuration(p);
+  // Plan times are source time; the player runs on the cut timeline.
+  const seek = (ms: number) => playerRef.current?.seekTo(Math.round((mapTime(ms, enabledCuts(p)) * FPS) / 1000));
+  const download = "min-h-11 content-center rounded-md bg-neutral-800 px-4";
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-4 text-neutral-100">
@@ -42,7 +54,7 @@ export function ProjectPage() {
         <div className="grid gap-6 md:grid-cols-2">
           <section className="space-y-3">
             {p.phrases.length > 0 && durationMs > 0
-              ? <CaptionPreview project={p} videoSrc={sourceUrl} durationMs={durationMs} />
+              ? <CaptionPreview project={p} videoSrc={sourceUrl} durationMs={durationMs} playerRef={playerRef} />
               : <video src={sourceUrl} controls className="mx-auto max-h-[70vh] w-full rounded-lg bg-black" />}
             <div className="flex flex-wrap gap-2">
               <select className="min-h-11 rounded-md bg-neutral-800 px-3" value={p.captionTemplateId} disabled={busy} onChange={(e) => template.mutate(e.target.value as Project["captionTemplateId"])}>
@@ -52,15 +64,24 @@ export function ProjectPage() {
                 {p.status === "ready" ? "Re-run" : "Generate captions"}
               </button>
             </div>
-            {busy && <StageProgress stage={events.stage} progress={events.progress} />}
+            {busy && <StageProgress kind={events.kind} stage={events.stage} progress={events.progress} />}
             {(events.error || p.status === "failed") && <p className="text-sm text-red-400">Failed: {events.error ?? "see server logs"}</p>}
             {p.warnings.includes("no_speech") && <p className="text-sm text-amber-400">No speech detected in this clip.</p>}
             {p.status === "ready" && (
               <div className="flex flex-wrap gap-2 text-sm">
-                {p.outputs.mp4AssetId && <a className="min-h-11 content-center rounded-md bg-neutral-800 px-4" href={assetFileUrl(p.outputs.mp4AssetId)} download={`${p.title}.mp4`}>Download MP4</a>}
-                {p.outputs.srtAssetId && <a className="min-h-11 content-center rounded-md bg-neutral-800 px-4" href={assetFileUrl(p.outputs.srtAssetId)} download={`${p.title}.srt`}>SRT</a>}
-                {p.outputs.vttAssetId && <a className="min-h-11 content-center rounded-md bg-neutral-800 px-4" href={assetFileUrl(p.outputs.vttAssetId)} download={`${p.title}.vtt`}>VTT</a>}
+                {p.outputs.mp4AssetId && <a className={download} href={assetFileUrl(p.outputs.mp4AssetId)} download={`${p.title}.mp4`}>Download MP4</a>}
+                {p.outputs.srtAssetId && <a className={download} href={assetFileUrl(p.outputs.srtAssetId)} download={`${p.title}.srt`}>SRT</a>}
+                {p.outputs.vttAssetId && <a className={download} href={assetFileUrl(p.outputs.vttAssetId)} download={`${p.title}.vtt`}>VTT</a>}
+                {p.outputs.translations?.map((t) => (
+                  <Fragment key={t.language}>
+                    <a className={download} href={assetFileUrl(t.srtAssetId)} download={`${p.title}.${t.language}.srt`}>SRT ({t.language})</a>
+                    <a className={download} href={assetFileUrl(t.vttAssetId)} download={`${p.title}.${t.language}.vtt`}>VTT ({t.language})</a>
+                  </Fragment>
+                ))}
               </div>
+            )}
+            {p.transcript && p.phrases.length > 0 && (
+              <EditPlanPanel project={p} busy={busy} onPlan={(input) => plan.mutate(input)} onUpdate={(input) => planUpdate.mutate(input)} onSeek={seek} />
             )}
           </section>
           <section>
@@ -74,7 +95,7 @@ export function ProjectPage() {
   );
 }
 
-// The source asset's duration isn't on the project; derive it from the last phrase or transcript word until plan 2 adds assets to the payload.
+// Fallback for projects saved before sourceDurationMs existed: derive it from the last transcript word or phrase.
 function sourceDuration(p: Project) {
   const last = p.transcript?.words.at(-1)?.endMs ?? p.phrases.at(-1)?.endMs ?? 0;
   return last > 0 ? last + 500 : 0;

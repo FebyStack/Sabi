@@ -1,5 +1,5 @@
 import { AssetSchema, ProjectSchema, api } from "@shared/contract";
-import type { Asset, Phrase, Project } from "@shared/types";
+import type { Asset, Phrase, PlanInput, Project, UpdatePlanInput } from "@shared/types";
 import { json } from "@/services/http";
 
 export const getProject = (id: string) => json<unknown>(api.project(id)).then(ProjectSchema.parse);
@@ -11,6 +11,11 @@ export const updatePhrases = (id: string, phrases: Phrase[]) =>
   json<{ jobId: string }>(api.projectPhrases(id), { method: "PUT", body: JSON.stringify({ phrases }) });
 export const updateTemplate = (id: string, captionTemplateId: Project["captionTemplateId"]) =>
   json<{ jobId: string }>(api.projectTemplate(id), { method: "PUT", body: JSON.stringify({ captionTemplateId }) });
+export const planProject = (id: string, input: PlanInput) =>
+  json<{ jobId: string }>(api.projectPlan(id), { method: "POST", body: JSON.stringify(input) });
+// 200 EditPlan when nothing needs re-rendering, else 202 {jobId}; either way the project query is refreshed.
+export const updatePlan = (id: string, input: UpdatePlanInput) =>
+  json<unknown>(api.projectPlan(id), { method: "PATCH", body: JSON.stringify(input) });
 export const assetFileUrl = (assetId: string) => api.assetFile(assetId);
 
 // start → PUT bytes (XHR for progress) → done
