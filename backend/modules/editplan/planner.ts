@@ -59,7 +59,7 @@ export async function planEdit(llm: Llm, phrases: Phrase[], durationMs: number):
 }
 
 // One output line per phrase; timings come from the source phrase. ja/zh have no spaces, so a phrase becomes one "word" (accepted).
-export async function translatePhrases(llm: Llm, phrases: Phrase[], language: TranslationLanguage): Promise<Phrase[]> {
+export async function translatePhrases(llm: Llm, phrases: Phrase[], language: TranslationLanguage, onBatch = () => {}): Promise<Phrase[]> {
   const name = LANGUAGE_NAMES[language];
   const out: Phrase[] = [];
   for (const batch of batches(phrases, TRANSLATE_BATCH)) {
@@ -68,6 +68,7 @@ export async function translatePhrases(llm: Llm, phrases: Phrase[], language: Tr
       const t = retimePhrase({ ...src, lineBreaksAfter: [] }, lines[j].trim() || textOf(src));
       out.push({ ...t, words: t.words.map(plain) });
     });
+    onBatch();
   }
   return out;
 }
