@@ -19,10 +19,11 @@ export const translateSystem = (languageName: string) => `Translate each subtitl
 The user sends JSON {"language":<name>,"lines":[<line>]}. Keep the meaning and tone of the speaker.
 Answer with JSON {"lines":[...]}: exactly one output line per input line, in the same order, with no notes or explanations.`;
 
+// Plain numbers: .int() serialises ±2^53 bounds that llama.cpp expands digit by digit. The planner drops non-integers.
 export const llmPlanSchema = (n: number) => z.object({
-  shots: z.array(z.object({ from: z.number().int(), kind: ShotKind })).max(n),
-  emphasis: z.array(z.object({ phrase: z.number().int(), word: z.string(), kind: EmphasisKind })).max(2 * n),
-  emoji: z.array(z.object({ phrase: z.number().int(), emoji: z.string() })).max(n),
+  shots: z.array(z.object({ from: z.number(), kind: ShotKind })).max(n),
+  emphasis: z.array(z.object({ phrase: z.number(), word: z.string(), kind: EmphasisKind })).max(2 * n),
+  emoji: z.array(z.object({ phrase: z.number(), emoji: z.string() })).max(n),
 });
 
 export const llmLinesSchema = (n: number) => z.object({ lines: z.array(z.string()).length(n) });

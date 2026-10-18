@@ -57,6 +57,13 @@ describe("planEdit", () => {
     expect(out.phrases[0].emoji).toBeUndefined();
   });
 
+  it("ignores non-integer phrase indices", async () => {
+    const llm = plan([{ from: 0, kind: "Hook" }, { from: 1.5, kind: "B-Roll" }], [{ phrase: 0.5, word: "Here", kind: "noun" }], [{ phrase: 1.5, emoji: "🔥" }]);
+    const out = await planEdit(llm, phrases, 21000);
+    expect(out.shots).toEqual([{ id: "shot-0", kind: "Hook", startMs: 0, endMs: 21000 }]);
+    expect(out.phrases.some((p) => p.emoji || p.words.some((w) => w.emphasis))).toBe(false);
+  });
+
   it("demotes a late Hook and merges equal neighbours", async () => {
     const llm = plan([{ from: 0, kind: "Talking Head" }, { from: 2, kind: "Talking Head" }, { from: 5, kind: "Hook" }]);
     const { shots } = await planEdit(llm, phrases, 21000);
