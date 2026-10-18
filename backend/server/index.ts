@@ -4,6 +4,7 @@ import { PgAssetRepository } from "../modules/assets/repository";
 import { PgProjectRepository } from "../modules/projects/repository";
 import { MemoryEventBus } from "../shared/events";
 import { MemoryJobRunner } from "../shared/jobs";
+import { OllamaLlm } from "../shared/llm";
 import { FfmpegMedia } from "../shared/media";
 import { applySchema, createPool } from "../shared/pg";
 import { RemotionRenderer } from "../shared/renderer";
@@ -31,6 +32,7 @@ createApp({
   jobs: new MemoryJobRunner(bus),
   transcriber: new WhisperXTranscriber(process.env.WHISPERX_URL ?? "http://localhost:8010"),
   renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts", bundleDir: ".remotion-bundle" }),
+  llm: new OllamaLlm(process.env.OLLAMA_URL ?? "http://localhost:11434", process.env.OLLAMA_MODEL ?? "qwen2.5:3b"),
   apiBaseUrl: process.env.API_BASE_URL ?? `http://127.0.0.1:${port}`,
   now: () => new Date(),
   id: randomUUID,

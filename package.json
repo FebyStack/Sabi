@@ -14,7 +14,8 @@
     "build:server": "esbuild backend/server/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist-server/index.cjs --external:pg-native",
     "verify": "npm run typecheck && npm run typecheck:server && npm run test",
     "render:sample": "RUN_RENDER=1 vitest run tests/integration/render.test.ts",
-    "ai:whisperx": "HF_HOME=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/hf uv run --directory ai/transcription uvicorn server:app --host 127.0.0.1 --port 8010"
+    "ai:whisperx": "HF_HOME=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/hf uv run --directory ai/transcription uvicorn server:app --host 127.0.0.1 --port 8010",
+    "ai:ollama": "OLLAMA_MODELS=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/ollama ollama serve"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.536",
