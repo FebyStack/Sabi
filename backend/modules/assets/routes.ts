@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { Transform } from "node:stream";
+// stream.compose exists since Node 19 but @types/node@22 still lacks it.
+const { compose } = (await import("node:stream")) as unknown as { compose: (...streams: NodeJS.ReadableStream[]) => import("node:stream").Duplex };
 import { MAX_CLIP_MS, UPLOAD_LIMITS, UploadStartInput, api } from "../../../shared/contract";
 import type { Asset } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
@@ -16,7 +18,7 @@ const limitBytes = (max: number) => {
 
 export function assetsRouter(deps: AppDeps) {
   const r = Router();
-  const pending = new Map<string, { fileName: string; mimeType: string; sizeBytes: number; key: string }>();
+  const pending = new Map<string, { fileName: string; mimeType: string; sizeBytes: number; key: string; writing: boolean }>();
 
   r.post(api.uploadsStart, (req, res) => {
     const parsed = UploadStartInput.safeParse(req.body);
@@ -25,40 +27,47 @@ export function assetsRouter(deps: AppDeps) {
     if (sizeBytes > UPLOAD_LIMITS.maxBytes) return res.status(413).json({ error: "too_large" });
     if (!(UPLOAD_LIMITS.mimeTypes as readonly string[]).includes(mimeType)) return res.status(415).json({ error: "unsupported_type" });
     const uploadId = deps.id();
-    pending.set(uploadId, { fileName, mimeType, sizeBytes, key: `uploads/${uploadId}${EXT[mimeType]}` });
+    pending.set(uploadId, { fileName, mimeType, sizeBytes, key: `uploads/${uploadId}${EXT[mimeType]}`, writing: false });
     res.json({ uploadId });
   });
 
   r.put<{ uploadId: string }>(api.upload(":uploadId"), async (req, res) => {
     const up = pending.get(req.params.uploadId);
     if (!up) return res.status(404).json({ error: "not_found" });
+    if (up.writing) return res.status(409).json({ error: "upload_in_progress" });
     const declared = Number(req.headers["content-length"]);
     if (declared > up.sizeBytes) return res.status(413).json({ error: "too_large" });
+    up.writing = true;
     try {
-      await deps.storage.write(up.key, req.pipe(limitBytes(up.sizeBytes))); // streamed straight to disk, capped at the declared size
+      // compose() ties the request into the pipeline, so a client abort destroys the write and the catch removes the partial file.
+      await deps.storage.write(up.key, compose(req, limitBytes(up.sizeBytes)));
       res.status(204).end();
     } catch (err) {
       await deps.storage.remove(up.key);
+      if (res.writableEnded || req.destroyed) return;
       if (err instanceof TooLarge) return res.status(413).json({ error: "too_large" });
       throw err;
+    } finally {
+      up.writing = false;
     }
   });
 
   r.post<{ uploadId: string }>(api.uploadDone(":uploadId"), async (req, res) => {
     const up = pending.get(req.params.uploadId);
     if (!up) return res.status(404).json({ error: "not_found" });
+    if (up.writing) return res.status(409).json({ error: "upload_in_progress" });
     const stored = await deps.storage.stat(up.key);
     if (!stored) return res.status(409).json({ error: "no_bytes" });
+    pending.delete(req.params.uploadId); // no further writes can start while we probe
     const info = await deps.media.probe(deps.storage.localPath(up.key));
     if (info.durationMs > MAX_CLIP_MS) {
-      await deps.storage.remove(up.key); pending.delete(req.params.uploadId);
+      await deps.storage.remove(up.key);
       return res.status(422).json({ error: "too_long", maxMs: MAX_CLIP_MS });
     }
     const asset = await deps.assets.create({
       id: deps.id(), projectId: typeof req.body?.projectId === "string" ? req.body.projectId : null, kind: kindOf(up.mimeType),
       key: up.key, mimeType: up.mimeType, sizeBytes: stored.size, ...info, createdAt: deps.now().toISOString(),
     });
-    pending.delete(req.params.uploadId);
     res.status(201).json(asset);
   });
 
