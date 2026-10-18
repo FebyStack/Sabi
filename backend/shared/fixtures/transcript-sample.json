@@ -1,0 +1,411 @@
+{
+ "language": "en",
+ "words": [
+  {
+   "id": "w-0",
+   "text": "Here",
+   "startMs": 40,
+   "endMs": 290,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-1",
+   "text": "is",
+   "startMs": 290,
+   "endMs": 414,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-2",
+   "text": "the",
+   "startMs": 414,
+   "endMs": 601,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-3",
+   "text": "thing",
+   "startMs": 601,
+   "endMs": 913,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-4",
+   "text": "about",
+   "startMs": 913,
+   "endMs": 1225,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-5",
+   "text": "morning",
+   "startMs": 1225,
+   "endMs": 1662,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-6",
+   "text": "routines.",
+   "startMs": 1662,
+   "endMs": 2224,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-7",
+   "text": "Most",
+   "startMs": 2224,
+   "endMs": 2473,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-8",
+   "text": "people",
+   "startMs": 2473,
+   "endMs": 2847,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-9",
+   "text": "think",
+   "startMs": 2847,
+   "endMs": 3159,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-10",
+   "text": "you",
+   "startMs": 3159,
+   "endMs": 3347,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-11",
+   "text": "need",
+   "startMs": 3347,
+   "endMs": 3596,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-12",
+   "text": "two",
+   "startMs": 3596,
+   "endMs": 3783,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-13",
+   "text": "hours",
+   "startMs": 3783,
+   "endMs": 4095,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-14",
+   "text": "of",
+   "startMs": 4095,
+   "endMs": 4220,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-15",
+   "text": "meditation,",
+   "startMs": 4259,
+   "endMs": 5107,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-16",
+   "text": "a",
+   "startMs": 5107,
+   "endMs": 5184,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-17",
+   "text": "cold",
+   "startMs": 5184,
+   "endMs": 5492,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-18",
+   "text": "plunge,",
+   "startMs": 5492,
+   "endMs": 6032,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-19",
+   "text": "and",
+   "startMs": 6032,
+   "endMs": 6263,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-20",
+   "text": "a",
+   "startMs": 6263,
+   "endMs": 6340,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-21",
+   "text": "green",
+   "startMs": 6340,
+   "endMs": 6725,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-22",
+   "text": "smoothie.",
+   "startMs": 6725,
+   "endMs": 7419,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-23",
+   "text": "You",
+   "startMs": 7719,
+   "endMs": 7942,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-24",
+   "text": "don't.",
+   "startMs": 7942,
+   "endMs": 8389,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-25",
+   "text": "You",
+   "startMs": 8389,
+   "endMs": 8612,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-26",
+   "text": "need",
+   "startMs": 8612,
+   "endMs": 8910,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-27",
+   "text": "one",
+   "startMs": 8910,
+   "endMs": 9133,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-28",
+   "text": "small",
+   "startMs": 9133,
+   "endMs": 9506,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-29",
+   "text": "habit",
+   "startMs": 9506,
+   "endMs": 9878,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-30",
+   "text": "you",
+   "startMs": 9878,
+   "endMs": 10101,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-31",
+   "text": "can",
+   "startMs": 10101,
+   "endMs": 10325,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-32",
+   "text": "actually",
+   "startMs": 10325,
+   "endMs": 10920,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-33",
+   "text": "keep.",
+   "startMs": 10920,
+   "endMs": 11292,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-34",
+   "text": "For",
+   "startMs": 11292,
+   "endMs": 11516,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-35",
+   "text": "me,",
+   "startMs": 11516,
+   "endMs": 11739,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-36",
+   "text": "that",
+   "startMs": 12060,
+   "endMs": 12312,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-37",
+   "text": "is",
+   "startMs": 12312,
+   "endMs": 12438,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-38",
+   "text": "making",
+   "startMs": 12438,
+   "endMs": 12815,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-39",
+   "text": "my",
+   "startMs": 12815,
+   "endMs": 12941,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-40",
+   "text": "bed",
+   "startMs": 12941,
+   "endMs": 13130,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-41",
+   "text": "and",
+   "startMs": 13130,
+   "endMs": 13319,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-42",
+   "text": "drinking",
+   "startMs": 13319,
+   "endMs": 13823,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-43",
+   "text": "a",
+   "startMs": 13823,
+   "endMs": 13886,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-44",
+   "text": "glass",
+   "startMs": 13886,
+   "endMs": 14200,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-45",
+   "text": "of",
+   "startMs": 14200,
+   "endMs": 14326,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-46",
+   "text": "water",
+   "startMs": 14326,
+   "endMs": 14641,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-47",
+   "text": "before",
+   "startMs": 14641,
+   "endMs": 15019,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-48",
+   "text": "I",
+   "startMs": 15019,
+   "endMs": 15082,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-49",
+   "text": "touch",
+   "startMs": 15082,
+   "endMs": 15396,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-50",
+   "text": "my",
+   "startMs": 15396,
+   "endMs": 15522,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-51",
+   "text": "phone.",
+   "startMs": 15522,
+   "endMs": 15900,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-52",
+   "text": "Start",
+   "startMs": 16280,
+   "endMs": 16597,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-53",
+   "text": "there",
+   "startMs": 16597,
+   "endMs": 16913,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-54",
+   "text": "and",
+   "startMs": 16913,
+   "endMs": 17103,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-55",
+   "text": "build",
+   "startMs": 17103,
+   "endMs": 17420,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-56",
+   "text": "from",
+   "startMs": 17420,
+   "endMs": 17673,
+   "confidence": 0.98
+  },
+  {
+   "id": "w-57",
+   "text": "it",
+   "startMs": 17673,
+   "endMs": 17800,
+   "confidence": 0.98
+  }
+ ]
+}

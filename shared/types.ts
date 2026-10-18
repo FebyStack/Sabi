@@ -12,6 +12,7 @@ export type CreateProjectInput = z.infer<typeof CreateProjectInput>;
 
 // Pipeline domain types (filled in as modules land; see docs/blueprint §10.4)
 export interface Word { id: string; text: string; startMs: number; endMs: number; confidence?: number }
+export interface Transcript { language: string; words: Word[] }
 export interface Phrase { id: string; startMs: number; endMs: number; words: Word[] }
 export type ShotKind = "Hook" | "B-Roll" | "Talking Head" | "Talking Head & B-Roll";
 export interface Shot { id: string; kind: ShotKind; startMs: number; endMs: number }
