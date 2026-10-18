@@ -56,9 +56,9 @@ export function assetsRouter(deps: AppDeps) {
     const up = pending.get(req.params.uploadId);
     if (!up) return res.status(404).json({ error: "not_found" });
     if (up.writing) return res.status(409).json({ error: "upload_in_progress" });
+    pending.delete(req.params.uploadId); // claim synchronously: no PUT can start between here and the probe
     const stored = await deps.storage.stat(up.key);
-    if (!stored) return res.status(409).json({ error: "no_bytes" });
-    pending.delete(req.params.uploadId); // no further writes can start while we probe
+    if (!stored) { pending.set(req.params.uploadId, up); return res.status(409).json({ error: "no_bytes" }); }
     const info = await deps.media.probe(deps.storage.localPath(up.key));
     if (info.durationMs > MAX_CLIP_MS) {
       await deps.storage.remove(up.key);
