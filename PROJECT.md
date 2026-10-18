@@ -23,6 +23,7 @@ Processes (terminal tabs, or `.claude/launch.json` entries `api-lite`, `dev`, `w
 - Local ffmpeg has no libass/freetype: all text is drawn by Remotion; ffmpeg only probes and extracts 16 kHz WAV, with `-protocol_whitelist file` + a format whitelist (uploads are untrusted).
 
 ## Decisions
+- Commits and PRs carry **no Claude/AI co-author trailers or "Generated with Claude Code" lines** (owner's rule: they appear as GitHub contributors). `.githooks/commit-msg` strips them; `npm install` (`prepare`) sets `core.hooksPath`.
 - LLM = Ollama locally (never Anthropic API — billing rule). Generation = fal.ai by default, per-project `mediaSource: "stock"` switches to Pexels only.
 - Project model is JSON in Postgres (jsonb), not protobuf; render engine = Remotion/FFmpeg server-side (not in-browser WASM) for MVP.
 - Shot taxonomy copied from captions.ai: `Hook | B-Roll | Talking Head | Talking Head & B-Roll`.
