@@ -17,10 +17,13 @@ const dataDir = process.env.DATA_DIR ?? "/Volumes/PortableSSD/Bong/captions-clon
 
 const pool = createPool(url);
 await applySchema(pool);
+const projects = new PgProjectRepository(pool);
+const stuck = await projects.failStuck(); // jobs are in-process; nothing survives a restart
+if (stuck) console.warn(`marked ${stuck} interrupted project(s) as failed`);
 const bus = new MemoryEventBus();
 
 createApp({
-  projects: new PgProjectRepository(pool),
+  projects,
   assets: new PgAssetRepository(pool),
   storage: new FsStorage(dataDir),
   media: new FfmpegMedia(),

@@ -3,7 +3,7 @@ import { CaptionVideo, FPS, type CaptionVideoProps } from "./CaptionVideo";
 import { getCaptionTemplate } from "../captions/templates";
 
 const defaults: CaptionVideoProps = {
-  videoSrc: "", phrases: [], template: getCaptionTemplate("clean"), width: 1080, height: 1920, durationMs: 1000,
+  videoSrc: "", sourceKind: "video", phrases: [], template: getCaptionTemplate("clean"), width: 1080, height: 1920, durationMs: 1000,
 };
 
 export function Root() {

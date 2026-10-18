@@ -32,6 +32,20 @@ describe("WhisperXTranscriber", () => {
     server.close();
   });
 
+  it("rejects with transcriber_unavailable when the sidecar hangs past the timeout", async () => {
+    const server = createServer(() => { /* never responds */ });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    await expect(new WhisperXTranscriber(url, { timeoutMs: 200 }).transcribe(__filename)).rejects.toThrow("transcriber_unavailable");
+    server.closeAllConnections(); server.close();
+  });
+
+  it("rejects with transcriber_unavailable on a malformed 200 body", async () => {
+    const { server, url } = await serve(200, "not json");
+    await expect(new WhisperXTranscriber(url).transcribe(__filename)).rejects.toThrow("transcriber_unavailable");
+    server.close();
+  });
+
   it("rejects with transcriber_unavailable when the sidecar is down", async () => {
     await expect(new WhisperXTranscriber("http://127.0.0.1:1").transcribe(__filename)).rejects.toThrow("transcriber_unavailable");
   });

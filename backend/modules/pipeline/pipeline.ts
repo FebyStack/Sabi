@@ -36,7 +36,9 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
       }
       if (opts.transcribe || opts.resegment) {
         report(60, "segment");
-        phrases = transcript ? segmentCaptions(transcript.words, template.layout) : [];
+        // A template change re-flows the user's edited words (spelling fixes survive); a fresh transcription starts from the ASR words.
+        const words = !opts.transcribe && phrases.length ? phrases.flatMap((p) => p.words) : transcript?.words ?? [];
+        phrases = segmentCaptions(words, template.layout);
       }
       const warnings = transcript && transcript.words.length === 0 ? ["no_speech"] : [];
       await setStatus("rendering", { transcript, phrases, language: transcript?.language ?? project.language, warnings });
@@ -49,7 +51,7 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
       await mkdir(dirname(outPath), { recursive: true });
       await deps.renderer.render({
         compositionId: "CaptionVideo",
-        inputProps: { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, phrases, template, width, height, durationMs },
+        inputProps: { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceKind: source.kind === "audio" ? "audio" : "video", phrases, template, width, height, durationMs },
         durationMs,
         outPath,
       });

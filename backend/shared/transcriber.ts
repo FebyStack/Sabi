@@ -7,25 +7,29 @@ export interface Transcriber {
 
 type SidecarWord = { text: string; start: number; end: number; score?: number };
 
+const unavailable = () => new Error("transcriber_unavailable");
+
 // Talks to ai/transcription/server.py (whisperX). Seconds on the wire, ms in the domain.
 export class WhisperXTranscriber implements Transcriber {
-  constructor(private baseUrl: string) {}
+  constructor(private baseUrl: string, private opts: { timeoutMs?: number } = {}) {}
 
   async transcribe(wavPath: string, opts: { language?: string } = {}): Promise<Transcript> {
     const form = new FormData();
     form.append("file", new Blob([await readFile(wavPath)], { type: "audio/wav" }), "audio.wav");
     if (opts.language) form.append("language", opts.language);
-    let res: Response;
+    let body: { language?: unknown; words?: unknown };
     try {
-      res = await fetch(`${this.baseUrl}/transcribe`, { method: "POST", body: form });
+      // CPU int8 whisperX on a 10-minute clip can take a while; a hung sidecar must still fail the job.
+      const res = await fetch(`${this.baseUrl}/transcribe`, { method: "POST", body: form, signal: AbortSignal.timeout(this.opts.timeoutMs ?? 30 * 60_000) });
+      if (!res.ok) throw unavailable();
+      body = await res.json();
     } catch {
-      throw new Error("transcriber_unavailable");
+      throw unavailable();
     }
-    if (!res.ok) throw new Error("transcriber_unavailable");
-    const body = (await res.json()) as { language: string; words: SidecarWord[] };
+    if (typeof body.language !== "string" || !Array.isArray(body.words)) throw unavailable();
     return {
       language: body.language,
-      words: body.words.map((w, i) => ({
+      words: (body.words as SidecarWord[]).map((w, i) => ({
         id: `w-${i}`, text: w.text, startMs: Math.round(w.start * 1000), endMs: Math.round(w.end * 1000),
         ...(w.score !== undefined ? { confidence: w.score } : {}),
       })),

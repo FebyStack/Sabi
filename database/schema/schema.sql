@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 CREATE INDEX IF NOT EXISTS projects_created_idx ON projects (created_at DESC);
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS source_asset_id TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS source_kind TEXT CHECK (source_kind IN ('video', 'audio'));
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS language TEXT;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS caption_template_id TEXT NOT NULL DEFAULT 'clean';
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS transcript JSONB;

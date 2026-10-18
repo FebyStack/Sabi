@@ -1,9 +1,10 @@
-import { AbsoluteFill, OffthreadVideo, Video, getRemotionEnvironment, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, OffthreadVideo, Video, getRemotionEnvironment, useCurrentFrame, useVideoConfig } from "remotion";
 import type { CaptionTemplate, Phrase } from "../types";
 import { activeWordIndex, phraseAt } from "./activeWord";
 
 export type CaptionVideoProps = {
   videoSrc: string;
+  sourceKind: "video" | "audio"; // audio-only sources play on black
   phrases: Phrase[];
   template: CaptionTemplate;
   width: number;
@@ -13,7 +14,7 @@ export type CaptionVideoProps = {
 
 export const FPS = 30;
 
-export function CaptionVideo({ videoSrc, phrases, template }: CaptionVideoProps) {
+export function CaptionVideo({ videoSrc, sourceKind, phrases, template }: CaptionVideoProps) {
   const frame = useCurrentFrame();
   const { fps, height } = useVideoConfig();
   const timeMs = (frame / fps) * 1000;
@@ -23,7 +24,7 @@ export function CaptionVideo({ videoSrc, phrases, template }: CaptionVideoProps)
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
-      <Src src={videoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      {sourceKind === "audio" ? <Audio src={videoSrc} /> : <Src src={videoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       {phrase && (
         <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "center", paddingTop: height * template.position.y - template.font.sizePx }}>
           <div

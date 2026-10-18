@@ -29,7 +29,7 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     try {
       await new RemotionRenderer({ entry: "shared/remotion/index.ts", bundleDir: join(dir, "bundle") }).render({
         compositionId: "CaptionVideo",
-        inputProps: { videoSrc, phrases, template: getCaptionTemplate("clean"), width: 1080, height: 1920, durationMs: 2000 },
+        inputProps: { videoSrc, sourceKind: "video", phrases, template: getCaptionTemplate("clean"), width: 1080, height: 1920, durationMs: 2000 },
         durationMs: 2000,
         outPath,
       });

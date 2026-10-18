@@ -9,7 +9,7 @@ export const CAPTION_TEMPLATE_IDS = ["clean", "bold", "karaoke"] as const;
 export const CaptionTemplateId = z.enum(CAPTION_TEMPLATE_IDS);
 
 export const WordSchema = z.object({ id: z.string(), text: z.string(), startMs: z.number(), endMs: z.number(), confidence: z.number().optional() });
-export const PhraseSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), words: z.array(WordSchema), lineBreaksAfter: z.array(z.number()) });
+export const PhraseSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), words: z.array(WordSchema).min(1), lineBreaksAfter: z.array(z.number()) });
 export const TranscriptSchema = z.object({ language: z.string(), words: z.array(WordSchema) });
 
 export const ProjectSchema = z.object({
@@ -19,6 +19,7 @@ export const ProjectSchema = z.object({
   mediaSource: MediaSource,
   status: ProjectStatus,
   sourceAssetId: z.string().nullable(),
+  sourceKind: z.enum(["video", "audio"]).nullable(),
   language: z.string().nullable(),
   captionTemplateId: CaptionTemplateId,
   transcript: TranscriptSchema.nullable(),
@@ -60,6 +61,7 @@ export const UPLOAD_LIMITS = {
   maxBytes: 2 * 1024 ** 3,
   mimeTypes: ["video/mp4", "video/quicktime", "audio/mpeg", "audio/wav"],
 } as const;
+export const MAX_CLIP_MS = 10 * 60_000;
 
 export const UploadStartInput = z.object({
   fileName: z.string().min(1).max(255),

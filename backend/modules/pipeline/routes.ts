@@ -29,7 +29,7 @@ export function pipelineRouter(deps: AppDeps) {
     const asset = await deps.assets.get(parsed.data.assetId);
     if (!asset || (asset.kind !== "video" && asset.kind !== "audio")) return res.status(400).json({ error: "bad_asset" });
     const aspectRatio = asset.width && asset.height && asset.width > asset.height ? "16:9" : "9:16";
-    res.json(await deps.projects.update(project.id, { sourceAssetId: asset.id, aspectRatio, status: "draft" }));
+    res.json(await deps.projects.update(project.id, { sourceAssetId: asset.id, sourceKind: asset.kind, aspectRatio, status: "draft" }));
   });
 
   r.post<{ id: string }>(api.projectRun(":id"), async (req, res) => {
@@ -56,7 +56,7 @@ export function pipelineRouter(deps: AppDeps) {
     if (!project) return;
     if (deps.jobs.active(project.id)) return res.status(409).json({ error: "busy" });
     const updated = await deps.projects.update(project.id, { captionTemplateId: parsed.data.captionTemplateId });
-    if (!updated.sourceAssetId) return res.json(updated);
+    if (!updated.sourceAssetId || !updated.transcript) return res.json(updated); // nothing to re-render yet
     const job = startCaptionJob(deps, updated, { transcribe: false, resegment: true });
     res.status(202).json({ jobId: job.id });
   });

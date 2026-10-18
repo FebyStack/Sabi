@@ -10,7 +10,7 @@ export function CaptionPreview({ project, videoSrc, durationMs }: { project: Pro
   return (
     <Player
       component={CaptionVideo}
-      inputProps={{ videoSrc, phrases: project.phrases, template: getCaptionTemplate(project.captionTemplateId), width, height, durationMs }}
+      inputProps={{ videoSrc, sourceKind: project.sourceKind ?? "video", phrases: project.phrases, template: getCaptionTemplate(project.captionTemplateId), width, height, durationMs }}
       durationInFrames={Math.max(1, Math.ceil((durationMs / 1000) * FPS))}
       fps={FPS}
       compositionWidth={width}

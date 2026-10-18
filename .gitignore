@@ -10,3 +10,4 @@ database/backups/*
 !database/backups/.gitkeep
 .superpowers/
 .remotion-bundle/
+.venv/

@@ -16,6 +16,10 @@ export function retimePhrase(phrase: Phrase, text: string): Phrase {
   return { ...phrase, words, lineBreaksAfter: phrase.lineBreaksAfter.filter((i) => i < words.length - 1) };
 }
 
+// A cleared textarea deletes the caption.
+export const applyPhraseEdits = (phrases: Phrase[], texts: string[]) =>
+  phrases.map((p, i) => retimePhrase(p, texts[i] ?? "")).filter((p) => p.words.length > 0);
+
 export function PhraseEditor({ phrases, busy, onApply }: { phrases: Phrase[]; busy: boolean; onApply: (phrases: Phrase[]) => void }) {
   const [texts, setTexts] = useState<string[]>([]);
   useEffect(() => setTexts(phrases.map((p) => p.words.map((w) => w.text).join(" "))), [phrases]);
@@ -32,7 +36,7 @@ export function PhraseEditor({ phrases, busy, onApply }: { phrases: Phrase[]; bu
           </li>
         ))}
       </ul>
-      <button className="min-h-11 rounded-md bg-white px-4 font-medium text-black disabled:opacity-50" disabled={!dirty || busy} onClick={() => onApply(phrases.map((p, i) => retimePhrase(p, texts[i] ?? "")))}>
+      <button className="min-h-11 rounded-md bg-white px-4 font-medium text-black disabled:opacity-50" disabled={!dirty || busy} onClick={() => onApply(applyPhraseEdits(phrases, texts))}>
         Apply edits
       </button>
     </section>

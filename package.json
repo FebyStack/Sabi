@@ -14,7 +14,7 @@
     "build:server": "esbuild backend/server/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist-server/index.cjs --external:pg-native",
     "verify": "npm run typecheck && npm run typecheck:server && npm run test",
     "render:sample": "RUN_RENDER=1 vitest run tests/integration/render.test.ts",
-    "ai:whisperx": "HF_HOME=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/hf UV_CACHE_DIR=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/uv-cache uv run --project ai/transcription uvicorn server:app --host 127.0.0.1 --port 8010"
+    "ai:whisperx": "D=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}; HF_HOME=$D/hf UV_CACHE_DIR=$D/uv-cache UV_PROJECT_ENVIRONMENT=$D/whisperx-venv uv run --directory ai/transcription uvicorn server:app --host 127.0.0.1 --port 8010"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.536",
