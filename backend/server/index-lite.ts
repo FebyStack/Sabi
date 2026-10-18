@@ -1,6 +1,7 @@
 import { createApp } from "../app/app";
 import { makeMemoryDeps } from "../shared/testing";
 
-// Full API, zero infrastructure. First thing to reach for when debugging.
+// Full API, zero infrastructure (in-memory repos, files under DATA_DIR). First thing to reach for when debugging.
 const port = Number(process.env.PORT ?? 3001);
-createApp(makeMemoryDeps()).listen(port, () => console.log(`api (lite, in-memory) on http://localhost:${port}`));
+const dataDir = process.env.DATA_DIR ?? "/Volumes/PortableSSD/Bong/captions-clone-data";
+createApp(makeMemoryDeps(dataDir)).listen(port, () => console.log(`api (lite, in-memory) on http://localhost:${port}, data in ${dataDir}`));

@@ -1,14 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { createApp } from "../app/app";
+import { PgAssetRepository } from "../modules/assets/repository";
 import { PgProjectRepository } from "../modules/projects/repository";
+import { FfmpegMedia } from "../shared/media";
 import { applySchema, createPool } from "../shared/pg";
+import { FsStorage } from "../shared/storage";
 
 const port = Number(process.env.PORT ?? 3001);
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required (use `npm run dev:lite` for the in-memory server)");
+const dataDir = process.env.DATA_DIR ?? "/Volumes/PortableSSD/Bong/captions-clone-data";
 
 const pool = createPool(url);
 await applySchema(pool);
 
-createApp({ projects: new PgProjectRepository(pool), now: () => new Date(), id: randomUUID })
-  .listen(port, () => console.log(`api (postgres) on http://localhost:${port}`));
+createApp({
+  projects: new PgProjectRepository(pool),
+  assets: new PgAssetRepository(pool),
+  storage: new FsStorage(dataDir),
+  media: new FfmpegMedia(),
+  now: () => new Date(),
+  id: randomUUID,
+}).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));

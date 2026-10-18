@@ -11,3 +11,17 @@ CREATE TABLE IF NOT EXISTS projects (
   last_access   TIMESTAMPTZ NOT NULL DEFAULT now()      -- 30-day retention sweep key (spec §11.2)
 );
 CREATE INDEX IF NOT EXISTS projects_created_idx ON projects (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS assets (
+  id           TEXT PRIMARY KEY,
+  project_id   TEXT REFERENCES projects (id) ON DELETE CASCADE,
+  kind         TEXT NOT NULL CHECK (kind IN ('video', 'audio', 'image', 'render', 'subtitle')),
+  key          TEXT NOT NULL,                             -- path under DATA_DIR
+  mime_type    TEXT NOT NULL,
+  size_bytes   BIGINT NOT NULL,
+  duration_ms  INTEGER,
+  width        INTEGER,
+  height       INTEGER,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS assets_project_idx ON assets (project_id);

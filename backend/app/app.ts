@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import { api } from "../../shared/contract";
+import { assetsRouter } from "../modules/assets/routes";
 import { projectsRouter } from "../modules/projects/routes";
 import type { AppDeps } from "../shared/deps";
 
@@ -12,6 +13,7 @@ export function createApp(deps: AppDeps) {
 
   app.get(api.health, (_req, res) => res.json({ ok: true, time: deps.now().toISOString() }));
   app.use(projectsRouter(deps));
+  app.use(assetsRouter(deps));
 
   app.use("/api", (_req, res) => res.status(404).json({ error: "not_found" }));
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
