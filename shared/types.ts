@@ -1,5 +1,8 @@
 import type { z } from "zod";
-import type { AspectRatio, AssetSchema, CreateProjectInput, JobStateSchema, MediaSource, ProjectEventSchema, ProjectSchema, ProjectStatus, TranscriptSchema, WordSchema } from "./contract";
+import type {
+  AspectRatio, AssetSchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
+  ProjectEventSchema, ProjectSchema, ProjectStatus, ShotKind, ShotSchema, TranscriptSchema, TranslationLanguage, TranslationSchema, UpdatePlanInput, WordSchema,
+} from "./contract";
 
 export type Asset = z.infer<typeof AssetSchema>;
 export type JobState = z.infer<typeof JobStateSchema>;
@@ -13,7 +16,14 @@ export type CreateProjectInput = z.infer<typeof CreateProjectInput>;
 // Pipeline domain types (filled in as modules land; see docs/blueprint §10.4)
 export type Word = z.infer<typeof WordSchema>;
 export type Transcript = z.infer<typeof TranscriptSchema>;
-export interface Phrase { id: string; startMs: number; endMs: number; words: Word[]; lineBreaksAfter: number[] }
+export type Phrase = z.infer<typeof PhraseSchema>;
+export type EmphasisKind = z.infer<typeof EmphasisKind>;
+export type Cut = z.infer<typeof CutSchema>;
+export type EditPlan = z.infer<typeof EditPlanSchema>;
+export type Translation = z.infer<typeof TranslationSchema>;
+export type TranslationLanguage = z.infer<typeof TranslationLanguage>;
+export type PlanInput = z.input<typeof PlanInput>;
+export type UpdatePlanInput = z.input<typeof UpdatePlanInput>;
 export interface CaptionLayout { maxCharsPerLine: number; maxWordsPerLine: number; maxLines: number; pauseSplitMs: number }
 export interface CaptionTemplate {
   id: string;
@@ -25,6 +35,6 @@ export interface CaptionTemplate {
   animation: "karaoke" | "none";
   uppercase: boolean;
 }
-export type ShotKind = "Hook" | "B-Roll" | "Talking Head" | "Talking Head & B-Roll";
-export interface Shot { id: string; kind: ShotKind; startMs: number; endMs: number }
+export type ShotKind = z.infer<typeof ShotKind>;
+export type Shot = z.infer<typeof ShotSchema>;
 export interface BrollBeat { id: string; shotId: string; startMs: number; endMs: number; intent: string; imagePrompt: string; stockQuery: string }

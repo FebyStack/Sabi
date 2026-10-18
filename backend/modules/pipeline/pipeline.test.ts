@@ -49,6 +49,11 @@ describe("caption pipeline", () => {
     expect(project.aspectRatio).toBe("16:9");
   });
 
+  it("source stores the probed duration", async () => {
+    const { project } = await projectWithSource(makeTestDeps());
+    expect(project.sourceDurationMs).toBe(21000);
+  });
+
   it("run without source returns 400", async () => {
     const a = createApp(makeTestDeps());
     const { body: project } = await request(a).post("/api/projects").send({ title: "t" });

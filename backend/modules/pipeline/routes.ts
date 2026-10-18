@@ -29,7 +29,11 @@ export function pipelineRouter(deps: AppDeps) {
     const asset = await deps.assets.get(parsed.data.assetId);
     if (!asset || (asset.kind !== "video" && asset.kind !== "audio")) return res.status(400).json({ error: "bad_asset" });
     const aspectRatio = asset.width && asset.height && asset.width > asset.height ? "16:9" : "9:16";
-    res.json(await deps.projects.update(project.id, { sourceAssetId: asset.id, sourceKind: asset.kind, aspectRatio, status: "draft" }));
+    // A plan belongs to one source.
+    res.json(await deps.projects.update(project.id, {
+      sourceAssetId: asset.id, sourceKind: asset.kind, aspectRatio, status: "draft", sourceDurationMs: asset.durationMs ?? null,
+      editPlan: null, translations: [], burnInLanguage: null,
+    }));
   });
 
   r.post<{ id: string }>(api.projectRun(":id"), async (req, res) => {

@@ -1,6 +1,7 @@
 import request from "supertest";
 import { createApp } from "./app";
 import { makeTestDeps } from "../shared/testing";
+import { PlanInput } from "../../shared/contract";
 
 const app = () => createApp(makeTestDeps());
 
@@ -29,5 +30,16 @@ describe("api", () => {
     const res = await request(app()).post("/api/projects").send({ title: "", mediaSource: "magic" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("invalid_input");
+  });
+
+  it("new projects start with no plan, translations or burn-in", async () => {
+    const { body } = await request(app()).post("/api/projects").send({ title: "t" });
+    expect(body).toMatchObject({ sourceDurationMs: null, editPlan: null, translations: [], burnInLanguage: null });
+  });
+
+  it("PlanInput rejects burn-in of an untranslated language", () => {
+    expect(PlanInput.safeParse({ languages: ["es"], burnInLanguage: "fr" }).success).toBe(false);
+    expect(PlanInput.safeParse({ languages: ["es", "fr", "de", "ja"] }).success).toBe(false);
+    expect(PlanInput.parse({})).toEqual({ languages: [], burnInLanguage: null });
   });
 });
