@@ -1,5 +1,7 @@
 import type { AssetRepository } from "../modules/assets/repository";
 import type { ProjectRepository } from "../modules/projects/repository";
+import type { EventBus } from "./events";
+import type { JobRunner } from "./jobs";
 import type { Media } from "./media";
 import type { Storage } from "./storage";
 
@@ -9,6 +11,8 @@ export interface AppDeps {
   assets: AssetRepository;
   storage: Storage;
   media: Media;
+  bus: EventBus;
+  jobs: JobRunner;
   now: () => Date;
   id: () => string;
 }

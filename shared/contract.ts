@@ -48,10 +48,26 @@ export const UploadStartInput = z.object({
   sizeBytes: z.number().int().positive(),
 });
 
+export const JobStateSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  kind: z.string(),
+  state: z.enum(["QUEUED", "PROCESSING", "COMPLETE", "FAILED"]),
+  progress: z.number(),
+  stage: z.string().optional(),
+  error: z.string().optional(),
+});
+
+export const ProjectEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("job"), job: JobStateSchema }),
+  z.object({ type: z.literal("project"), status: ProjectStatus }),
+]);
+
 export const api = {
   health: "/api/health",
   projects: "/api/projects",
   project: (id: string) => `/api/projects/${id}`,
+  projectEvents: (id: string) => `/api/projects/${id}/events`,
   uploadsStart: "/api/assets/uploads/start",
   upload: (uploadId: string) => `/api/assets/uploads/${uploadId}`,
   uploadDone: (uploadId: string) => `/api/assets/uploads/${uploadId}/done`,

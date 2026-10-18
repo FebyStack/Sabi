@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { extname } from "node:path";
 import { UPLOAD_LIMITS, UploadStartInput, api } from "../../../shared/contract";
 import type { Asset } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
 
 const kindOf = (mime: string): Asset["kind"] => (mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "image");
+// Extension comes from the validated mime type, never from the client file name.
+const EXT: Record<string, string> = { "video/mp4": ".mp4", "video/quicktime": ".mov", "audio/mpeg": ".mp3", "audio/wav": ".wav" };
 
 export function assetsRouter(deps: AppDeps) {
   const r = Router();
@@ -17,7 +18,7 @@ export function assetsRouter(deps: AppDeps) {
     if (sizeBytes > UPLOAD_LIMITS.maxBytes) return res.status(413).json({ error: "too_large" });
     if (!(UPLOAD_LIMITS.mimeTypes as readonly string[]).includes(mimeType)) return res.status(415).json({ error: "unsupported_type" });
     const uploadId = deps.id();
-    pending.set(uploadId, { fileName, mimeType, sizeBytes, key: `uploads/${uploadId}${extname(fileName).toLowerCase()}` });
+    pending.set(uploadId, { fileName, mimeType, sizeBytes, key: `uploads/${uploadId}${EXT[mimeType]}` });
     res.json({ uploadId });
   });
 

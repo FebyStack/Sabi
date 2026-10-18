@@ -1,7 +1,9 @@
 import type { z } from "zod";
-import type { AspectRatio, AssetSchema, CreateProjectInput, MediaSource, ProjectSchema, ProjectStatus } from "./contract";
+import type { AspectRatio, AssetSchema, CreateProjectInput, JobStateSchema, MediaSource, ProjectEventSchema, ProjectSchema, ProjectStatus } from "./contract";
 
 export type Asset = z.infer<typeof AssetSchema>;
+export type JobState = z.infer<typeof JobStateSchema>;
+export type ProjectEvent = z.infer<typeof ProjectEventSchema>;
 export type AspectRatio = z.infer<typeof AspectRatio>;
 export type MediaSource = z.infer<typeof MediaSource>;
 export type ProjectStatus = z.infer<typeof ProjectStatus>;
