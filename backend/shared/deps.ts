@@ -3,6 +3,7 @@ import type { ProjectRepository } from "../modules/projects/repository";
 import type { EventBus } from "./events";
 import type { JobRunner } from "./jobs";
 import type { Media } from "./media";
+import type { Renderer } from "./renderer";
 import type { Storage } from "./storage";
 import type { Transcriber } from "./transcriber";
 
@@ -15,6 +16,8 @@ export interface AppDeps {
   bus: EventBus;
   jobs: JobRunner;
   transcriber: Transcriber;
+  renderer: Renderer;
+  apiBaseUrl: string; // where Chromium (Remotion) fetches source media during renders
   now: () => Date;
   id: () => string;
 }

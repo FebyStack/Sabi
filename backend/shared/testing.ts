@@ -8,6 +8,7 @@ import type { AppDeps } from "./deps";
 import { MemoryEventBus } from "./events";
 import { MemoryJobRunner } from "./jobs";
 import { FakeMedia, FfmpegMedia } from "./media";
+import { FakeRenderer, RemotionRenderer } from "./renderer";
 import { FsStorage } from "./storage";
 import { FakeTranscriber, WhisperXTranscriber } from "./transcriber";
 import sampleTranscript from "./fixtures/transcript-sample.json";
@@ -23,13 +24,15 @@ export function makeTestDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     bus,
     jobs: new MemoryJobRunner(bus),
     transcriber: new FakeTranscriber(sampleTranscript),
+    renderer: new FakeRenderer(),
+    apiBaseUrl: "http://test",
     now: () => new Date("2026-01-01T00:00:00.000Z"),
     id: () => `id-${++n}`,
     ...overrides,
   };
 }
 
-export function makeMemoryDeps(dataDir: string): AppDeps {
+export function makeMemoryDeps(dataDir: string, apiBaseUrl = `http://127.0.0.1:${process.env.PORT ?? 3001}`): AppDeps {
   const bus = new MemoryEventBus();
   return {
     projects: new MemoryProjectRepository(),
@@ -39,6 +42,8 @@ export function makeMemoryDeps(dataDir: string): AppDeps {
     bus,
     jobs: new MemoryJobRunner(bus),
     transcriber: new WhisperXTranscriber(process.env.WHISPERX_URL ?? "http://localhost:8010"),
+    renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts", bundleDir: ".remotion-bundle" }),
+    apiBaseUrl: process.env.API_BASE_URL ?? apiBaseUrl,
     now: () => new Date(),
     id: randomUUID,
   };

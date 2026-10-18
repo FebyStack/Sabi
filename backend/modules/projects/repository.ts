@@ -3,8 +3,9 @@ import type { Project } from "../../../shared/types";
 
 export interface ProjectRepository {
   list(): Promise<Project[]>;
-  get(id: string): Promise<Project | null>;
+  get(id: string): Promise<Project | null>; // also bumps last_access (30-day retention key)
   create(p: Project): Promise<Project>;
+  update(id: string, patch: Partial<Project>): Promise<Project>;
 }
 
 export class MemoryProjectRepository implements ProjectRepository {
@@ -12,13 +13,32 @@ export class MemoryProjectRepository implements ProjectRepository {
   async list() { return [...this.rows.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)); }
   async get(id: string) { return this.rows.get(id) ?? null; }
   async create(p: Project) { this.rows.set(p.id, p); return p; }
+  async update(id: string, patch: Partial<Project>) {
+    const cur = this.rows.get(id);
+    if (!cur) throw new Error("not_found");
+    const next = { ...cur, ...patch, updatedAt: new Date().toISOString() };
+    this.rows.set(id, next);
+    return next;
+  }
 }
 
-type Row = { id: string; title: string; aspect_ratio: Project["aspectRatio"]; media_source: Project["mediaSource"]; status: Project["status"]; created_at: Date; updated_at: Date };
+type Row = {
+  id: string; title: string; aspect_ratio: Project["aspectRatio"]; media_source: Project["mediaSource"]; status: Project["status"];
+  source_asset_id: string | null; language: string | null; caption_template_id: Project["captionTemplateId"];
+  transcript: Project["transcript"]; phrases: Project["phrases"]; outputs: Project["outputs"]; warnings: string[];
+  created_at: Date; updated_at: Date;
+};
 const toProject = (r: Row): Project => ({
   id: r.id, title: r.title, aspectRatio: r.aspect_ratio, mediaSource: r.media_source, status: r.status,
+  sourceAssetId: r.source_asset_id, language: r.language, captionTemplateId: r.caption_template_id,
+  transcript: r.transcript, phrases: r.phrases ?? [], outputs: r.outputs ?? {}, warnings: r.warnings ?? [],
   createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString(),
 });
+const COL: Record<keyof Omit<Project, "id" | "createdAt" | "updatedAt">, string> = {
+  title: "title", aspectRatio: "aspect_ratio", mediaSource: "media_source", status: "status", sourceAssetId: "source_asset_id",
+  language: "language", captionTemplateId: "caption_template_id", transcript: "transcript", phrases: "phrases", outputs: "outputs", warnings: "warnings",
+};
+const JSON_COLS = new Set(["transcript", "phrases", "outputs", "warnings"]);
 
 export class PgProjectRepository implements ProjectRepository {
   constructor(private pool: Pool) {}
@@ -27,14 +47,25 @@ export class PgProjectRepository implements ProjectRepository {
     return rows.map(toProject);
   }
   async get(id: string) {
-    const { rows } = await this.pool.query<Row>("SELECT * FROM projects WHERE id = $1", [id]);
+    const { rows } = await this.pool.query<Row>("UPDATE projects SET last_access = now() WHERE id = $1 RETURNING *", [id]);
     return rows[0] ? toProject(rows[0]) : null;
   }
   async create(p: Project) {
     const { rows } = await this.pool.query<Row>(
-      "INSERT INTO projects (id, title, aspect_ratio, media_source, status, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
-      [p.id, p.title, p.aspectRatio, p.mediaSource, p.status, p.createdAt, p.updatedAt],
+      `INSERT INTO projects (id, title, aspect_ratio, media_source, status, source_asset_id, language, caption_template_id, transcript, phrases, outputs, warnings, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [p.id, p.title, p.aspectRatio, p.mediaSource, p.status, p.sourceAssetId, p.language, p.captionTemplateId,
+        JSON.stringify(p.transcript), JSON.stringify(p.phrases), JSON.stringify(p.outputs), JSON.stringify(p.warnings), p.createdAt, p.updatedAt],
     );
+    return toProject(rows[0]);
+  }
+  async update(id: string, patch: Partial<Project>) {
+    const keys = (Object.keys(patch) as (keyof typeof COL)[]).filter((k) => k in COL);
+    const sets = keys.map((k, i) => `${COL[k]} = $${i + 2}`);
+    const vals = keys.map((k) => (JSON_COLS.has(k) ? JSON.stringify(patch[k]) : patch[k]));
+    const { rows } = await this.pool.query<Row>(
+      `UPDATE projects SET ${[...sets, "updated_at = now()"].join(", ")} WHERE id = $1 RETURNING *`, [id, ...vals]);
+    if (!rows[0]) throw new Error("not_found");
     return toProject(rows[0]);
   }
 }

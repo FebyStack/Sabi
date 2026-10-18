@@ -6,6 +6,7 @@ import { MemoryEventBus } from "../shared/events";
 import { MemoryJobRunner } from "../shared/jobs";
 import { FfmpegMedia } from "../shared/media";
 import { applySchema, createPool } from "../shared/pg";
+import { RemotionRenderer } from "../shared/renderer";
 import { FsStorage } from "../shared/storage";
 import { WhisperXTranscriber } from "../shared/transcriber";
 
@@ -26,6 +27,8 @@ createApp({
   bus,
   jobs: new MemoryJobRunner(bus),
   transcriber: new WhisperXTranscriber(process.env.WHISPERX_URL ?? "http://localhost:8010"),
+  renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts", bundleDir: ".remotion-bundle" }),
+  apiBaseUrl: process.env.API_BASE_URL ?? `http://127.0.0.1:${port}`,
   now: () => new Date(),
   id: randomUUID,
 }).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));

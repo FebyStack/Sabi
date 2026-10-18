@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { AspectRatio, AssetSchema, CreateProjectInput, JobStateSchema, MediaSource, ProjectEventSchema, ProjectSchema, ProjectStatus } from "./contract";
+import type { AspectRatio, AssetSchema, CreateProjectInput, JobStateSchema, MediaSource, ProjectEventSchema, ProjectSchema, ProjectStatus, TranscriptSchema, WordSchema } from "./contract";
 
 export type Asset = z.infer<typeof AssetSchema>;
 export type JobState = z.infer<typeof JobStateSchema>;
@@ -11,8 +11,8 @@ export type Project = z.infer<typeof ProjectSchema>;
 export type CreateProjectInput = z.infer<typeof CreateProjectInput>;
 
 // Pipeline domain types (filled in as modules land; see docs/blueprint §10.4)
-export interface Word { id: string; text: string; startMs: number; endMs: number; confidence?: number }
-export interface Transcript { language: string; words: Word[] }
+export type Word = z.infer<typeof WordSchema>;
+export type Transcript = z.infer<typeof TranscriptSchema>;
 export interface Phrase { id: string; startMs: number; endMs: number; words: Word[]; lineBreaksAfter: number[] }
 export interface CaptionLayout { maxCharsPerLine: number; maxWordsPerLine: number; maxLines: number; pauseSplitMs: number }
 export interface CaptionTemplate {

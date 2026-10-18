@@ -11,6 +11,13 @@ CREATE TABLE IF NOT EXISTS projects (
   last_access   TIMESTAMPTZ NOT NULL DEFAULT now()      -- 30-day retention sweep key (spec §11.2)
 );
 CREATE INDEX IF NOT EXISTS projects_created_idx ON projects (created_at DESC);
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS source_asset_id TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS language TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS caption_template_id TEXT NOT NULL DEFAULT 'clean';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS transcript JSONB;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS phrases JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS outputs JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS warnings JSONB NOT NULL DEFAULT '[]';
 
 CREATE TABLE IF NOT EXISTS assets (
   id           TEXT PRIMARY KEY,

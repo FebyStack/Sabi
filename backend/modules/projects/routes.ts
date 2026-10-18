@@ -13,7 +13,11 @@ export function projectsRouter(deps: AppDeps) {
     const parsed = CreateProjectInput.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_input", issues: parsed.error.issues });
     const now = deps.now().toISOString();
-    const project = await deps.projects.create({ id: deps.id(), status: "draft", createdAt: now, updatedAt: now, ...parsed.data });
+    const project = await deps.projects.create({
+      id: deps.id(), status: "draft", createdAt: now, updatedAt: now,
+      sourceAssetId: null, language: null, captionTemplateId: "clean", transcript: null, phrases: [], outputs: {}, warnings: [],
+      ...parsed.data,
+    });
     res.status(201).json(project);
   });
 
