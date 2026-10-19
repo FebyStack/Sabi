@@ -93,7 +93,7 @@ describe("edit plan api", () => {
   it("re-renders on any plan change after a failed render", async () => {
     const renderer = new FakeRenderer();
     let fail = false;
-    const deps = makeTestDeps({ renderer: { render: (r) => { if (fail) throw new Error("render_boom"); return renderer.render(r); } } });
+    const deps = makeTestDeps({ renderer: { render: (r) => { if (fail) throw new Error("render_boom"); return renderer.render(r); }, renderStill: (r) => renderer.renderStill(r) } });
     const { a, project } = await readyProject(deps);
     fail = true;
     await request(a).post(`/api/projects/${project.id}/plan`).send({});

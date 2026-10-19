@@ -124,6 +124,8 @@ export const api = {
   projectPhrases: (id: string) => `/api/projects/${id}/phrases`,
   projectTemplate: (id: string) => `/api/projects/${id}/template`,
   projectPlan: (id: string) => `/api/projects/${id}/plan`,
+  projectFrame: (id: string) => `/api/projects/${id}/frame`,
+  projectJob: (id: string) => `/api/projects/${id}/job`,
   uploadsStart: "/api/assets/uploads/start",
   upload: (uploadId: string) => `/api/assets/uploads/${uploadId}`,
   uploadDone: (uploadId: string) => `/api/assets/uploads/${uploadId}/done`,

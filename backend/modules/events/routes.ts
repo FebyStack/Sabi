@@ -16,5 +16,8 @@ export function eventsRouter(deps: AppDeps) {
     req.on("close", () => { clearInterval(keepalive); unsubscribe(); });
   });
 
+  // Polling twin of the SSE stream for clients that can't hold one open (the MCP server).
+  r.get<{ id: string }>(api.projectJob(":id"), (req, res) => { res.json(deps.jobs.active(req.params.id)); });
+
   return r;
 }
