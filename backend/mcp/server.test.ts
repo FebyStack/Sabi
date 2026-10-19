@@ -35,4 +35,24 @@ describe("sabi mcp server", () => {
     await client.close();
     http.close();
   });
+
+  it("keeps long tool calls alive with progress notifications", async () => {
+    const deps = makeTestDeps();
+    const { project } = await readyProject(deps);
+    const http = createApp(deps).listen(0);
+    const api = new SabiApi(`http://127.0.0.1:${(http.address() as AddressInfo).port}`);
+    const [clientT, serverT] = InMemoryTransport.createLinkedPair();
+    await createSabiMcpServer(api, { heartbeatMs: 50 }).connect(serverT);
+    const client = new Client({ name: "test", version: "0.0.0" });
+    await client.connect(clientT);
+    deps.jobs.enqueue(project.id, "plan", () => new Promise((r) => setTimeout(r, 1200)));
+
+    let beats = 0;
+    const res = await client.callTool({ name: "wait_job", arguments: { projectId: project.id } }, undefined,
+      { timeout: 600, resetTimeoutOnProgress: true, onprogress: () => { beats++; } });
+    expect((res.content as { text: string }[])[0].text).toMatch(/^status ready after \d+s; last job plan COMPLETE/);
+    expect(beats).toBeGreaterThan(5);
+    await client.close();
+    http.close();
+  });
 });
