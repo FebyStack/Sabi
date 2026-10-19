@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import { api } from "../../shared/contract";
+import { actionsRouter } from "../modules/actions/routes";
 import { assetsRouter } from "../modules/assets/routes";
 import { editPlanRouter } from "../modules/editplan/routes";
 import { eventsRouter } from "../modules/events/routes";
@@ -22,6 +23,7 @@ export function createApp(deps: AppDeps) {
   app.use(pipelineRouter(deps));
   app.use(editPlanRouter(deps));
   app.use(framesRouter(deps));
+  app.use(actionsRouter(deps));
 
   app.use("/api", (_req, res) => res.status(404).json({ error: "not_found" }));
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

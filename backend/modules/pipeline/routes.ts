@@ -39,6 +39,16 @@ export function pipelineRouter(deps: AppDeps) {
     await run(req, res, { language: parsed.data.language, transcribe: true, resegment: true });
   });
 
+  // Re-render the current edits (no transcription, no re-flow).
+  r.post<{ id: string }>(api.projectRender(":id"), async (req, res) => {
+    const project = await load(req, res);
+    if (!project) return;
+    if (!project.phrases.length) return res.status(400).json({ error: "no_captions" });
+    const job = deps.jobs.active(project.id);
+    if (job) return res.status(409).json({ error: "busy", job });
+    res.status(202).json({ jobId: startCaptionJob(deps, project, { transcribe: false, resegment: false }).id });
+  });
+
   r.put<{ id: string }>(api.projectPhrases(":id"), async (req, res) => {
     const parsed = UpdatePhrasesInput.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
