@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createApp } from "../app/app";
 import { readyProject } from "../shared/apiTestHelpers";
 import type { AppDeps } from "../shared/deps";
+import { FakeLlm } from "../shared/llm";
 import { makeTestDeps } from "../shared/testing";
 import type { Project } from "../../shared/types";
 import { SabiApi } from "./client";
@@ -101,6 +102,14 @@ describe("sabi mcp tools", () => {
     const waited = await callTool(api, "wait_job", { projectId: project.id });
     expect(waited.isError).toBeFalsy();
     expect(waited.text).toMatch(/^status ready after \d+s/);
+  });
+
+  it("wait_job reports a failed plan job with its error", async () => {
+    deps.llm = new FakeLlm(() => { throw new Error("llm_unavailable"); });
+    expect((await callTool(api, "run_job", { projectId: project.id, kind: "plan", languages: ["es"] })).isError).toBeFalsy();
+    const waited = await callTool(api, "wait_job", { projectId: project.id });
+    expect(waited.isError).toBe(true);
+    expect(waited.text).toMatch(/^status ready after \d+s; last job plan FAILED: llm_unavailable/);
   });
 
   it("creates a project from a local file and exports its outputs", async () => {

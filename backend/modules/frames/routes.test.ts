@@ -56,17 +56,20 @@ describe("still frames", () => {
     expect((await request(a).get("/api/projects/nope/frame")).status).toBe(404);
   });
 
-  it("job endpoint returns the active job or null", async () => {
+  it("job endpoint returns the active job, else the last finished one, else null", async () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);
-    const idle = await request(a).get(`/api/projects/${project.id}/job`);
+    const fresh = await projectWithSource(deps);
+    const idle = await request(a).get(`/api/projects/${fresh.project.id}/job`);
     expect(idle.status).toBe(200);
     expect(idle.body).toBeNull();
+    expect((await request(a).get(`/api/projects/${project.id}/job`)).body).toMatchObject({ kind: "captions", state: "COMPLETE" });
     let release!: () => void;
     const gate = new Promise<void>((r) => { release = r; });
     const job = deps.jobs.enqueue(project.id, "plan", async () => { await gate; });
     await vi.waitFor(() => expect(deps.jobs.active(project.id)).not.toBeNull());
     expect((await request(a).get(`/api/projects/${project.id}/job`)).body).toMatchObject({ id: job.id, kind: "plan", state: "PROCESSING" });
     release();
+    await vi.waitFor(async () => expect((await request(a).get(`/api/projects/${project.id}/job`)).body).toMatchObject({ id: job.id, state: "COMPLETE" }));
   });
 });

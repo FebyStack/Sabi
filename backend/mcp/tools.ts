@@ -173,17 +173,18 @@ const TOOLS = {
     inputSchema: { projectId, timeoutMs: z.number().int().min(0).default(600_000) },
     run: async (api: SabiApi, i: { projectId: string; timeoutMs: number }): Promise<ToolResult> => {
       const t0 = Date.now();
-      let last: JobState | null = null;
       for (;;) {
-        const job = await api.getJob(i.projectId);
-        if (job) last = job;
+        const job = await api.getJob(i.projectId); // running job, else the last finished one
         const p = await api.getProject(i.projectId);
         const secs = Math.round((Date.now() - t0) / 1000);
-        const stage = last ? `; last stage ${last.stage ?? "?"} ${Math.round(last.progress)}%` : "";
-        if (!job && !RUNNING.includes(p.status)) {
-          const text = `status ${p.status} after ${secs}s${stage}${p.warnings.length ? `; warnings: ${p.warnings.join(", ")}` : ""}`;
-          return p.status === "failed" ? fail(text) : { text };
+        const running = job?.state === "QUEUED" || job?.state === "PROCESSING";
+        if (!running && !RUNNING.includes(p.status)) {
+          // A failed plan restores the previous status, so the job's own state is the only sign it failed.
+          const outcome = job ? `; last job ${job.kind} ${job.state}${job.error ? `: ${job.error}` : ""}` : "";
+          const text = `status ${p.status} after ${secs}s${outcome}${p.warnings.length ? `; warnings: ${p.warnings.join(", ")}` : ""}`;
+          return p.status === "failed" || job?.state === "FAILED" ? fail(text) : { text };
         }
+        const stage = job ? `; ${jobLine(job)}` : "";
         if (Date.now() - t0 >= i.timeoutMs) return fail(`still ${p.status} after ${secs}s${stage}; call wait_job again`);
         await new Promise((r) => setTimeout(r, POLL_MS));
       }
