@@ -37,6 +37,25 @@ describe("api", () => {
     expect(body).toMatchObject({ sourceDurationMs: null, editPlan: null, translations: [], burnInLanguage: null });
   });
 
+  it("creates a project with empty overlays and zero credits", async () => {
+    const { body } = await request(app()).post("/api/projects").send({ title: "t" });
+    expect(body.overlays).toEqual([]);
+    expect(body.creditsUsedCents).toBe(0);
+  });
+
+  it("patches mediaSource", async () => {
+    const a = app();
+    const { body: p } = await request(a).post("/api/projects").send({ title: "t" });
+    const res = await request(a).patch(`/api/projects/${p.id}`).send({ mediaSource: "stock" });
+    expect(res.status).toBe(200);
+    expect(res.body.mediaSource).toBe("stock");
+    expect((await request(a).get(`/api/projects/${p.id}`)).body.mediaSource).toBe("stock");
+    const bad = await request(a).patch(`/api/projects/${p.id}`).send({ mediaSource: "magic" });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toBe("invalid_input");
+    expect((await request(a).patch("/api/projects/nope").send({ mediaSource: "stock" })).status).toBe(404);
+  });
+
   it("PlanInput rejects burn-in of an untranslated language", () => {
     expect(PlanInput.safeParse({ languages: ["es"], burnInLanguage: "fr" }).success).toBe(false);
     expect(PlanInput.safeParse({ languages: ["es", "fr", "de", "ja"] }).success).toBe(false);

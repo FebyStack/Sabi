@@ -27,6 +27,21 @@ export const LANGUAGE_NAMES = {
 export const TranslationLanguage = z.enum(Object.keys(LANGUAGE_NAMES) as [keyof typeof LANGUAGE_NAMES, ...(keyof typeof LANGUAGE_NAMES)[]]);
 export const TranslationSchema = z.object({ language: TranslationLanguage, phrases: z.array(PhraseSchema) });
 
+export const OverlayPlacement = z.enum(["full", "top"]);
+export const OverlayMedia = z.enum(["image", "video"]);
+export const OverlaySource = z.enum(["stock", "generated", "uploaded"]);
+export const OverlayTransition = z.enum(["fade", "none"]);
+export const AttributionSchema = z.object({ author: z.string(), url: z.string().url() });
+export const GenerationInfoSchema = z.object({ provider: z.literal("fal"), model: z.string(), prompt: z.string(), costCents: z.number().int().nonnegative() });
+// Stored in source time; captionVideoProps() maps it through enabled cuts.
+export const OverlaySchema = z.object({
+  id: z.string(), shotId: z.string(), assetId: z.string(), media: OverlayMedia, source: OverlaySource,
+  startMs: z.number().int().nonnegative(), endMs: z.number().int().positive(), placement: OverlayPlacement,
+  transition: OverlayTransition.default("fade"), enabled: z.boolean().default(true),
+  query: z.string().max(200), prompt: z.string().max(600), intent: z.string().max(200),
+  attribution: AttributionSchema.optional(), generationInfo: GenerationInfoSchema.optional(),
+}).refine((o) => o.endMs > o.startMs, { message: "bad_range", path: ["endMs"] });
+
 export const ProjectSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -48,6 +63,8 @@ export const ProjectSchema = z.object({
   editPlan: EditPlanSchema.nullable(),
   translations: z.array(TranslationSchema),
   burnInLanguage: TranslationLanguage.nullable(),
+  overlays: z.array(OverlaySchema).default([]),
+  creditsUsedCents: z.number().int().nonnegative().default(0), // fal.ai spend ledger (spec §11.9), no billing
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -64,6 +81,17 @@ export const UpdatePlanInput = z.object({
   shots: z.array(z.object({ id: z.string(), kind: ShotKind })).default([]),
   burnInLanguage: TranslationLanguage.nullable().optional(),
 });
+
+export const UpdateProjectInput = z.object({ mediaSource: MediaSource });
+export const BrollInput = z.object({ regenerate: z.boolean().default(false) });
+export const UpdateOverlaysInput = z.object({
+  overlays: z.array(z.object({
+    id: z.string(), enabled: z.boolean().optional(), startMs: z.number().int().nonnegative().optional(), endMs: z.number().int().positive().optional(),
+    placement: OverlayPlacement.optional(), transition: OverlayTransition.optional(),
+  })).min(1),
+});
+export const ReplaceOverlayInput = z.object({ assetId: z.string().min(1) });
+export const RegenerateOverlayInput = z.object({ query: z.string().max(200).optional(), prompt: z.string().max(600).optional() });
 
 export const CreateProjectInput = z.object({
   title: z.string().min(1).max(200),
@@ -124,6 +152,11 @@ export const api = {
   projectPhrases: (id: string) => `/api/projects/${id}/phrases`,
   projectTemplate: (id: string) => `/api/projects/${id}/template`,
   projectPlan: (id: string) => `/api/projects/${id}/plan`,
+  projectUpdate: (id: string) => `/api/projects/${id}`,
+  projectBroll: (id: string) => `/api/projects/${id}/broll`,
+  projectOverlay: (id: string, overlayId: string) => `/api/projects/${id}/broll/${overlayId}`,
+  projectOverlayReplace: (id: string, overlayId: string) => `/api/projects/${id}/broll/${overlayId}/replace`,
+  projectOverlayRegenerate: (id: string, overlayId: string) => `/api/projects/${id}/broll/${overlayId}/regenerate`,
   uploadsStart: "/api/assets/uploads/start",
   upload: (uploadId: string) => `/api/assets/uploads/${uploadId}`,
   uploadDone: (uploadId: string) => `/api/assets/uploads/${uploadId}/done`,
