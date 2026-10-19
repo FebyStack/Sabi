@@ -9,7 +9,7 @@ function Home() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-4 text-neutral-100">
       <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Captions Clone</h1>
+        <h1 className="text-xl font-semibold">Sabi</h1>
         <span className="text-xs text-neutral-400">api: {health.isSuccess ? "ok" : health.isError ? "down" : "…"}</span>
       </header>
       <ProjectList />
