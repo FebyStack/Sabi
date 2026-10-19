@@ -8,9 +8,24 @@ export const ProjectStatus = z.enum(["draft", "transcribing", "planning", "gener
 export const CAPTION_TEMPLATE_IDS = ["clean", "bold", "karaoke"] as const;
 export const CaptionTemplateId = z.enum(CAPTION_TEMPLATE_IDS);
 
-export const WordSchema = z.object({ id: z.string(), text: z.string(), startMs: z.number(), endMs: z.number(), confidence: z.number().optional() });
-export const PhraseSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), words: z.array(WordSchema).min(1), lineBreaksAfter: z.array(z.number()) });
+export const EmphasisKind = z.enum(["noun", "keyword", "pictorial"]);
+export const SHOT_KINDS = ["Hook", "B-Roll", "Talking Head", "Talking Head & B-Roll"] as const;
+export const ShotKind = z.enum(SHOT_KINDS);
+
+export const WordSchema = z.object({ id: z.string(), text: z.string(), startMs: z.number(), endMs: z.number(), confidence: z.number().optional(), emphasis: EmphasisKind.optional() });
+export const PhraseSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), words: z.array(WordSchema).min(1), lineBreaksAfter: z.array(z.number()), emoji: z.string().max(16).optional() });
 export const TranscriptSchema = z.object({ language: z.string(), words: z.array(WordSchema) });
+
+export const CutSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), reason: z.enum(["pause", "filler"]), text: z.string(), shouldTrim: z.boolean() });
+export const ShotSchema = z.object({ id: z.string(), kind: ShotKind, startMs: z.number(), endMs: z.number() });
+export const EditPlanSchema = z.object({ cuts: z.array(CutSchema), shots: z.array(ShotSchema) });
+
+export const LANGUAGE_NAMES = {
+  en: "English", es: "Spanish", fr: "French", de: "German", pt: "Portuguese", it: "Italian",
+  ja: "Japanese", ko: "Korean", zh: "Chinese (Simplified)", hi: "Hindi", tl: "Tagalog", id: "Indonesian",
+} as const;
+export const TranslationLanguage = z.enum(Object.keys(LANGUAGE_NAMES) as [keyof typeof LANGUAGE_NAMES, ...(keyof typeof LANGUAGE_NAMES)[]]);
+export const TranslationSchema = z.object({ language: TranslationLanguage, phrases: z.array(PhraseSchema) });
 
 export const ProjectSchema = z.object({
   id: z.string(),
@@ -24,8 +39,15 @@ export const ProjectSchema = z.object({
   captionTemplateId: CaptionTemplateId,
   transcript: TranscriptSchema.nullable(),
   phrases: z.array(PhraseSchema),
-  outputs: z.object({ mp4AssetId: z.string().optional(), srtAssetId: z.string().optional(), vttAssetId: z.string().optional() }),
+  outputs: z.object({
+    mp4AssetId: z.string().optional(), srtAssetId: z.string().optional(), vttAssetId: z.string().optional(),
+    translations: z.array(z.object({ language: TranslationLanguage, srtAssetId: z.string(), vttAssetId: z.string() })).optional(),
+  }),
   warnings: z.array(z.string()),
+  sourceDurationMs: z.number().nullable(),
+  editPlan: EditPlanSchema.nullable(),
+  translations: z.array(TranslationSchema),
+  burnInLanguage: TranslationLanguage.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -34,6 +56,14 @@ export const SetSourceInput = z.object({ assetId: z.string().min(1) });
 export const RunInput = z.object({ language: z.string().min(2).max(8).optional() });
 export const UpdatePhrasesInput = z.object({ phrases: z.array(PhraseSchema) });
 export const UpdateTemplateInput = z.object({ captionTemplateId: CaptionTemplateId });
+export const PlanInput = z
+  .object({ languages: z.array(TranslationLanguage).max(3).default([]), burnInLanguage: TranslationLanguage.nullable().default(null) })
+  .refine((v) => v.burnInLanguage === null || v.languages.includes(v.burnInLanguage), { message: "burn_in_not_translated", path: ["burnInLanguage"] });
+export const UpdatePlanInput = z.object({
+  cuts: z.array(z.object({ id: z.string(), shouldTrim: z.boolean() })).default([]),
+  shots: z.array(z.object({ id: z.string(), kind: ShotKind })).default([]),
+  burnInLanguage: TranslationLanguage.nullable().optional(),
+});
 
 export const CreateProjectInput = z.object({
   title: z.string().min(1).max(200),
@@ -93,6 +123,7 @@ export const api = {
   projectRun: (id: string) => `/api/projects/${id}/run`,
   projectPhrases: (id: string) => `/api/projects/${id}/phrases`,
   projectTemplate: (id: string) => `/api/projects/${id}/template`,
+  projectPlan: (id: string) => `/api/projects/${id}/plan`,
   uploadsStart: "/api/assets/uploads/start",
   upload: (uploadId: string) => `/api/assets/uploads/${uploadId}`,
   uploadDone: (uploadId: string) => `/api/assets/uploads/${uploadId}/done`,

@@ -4,27 +4,8 @@ import { FakeMedia } from "../../shared/media";
 import type { FakeRenderer } from "../../shared/renderer";
 import { makeTestDeps } from "../../shared/testing";
 import { FakeTranscriber } from "../../shared/transcriber";
-import type { AppDeps } from "../../shared/deps";
+import { projectWithSource, untilStatus } from "../../shared/apiTestHelpers";
 import type { Project } from "../../../shared/types";
-
-async function projectWithSource(deps: AppDeps, bytes = "hello") {
-  const a = createApp(deps);
-  const { body: project } = await request(a).post("/api/projects").send({ title: "t" });
-  const { body: { uploadId } } = await request(a).post("/api/assets/uploads/start").send({ fileName: "c.mp4", mimeType: "video/mp4", sizeBytes: bytes.length });
-  await request(a).put(`/api/assets/uploads/${uploadId}`).set("content-type", "video/mp4").send(Buffer.from(bytes));
-  const { body: asset } = await request(a).post(`/api/assets/uploads/${uploadId}/done`).send({ projectId: project.id });
-  const src = await request(a).post(`/api/projects/${project.id}/source`).send({ assetId: asset.id });
-  return { a, project: src.body as Project, asset };
-}
-
-const untilStatus = async (a: ReturnType<typeof createApp>, id: string, status: string) => {
-  let p: Project | undefined;
-  await vi.waitFor(async () => {
-    p = (await request(a).get(`/api/projects/${id}`)).body;
-    expect(p!.status).toBe(status);
-  }, { timeout: 5000 });
-  return p!;
-};
 
 describe("caption pipeline", () => {
   it("runs upload → ready with three outputs", async () => {
@@ -47,6 +28,11 @@ describe("caption pipeline", () => {
   it("source sets aspect ratio from probe", async () => {
     const { project } = await projectWithSource(makeTestDeps({ media: new FakeMedia({ durationMs: 5000, width: 1920, height: 1080 }) }));
     expect(project.aspectRatio).toBe("16:9");
+  });
+
+  it("source stores the probed duration", async () => {
+    const { project } = await projectWithSource(makeTestDeps());
+    expect(project.sourceDurationMs).toBe(21000);
   });
 
   it("run without source returns 400", async () => {

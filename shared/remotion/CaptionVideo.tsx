@@ -1,6 +1,7 @@
-import { AbsoluteFill, Audio, OffthreadVideo, Video, getRemotionEnvironment, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, OffthreadVideo, Series, Video, getRemotionEnvironment, useCurrentFrame, useVideoConfig } from "remotion";
+import type { Segment } from "../editing/cuts";
 import type { CaptionTemplate, Phrase } from "../types";
-import { activeWordIndex, phraseAt } from "./activeWord";
+import { activeWordIndex, phraseAt, segmentFrames, wordColor } from "./activeWord";
 
 export type CaptionVideoProps = {
   videoSrc: string;
@@ -10,23 +11,34 @@ export type CaptionVideoProps = {
   width: number;
   height: number;
   durationMs: number;
+  segments?: Segment[]; // kept source ranges when cuts are enabled; phrases are already in output time
 };
 
 export const FPS = 30;
 
-export function CaptionVideo({ videoSrc, sourceKind, phrases, template }: CaptionVideoProps) {
+export function CaptionVideo({ videoSrc, sourceKind, phrases, template, segments }: CaptionVideoProps) {
   const frame = useCurrentFrame();
   const { fps, height } = useVideoConfig();
   const timeMs = (frame / fps) * 1000;
   const phrase = phraseAt(phrases, timeMs);
   const active = phrase ? activeWordIndex(phrase, timeMs) : -1;
   const Src = getRemotionEnvironment().isRendering ? OffthreadVideo : Video;
+  const media = sourceKind === "audio" ? <Audio src={videoSrc} /> : <Src src={videoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
+  const emojiPx = template.font.sizePx * 1.2;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
-      {sourceKind === "audio" ? <Audio src={videoSrc} /> : <Src src={videoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+      {segments ? (
+        <Series>
+          {segmentFrames(segments, fps).map((s, i) => (
+            <Series.Sequence key={i} durationInFrames={s.durationInFrames} trimBefore={s.trimBefore}>{media}</Series.Sequence>
+          ))}
+        </Series>
+      ) : media}
       {phrase && (
-        <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "center", paddingTop: height * template.position.y - template.font.sizePx }}>
+        <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "center", paddingTop: height * template.position.y - template.font.sizePx - emojiPx }}>
+          {/* Always laid out, so the caption block does not jump between phrases with and without an emoji. */}
+          <div style={{ height: emojiPx, fontSize: emojiPx, lineHeight: 1 }}>{phrase.emoji}</div>
           <div
             style={{
               fontFamily: `${template.font.family}, system-ui, sans-serif`,
@@ -45,7 +57,7 @@ export function CaptionVideo({ videoSrc, sourceKind, phrases, template }: Captio
           >
             {phrase.words.map((w, i) => (
               <span key={w.id}>
-                <span style={{ color: template.animation === "karaoke" && i === active ? template.colors.activeWord : template.colors.text }}>{w.text}</span>
+                <span style={{ color: wordColor(template, w, i === active) }}>{w.text}</span>
                 {phrase.lineBreaksAfter.includes(i) ? <br /> : " "}
               </span>
             ))}

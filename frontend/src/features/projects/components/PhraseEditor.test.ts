@@ -1,4 +1,5 @@
-import { applyPhraseEdits, retimePhrase } from "./PhraseEditor";
+import { applyPhraseEdits } from "./PhraseEditor";
+import { retimePhrase } from "@shared/captions/retime";
 import type { Phrase } from "@shared/types";
 
 const phrase: Phrase = {

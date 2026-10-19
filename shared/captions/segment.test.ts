@@ -1,4 +1,4 @@
-import { segmentCaptions } from "./segment";
+import { carryEmoji, segmentCaptions } from "./segment";
 import type { CaptionLayout, Word } from "../types";
 
 const w = (text: string, startMs: number, endMs: number, i: number): Word => ({ id: `w-${i}`, text, startMs, endMs });
@@ -49,5 +49,15 @@ describe("segmentCaptions", () => {
     const host = phrases.find((p) => p.words.some((x) => x.text === long))!;
     const idx = host.words.findIndex((x) => x.text === long);
     if (idx > 0) expect(host.lineBreaksAfter).toContain(idx - 1);
+  });
+});
+
+describe("carryEmoji", () => {
+  it("carryEmoji follows the old phrase's first word", () => {
+    const prev = segmentCaptions(words.slice(0, 10), layout).map((p, i) => (i === 1 ? { ...p, emoji: "🧘" } : p)); // "Most people think"
+    const next = carryEmoji(prev, segmentCaptions(words.slice(0, 10), { ...layout, maxCharsPerLine: 6, maxLines: 1 }));
+    const host = next.find((p) => p.words.some((x) => x.id === prev[1].words[0].id))!;
+    expect(host.emoji).toBe("🧘");
+    expect(next.filter((p) => p.emoji)).toHaveLength(1);
   });
 });

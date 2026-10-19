@@ -36,3 +36,12 @@ export function segmentCaptions(words: Word[], layout: CaptionLayout): Phrase[] 
   if (cur) phrases.push(cur);
   return phrases;
 }
+
+// After a re-segment each emoji follows its old phrase's first word.
+export function carryEmoji(prev: Phrase[], next: Phrase[]): Phrase[] {
+  const byWord = new Map(prev.flatMap((p) => (p.emoji ? [[p.words[0].id, p.emoji] as const] : [])));
+  return next.map((p) => {
+    const emoji = p.words.map((w) => byWord.get(w.id)).find(Boolean);
+    return emoji ? { ...p, emoji } : p;
+  });
+}
