@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { homedir } from "node:os";
@@ -116,6 +116,19 @@ describe("sabi mcp tools", () => {
     expect(out.text).toContain(join(home, "t.mp4"));
     expect(readFileSync(join(home, "t.mp4"), "utf8")).toBe("fake-mp4");
     expect(readFileSync(join(home, "t.srt"), "utf8")).toContain("-->");
+  });
+
+  it("export never overwrites or follows existing files", async () => {
+    const victim = join(home, "victim.txt");
+    writeFileSync(victim, "keep me");
+    symlinkSync(victim, join(home, "t.mp4"));
+    writeFileSync(join(home, "t (2).srt"), "mine");
+    const out = await callTool(api, "export_outputs", { projectId: project.id, outDir: home });
+    expect(out.isError).toBeFalsy();
+    expect(readFileSync(victim, "utf8")).toBe("keep me");
+    expect(readFileSync(join(home, "t (2).srt"), "utf8")).toBe("mine");
+    expect(out.text).toContain(join(home, "t (3).mp4"));
+    expect(readFileSync(join(home, "t (3).mp4"), "utf8")).toBe("fake-mp4");
   });
 
   it("file tools refuse bad paths", async () => {

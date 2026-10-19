@@ -1,4 +1,4 @@
-import { realpath, stat } from "node:fs/promises";
+import { lstat, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, join, sep } from "node:path";
 import { z } from "zod";
@@ -214,13 +214,17 @@ const TOOLS = {
       const p = await api.getProject(i.projectId);
       const o = p.outputs;
       if (!o.mp4AssetId) return fail("no outputs yet; run_job captions (or render) first");
-      const base = p.title.replace(/[^\p{L}\p{N} _-]+/gu, "").trim() || p.id;
-      const files: [string | undefined, string][] = [
+      const title = p.title.replace(/[^\p{L}\p{N} _-]+/gu, "").trim() || p.id;
+      const files = (base: string): [string | undefined, string][] => [
         [o.mp4AssetId, `${base}.mp4`], [o.srtAssetId, `${base}.srt`], [o.vttAssetId, `${base}.vtt`],
         ...(o.translations ?? []).flatMap((t): [string, string][] => [[t.srtAssetId, `${base}.${t.language}.srt`], [t.vttAssetId, `${base}.${t.language}.vtt`]]),
       ];
+      // Never overwrite (or follow a symlink at) an existing name: pick "<title> (n)" free for the whole set; downloads open with wx.
+      const taken = async (base: string) => (await Promise.all(files(base).map(([, name]) => lstat(join(dir, name)).then(() => true, () => false)))).some(Boolean);
+      let base = title;
+      for (let n = 2; await taken(base); n++) base = `${title} (${n})`;
       const written: string[] = [];
-      for (const [id, name] of files) {
+      for (const [id, name] of files(base)) {
         if (!id) continue;
         await api.downloadAsset(id, join(dir, name));
         written.push(join(dir, name));

@@ -64,9 +64,9 @@ export class SabiApi {
     return this.json<Asset>(api.uploadDone(uploadId), "POST", { projectId }, SLOW_MS);
   }
 
-  // Streams to disk: renders can be large.
+  // Streams to disk (renders can be large); "wx" refuses an existing file or symlink at outPath.
   async downloadAsset(id: string, outPath: string) {
     const res = await this.req(api.assetFile(id), { timeoutMs: SLOW_MS });
-    await pipeline(Readable.fromWeb(res.body as ReadableStream), createWriteStream(outPath));
+    await pipeline(Readable.fromWeb(res.body as ReadableStream), createWriteStream(outPath, { flags: "wx" }));
   }
 }
