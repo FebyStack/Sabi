@@ -1,0 +1,1 @@
+{"mcpServers":{"sabi":{"command":"npx","args":["tsx","backend/mcp/index.ts"],"env":{"SABI_API_URL":"http://127.0.0.1:3001"}}}}
