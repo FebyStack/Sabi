@@ -61,6 +61,22 @@ describe("actions api", () => {
     expect(after.phrases).toEqual(edited.phrases);
   });
 
+  it("a web edit landing between load and write still wins", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const get = deps.projects.get.bind(deps.projects);
+    let raced = false;
+    deps.projects.get = async (id) => {
+      const snapshot = await get(id);
+      if (!raced) { raced = true; await new Promise((r) => setTimeout(r, 5)); await deps.projects.update(id, { title: "web" }); }
+      return snapshot; // the route now holds a stale copy whose version still equals baseVersion
+    };
+    const res = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: project.updatedAt, actions: [{ type: "setTitle", title: "agent" }] });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("stale");
+    expect((await get(project.id))!.title).toBe("web");
+  });
+
   it("busy is 409", async () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);
