@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:server": "tsx watch backend/server/index.ts",
     "dev:lite": "tsx watch backend/server/index-lite.ts",
+    "mcp": "tsx backend/mcp/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:server": "tsc -p backend/tsconfig.json --noEmit",
     "test": "vitest run",
@@ -19,6 +20,7 @@
     "ai:ollama": "OLLAMA_MODELS=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/ollama ollama serve"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@remotion/bundler": "^4.0.536",
     "@remotion/cli": "^4.0.536",
     "@remotion/player": "^4.0.536",
