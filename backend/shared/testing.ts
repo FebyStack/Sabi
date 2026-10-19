@@ -37,6 +37,10 @@ export function makeTestDeps(overrides: Partial<AppDeps> = {}): AppDeps {
 // Deterministic stand-in for Ollama, keyed off the request input: translations prefix each line, plans label every phrase.
 export function fakeLlmResponder(req: LlmRequest): unknown {
   const input = JSON.parse(req.user);
+  if (input.beats) {
+    const beats: { i: number; text: string }[] = input.beats;
+    return { labels: beats.map((b) => ({ i: b.i, query: "stock " + b.text.split(" ")[0], prompt: "photo of " + b.text, intent: b.text.split(" ").slice(0, 3).join(" "), wantsVideo: b.i === 1 })) };
+  }
   if (input.lines) return { lines: input.lines.map((l: string) => `${input.language}: ${l}`) };
   const phrases: { i: number; text: string }[] = input.phrases;
   const third = phrases.filter((p) => p.i % 3 === 0);

@@ -33,6 +33,7 @@ export const OverlaySource = z.enum(["stock", "generated", "uploaded"]);
 export const OverlayTransition = z.enum(["fade", "none"]);
 export const AttributionSchema = z.object({ author: z.string(), url: z.string().url() });
 export const GenerationInfoSchema = z.object({ provider: z.literal("fal"), model: z.string(), prompt: z.string(), costCents: z.number().int().nonnegative() });
+export const BeatSchema = z.object({ id: z.string(), shotId: z.string(), startMs: z.number(), endMs: z.number(), placement: OverlayPlacement, media: OverlayMedia });
 // Stored in source time; captionVideoProps() maps it through enabled cuts.
 export const OverlaySchema = z.object({
   id: z.string(), shotId: z.string(), assetId: z.string(), media: OverlayMedia, source: OverlaySource,

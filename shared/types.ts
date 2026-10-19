@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type {
-  AspectRatio, AssetSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, RegenerateOverlayInput, UpdateOverlaysInput, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
+  AspectRatio, AssetSchema, BeatSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, RegenerateOverlayInput, UpdateOverlaysInput, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
   ProjectEventSchema, ProjectSchema, ProjectStatus, ShotKind, ShotSchema, TranscriptSchema, TranslationLanguage, TranslationSchema, UpdatePlanInput, WordSchema,
 } from "./contract";
 
@@ -37,7 +37,7 @@ export interface CaptionTemplate {
 }
 export type ShotKind = z.infer<typeof ShotKind>;
 export type Shot = z.infer<typeof ShotSchema>;
-export interface BrollBeat { id: string; shotId: string; startMs: number; endMs: number; intent: string; imagePrompt: string; stockQuery: string }
+export type Beat = z.infer<typeof BeatSchema>;
 export type OverlayPlacement = z.infer<typeof OverlayPlacement>;
 export type OverlayMedia = z.infer<typeof OverlayMedia>;
 export type Overlay = z.infer<typeof OverlaySchema>;
