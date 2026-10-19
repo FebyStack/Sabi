@@ -23,6 +23,7 @@ export function actionsRouter(deps: AppDeps) {
     if ("error" in out) return res.status(400).json(out);
 
     const updated = await deps.projects.update(project.id, out.patch);
+    deps.bus.publish(project.id, { type: "project", status: updated.status }); // open web tabs refetch, so a later web edit starts from Claude's
     if (!render || !out.rerender) return res.json({ project: updated, applied: actions.length });
     const started = startCaptionJob(deps, updated, { transcribe: false, resegment: false });
     res.status(202).json({ project: updated, applied: actions.length, jobId: started.id });

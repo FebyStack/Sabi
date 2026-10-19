@@ -2,7 +2,7 @@ import request from "supertest";
 import { readyProject, untilStatus } from "../../shared/apiTestHelpers";
 import { FakeRenderer } from "../../shared/renderer";
 import { makeTestDeps } from "../../shared/testing";
-import type { Project } from "../../../shared/types";
+import type { Project, ProjectEvent } from "../../../shared/types";
 
 const text = (p: Project) => p.phrases.flatMap((ph) => ph.words.map((w) => w.text)).join(" ");
 
@@ -33,6 +33,15 @@ describe("actions api", () => {
     expect(res.body).toMatchObject({ applied: 1, project: { captionTemplateId: "bold", status: "ready" } });
     expect(res.body.jobId).toBeUndefined();
     expect((deps.renderer as FakeRenderer).calls.length).toBe(calls);
+  });
+
+  it("tells open browser tabs about an unrendered edit", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const events: ProjectEvent[] = [];
+    deps.bus.subscribe(project.id, (e) => events.push(e));
+    await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: project.updatedAt, actions: [{ type: "setTitle", title: "x" }] });
+    expect(events).toEqual([{ type: "project", status: "ready" }]); // the UI refetches on project events
   });
 
   it("stale baseVersion rejects the whole batch", async () => {
