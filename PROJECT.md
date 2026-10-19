@@ -23,6 +23,7 @@ Processes (terminal tabs, or `.claude/launch.json` entries `api-lite`, `dev`, `w
 - Local ffmpeg has no libass/freetype: all text is drawn by Remotion; ffmpeg only probes and extracts 16 kHz WAV, with `-protocol_whitelist file` + a format whitelist (uploads are untrusted).
 
 ## Decisions
+- **Claude is the editing agent, on subscription only (spec §11 row 10, 2026-10-20):** a Claude Code sidebar session drives projects through Sabi's MCP server (`backend/mcp`, `.mcp.json`, skill `.claude/skills/sabi-editor`). The backend never calls Claude or any Anthropic API; web buttons stay on Ollama. Plan 3 (B-roll) is paused on `worktree-broll-and-overlays` until the MCP plan lands.
 - Commits and PRs carry **no Claude/AI co-author trailers or "Generated with Claude Code" lines** (owner's rule: they appear as GitHub contributors). `.githooks/commit-msg` strips them; `npm install` (`prepare`) sets `core.hooksPath`.
 - LLM = Ollama locally (never Anthropic API — billing rule). Generation = fal.ai by default, per-project `mediaSource: "stock"` switches to Pexels only.
 - Project model is JSON in Postgres (jsonb), not protobuf; render engine = Remotion/FFmpeg server-side (not in-browser WASM) for MVP.
