@@ -1,3 +1,4 @@
+import { existsSync, readdirSync } from "node:fs";
 import request from "supertest";
 import { projectWithSource, readyProject } from "../../shared/apiTestHelpers";
 import { FakeRenderer } from "../../shared/renderer";
@@ -20,6 +21,14 @@ describe("still frames", () => {
     expect(res.headers["cache-control"]).toBe("no-store");
     expect((res.body as Buffer).subarray(0, 4)).toEqual(PNG_MAGIC);
     expect((deps.renderer as FakeRenderer).stillCalls.at(-1)).toMatchObject({ timestampMs: 4000, width: 540, compositionId: "CaptionVideo" });
+  });
+
+  it("leaves no frame files behind on the data disk", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    await Promise.all([1000, 1000, 2000].map((t) => request(a).get(`/api/projects/${project.id}/frame?t=${t}`).expect(200)));
+    const dir = deps.storage.localPath(`frames/${project.id}`);
+    expect(existsSync(dir) ? readdirSync(dir) : []).toEqual([]);
   });
 
   it("frame clamps t to the output duration", async () => {

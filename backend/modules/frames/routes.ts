@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import { api } from "../../../shared/contract";
 import { captionVideoProps } from "../../../shared/editing/renderProps";
@@ -25,10 +25,17 @@ export function framesRouter(deps: AppDeps) {
     const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0 });
     const t = Math.round(clamp(Number(req.query.t) || 0, 0, props.durationMs));
     const w = Math.round(clamp(Number(req.query.w) || 540, 160, 1080));
-    const outPath = deps.storage.localPath(`frames/${project.id}/${t}-${w}.png`); // overwritten per (t, w): never accumulates
+    // One file per request, deleted once read: DATA_DIR is ExFAT with 1 MiB blocks, so stills must never accumulate.
+    const outPath = deps.storage.localPath(`frames/${project.id}/${deps.id()}.png`);
     await mkdir(dirname(outPath), { recursive: true });
-    await deps.renderer.renderStill({ compositionId: "CaptionVideo", inputProps: props, timestampMs: t, width: w, outPath });
-    res.sendFile(outPath, { headers: { "content-type": "image/png", "cache-control": "no-store", "x-sabi-frame-ms": String(t) } });
+    let png: Buffer;
+    try {
+      await deps.renderer.renderStill({ compositionId: "CaptionVideo", inputProps: props, timestampMs: t, width: w, outPath });
+      png = await readFile(outPath);
+    } finally {
+      await rm(outPath, { force: true });
+    }
+    res.set({ "content-type": "image/png", "cache-control": "no-store", "x-sabi-frame-ms": String(t) }).send(png);
   });
 
   return r;
