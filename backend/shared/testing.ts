@@ -29,9 +29,7 @@ export function makeTestDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     transcriber: new FakeTranscriber(sampleTranscript),
     renderer: new FakeRenderer(),
     llm: new FakeLlm(fakeLlmResponder),
-    fetch: fixtureFetch(),
-    stock: new FakeStock((_q, { media, page }) => (media === "image" ? [page === 2 ? IMG2 : IMG1] : [VID1])),
-    generator: new FakeGenerator((r) => `${MEDIA_TEST}/${r.media === "image" ? "one.png" : "clip.mp4"}`),
+    ...fakeBroll(),
     apiBaseUrl: "http://test",
     now: () => new Date("2026-01-01T00:00:00.000Z"),
     id: () => `id-${++n}`,
@@ -65,6 +63,13 @@ export function fixtureFetch(): typeof fetch {
   }) as typeof fetch;
 }
 
+// Pexels and fal.ai stand-ins: canned results served from memory (tests, FAKE_AI=1).
+const fakeBroll = (): Pick<AppDeps, "fetch" | "stock" | "generator"> => ({
+  fetch: fixtureFetch(),
+  stock: new FakeStock((_q, { media, page }) => (media === "image" ? [page === 2 ? IMG2 : IMG1] : [VID1])),
+  generator: new FakeGenerator((r) => `${MEDIA_TEST}/${r.media === "image" ? "one.png" : "clip.mp4"}`),
+});
+
 // Deterministic stand-in for Ollama, keyed off the request input: translations prefix each line, plans label every phrase.
 export function fakeLlmResponder(req: LlmRequest): unknown {
   const input = JSON.parse(req.user);
@@ -82,7 +87,7 @@ export function fakeLlmResponder(req: LlmRequest): unknown {
   };
 }
 
-// FAKE_AI=1 swaps whisperX and Ollama for fakes so the UI can be driven without either.
+// FAKE_AI=1 swaps whisperX, Ollama, Pexels and fal.ai for fakes so the UI can be driven without any of them.
 export function makeMemoryDeps(dataDir: string, apiBaseUrl = `http://127.0.0.1:${process.env.PORT ?? 3001}`): AppDeps {
   const bus = new MemoryEventBus();
   const fakeAi = process.env.FAKE_AI === "1";
@@ -96,9 +101,11 @@ export function makeMemoryDeps(dataDir: string, apiBaseUrl = `http://127.0.0.1:$
     transcriber: fakeAi ? new FakeTranscriber(sampleTranscript) : new WhisperXTranscriber(process.env.WHISPERX_URL ?? "http://localhost:8010"),
     renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts", bundleDir: ".remotion-bundle" }),
     llm: fakeAi ? new FakeLlm(fakeLlmResponder) : new OllamaLlm(process.env.OLLAMA_URL ?? "http://localhost:11434", process.env.OLLAMA_MODEL ?? "qwen2.5:3b"),
-    fetch: globalThis.fetch,
-    stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
-    generator: process.env.FAL_KEY ? new FalGenerator(process.env.FAL_KEY, globalThis.fetch) : null,
+    ...(fakeAi ? fakeBroll() : {
+      fetch: globalThis.fetch,
+      stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
+      generator: process.env.FAL_KEY ? new FalGenerator(process.env.FAL_KEY, globalThis.fetch) : null,
+    }),
     apiBaseUrl: process.env.API_BASE_URL ?? apiBaseUrl,
     now: () => new Date(),
     id: randomUUID,

@@ -118,6 +118,7 @@ export function EditPlanPanel({ project, busy, onPlan, onUpdate, onSeek }: Props
           </li>
         ))}
       </ul>
+      <p className="text-xs text-neutral-400">B-Roll shots get media on the next Add B-roll.</p>
       {plan.cuts.length > 0 ? (
         <ul className="space-y-1">
           {plan.cuts.map((c) => (
