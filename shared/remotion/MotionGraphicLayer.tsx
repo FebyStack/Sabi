@@ -23,7 +23,7 @@ export function MotionGraphicLayer({ mg, brand, width, height }: { mg: MotionGra
     <Sequence from={from} durationInFrames={durationInFrames} layout="none">
       <div style={{ position: "absolute", ...box, overflow: "hidden" }}>
         {Mg === MgBroken ? <MgPlaceholder id={mg.id} /> : (
-          <MgBoundary id={mg.id}>
+          <MgBoundary key={mg.compiled} id={mg.id}>{/* new code → fresh boundary, so a fixed MG drops its ⚠ in the Player */}
             <Mg item={{ props: mg.props, brand, width: box.width, height: box.height, durationInFrames }} />
           </MgBoundary>
         )}
