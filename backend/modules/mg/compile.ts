@@ -12,6 +12,8 @@ export const DENY: ReadonlySet<string> = new Set([
   "top", "parent", "frames", "opener", "open", "Image", "Audio", "EventSource", "BroadcastChannel", "SharedWorker", "Reflect", "Proxy",
   "dangerouslySetInnerHTML", "innerHTML", "outerHTML", "insertAdjacentHTML", "srcDoc", "srcdoc",
 ]);
+// As string literals only the property names matter (`[].map["constructor"]`, `{ "innerHTML": … }`); "top" is also a CSS value.
+const DENY_KEYS = new Set(["constructor", "__proto__", "dangerouslySetInnerHTML", "innerHTML", "outerHTML", "insertAdjacentHTML", "srcDoc", "srcdoc"]);
 const DENY_TAGS = new Set(["script", "iframe", "object", "embed", "frame", "frameset", "link", "meta", "base", "form"]);
 
 // `x[k]` is fine; a property name built from strings (`x["con" + "structor"]`) is how a denylist gets walked around.
@@ -40,8 +42,12 @@ export function compileMotionGraphic(code: string): CompileResult {
     else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) forbidden = "import()";
     else if (node.kind === ts.SyntaxKind.WithStatement) forbidden = "with";
     else if (ts.isIdentifier(node) && DENY.has(node.text)) forbidden = node.text;
-    else if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && DENY.has(node.argumentExpression.text)) forbidden = node.argumentExpression.text;
-    else if (ts.isElementAccessExpression(node) && !ts.isStringLiteralLike(node.argumentExpression) && stringy(node.argumentExpression)) forbidden = "computed property name";
+    else if (ts.isStringLiteralLike(node) && DENY_KEYS.has(node.text)) forbidden = node.text; // also covers x["constructor"] and { "innerHTML": … }
+    else if ((ts.isElementAccessExpression(node) && !ts.isStringLiteralLike(node.argumentExpression) && stringy(node.argumentExpression))
+      || (ts.isComputedPropertyName(node) && stringy(node.expression))) forbidden = "computed property name";
+    else if (ts.isJsxSpreadAttribute(node)) forbidden = "{...spread} attribute";
+    else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "createElement"
+      && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]) && DENY_TAGS.has(node.arguments[0].text.toLowerCase())) forbidden = `<${node.arguments[0].text}>`;
     else if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && DENY_TAGS.has(node.tagName.getText(file).toLowerCase())) forbidden = `<${node.tagName.getText(file)}>`;
     else if (ts.isJsxAttribute(node) && DENY.has(node.name.getText(file))) forbidden = node.name.getText(file);
     else if (ts.isStringLiteralLike(node) && /^\s*javascript:/i.test(node.text)) forbidden = "javascript: URL";

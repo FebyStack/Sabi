@@ -61,8 +61,24 @@ describe("compileMotionGraphic", () => {
     for (const [code, detail] of cases) expect(compileMotionGraphic(code), code).toEqual({ error: "bad_code", detail });
   });
 
+  it("keeps css values that share a name with a global", () => {
+    expect(compileMotionGraphic(`const Component = () => <div style={{ verticalAlign: "top", transformOrigin: "top", position: "absolute" }}>Open</div>;`)).toHaveProperty("compiled");
+  });
+
   it("keeps ordinary indexing", () => {
     expect(compileMotionGraphic(`const Component = ({ item }) => { const xs = [1, 2, 3]; const i = 1; return <div>{xs[i + 1]}{xs[0]}{item.props["title"]}</div>; };`))
       .toHaveProperty("compiled");
+  });
+
+  it("closes spread, string-keyed and createElement routes", () => {
+    const cases: [string, string][] = [
+      [`const Component = ({ item }) => <div {...item.props.attrs} />;`, "forbidden: {...spread} attribute"],
+      [`const Component = () => <div {...{ "dangerouslySetInnerHTML": { __html: "x" } }} />;`, "forbidden: {...spread} attribute"],
+      [`const Component = () => { const o = { "dangerouslySetInnerHTML": 1 }; return null; };`, "forbidden: dangerouslySetInnerHTML"],
+      [`const Component = () => { const k = "constructor"; return [].map[k]; };`, "forbidden: constructor"],
+      [`const Component = () => { const o = { ["dangerously" + "SetInnerHTML"]: 1 }; return null; };`, "forbidden: computed property name"],
+      [`const Component = () => React.createElement("iframe", { src: "https://x" });`, "forbidden: <iframe>"],
+    ];
+    for (const [code, detail] of cases) expect(compileMotionGraphic(code), code).toEqual({ error: "bad_code", detail });
   });
 });
