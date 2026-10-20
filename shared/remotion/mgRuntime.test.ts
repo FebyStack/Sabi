@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getCaptionTemplate } from "../captions/templates";
 import { templateLook } from "../editing/brand";
-import { MgBroken, buildMotionGraphic, type MgItem } from "./mgRuntime";
+import { MG_SCOPE, MgBroken, buildMotionGraphic, type MgItem } from "./mgRuntime";
 
 const item: MgItem = { props: { title: "42% faster" }, brand: templateLook(getCaptionTemplate("clean")), width: 1080, height: 960, durationInFrames: 60 };
 
@@ -19,6 +19,11 @@ describe("mgRuntime", () => {
     expect(buildMotionGraphic("const Component = 42;")).toBe(MgBroken);
     expect(buildMotionGraphic("const Component = (")).toBe(MgBroken);
     expect(renderToStaticMarkup(createElement(MgBroken, { item }))).toContain("⚠");
+  });
+
+  it("motion graphics get the forgiving Img, not Remotion's", async () => {
+    const { Img } = await import("remotion");
+    expect(MG_SCOPE.Img).not.toBe(Img);
   });
 
   it("caches by source", () => {

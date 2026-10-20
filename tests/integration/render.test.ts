@@ -113,6 +113,14 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     expect(g).toBeLessThan(60);
   }, 900_000);
 
+  it("an MG image that fails to load draws a marker instead of failing the render", async () => {
+    const compiled = `const Component = () => React.createElement(Img, { src: "${base}/missing.png", style: { position: "absolute", inset: 0, width: "100%", height: "100%" } });`;
+    const out = await render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 0.3 }, props: {} }] }, "badimg.mp4");
+    const [r, g] = pixel(out, 0.5, 900, 400); // inside the red ⚠ image marker that replaced the image
+    expect(r).toBeGreaterThan(150);
+    expect(g).toBeLessThan(60);
+  }, 900_000);
+
   it("an infinite loop fails the render within the timeout", async () => {
     const compiled = "const Component = () => { for (;;) {} };";
     const started = Date.now();

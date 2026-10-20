@@ -1,10 +1,18 @@
-import React, { createElement, type ComponentType } from "react";
-import { AbsoluteFill, Easing, Img, interpolate, interpolateColors, random, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import React, { createElement, useState, type ComponentProps, type ComponentType } from "react";
+import { AbsoluteFill, Easing, Img as RemotionImg, interpolate, interpolateColors, random, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { BrandLook } from "../editing/brand";
 
 // What an agent-written motion graphic receives. width/height are its box in pixels; frames count from its own start.
 export type MgItem = { props: Record<string, string | number | boolean>; brand: BrandLook; width: number; height: number; durationInFrames: number };
 type Mg = ComponentType<{ item: MgItem }>;
+
+// Remotion's <Img> cancels the whole render when a source never loads; an MG's broken image draws a marker instead.
+// Unmounting the failed <Img> releases its delayRender handle.
+function Img(props: ComponentProps<typeof RemotionImg>) {
+  const [broken, setBroken] = useState(false);
+  if (broken) return createElement("div", { style: { ...props.style, background: "rgba(255,0,0,.85)", color: "white", fontSize: 18, fontFamily: "system-ui, sans-serif" } }, "⚠ image");
+  return createElement(RemotionImg, { ...props, onError: () => setBroken(true) });
+}
 
 // The only names the compiled code can see (the server already rejected imports and denied globals).
 export const MG_SCOPE = { React, AbsoluteFill, Img, Easing, interpolate, interpolateColors, random, spring, useCurrentFrame, useVideoConfig };

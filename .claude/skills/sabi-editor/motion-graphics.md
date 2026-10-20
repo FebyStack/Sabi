@@ -26,7 +26,7 @@ A motion graphic (MG) is a small Remotion component you write. Sabi draws it ins
   ```
 - `props` (max 20): `{ key, type: "text"|"number"|"color"|"boolean"|"image", value }`, keys `camelCase`. Make every visible text, number and colour a prop so it can be changed with `updateMotionGraphic {props}` without touching code. `image` values are asset ids from `upload_asset`. `<Img>` sources come only from image props and `item.brand.logoUrl`.
 - `box` = `{x, y, w, h}` as fractions of the frame (default the whole frame). `startMs`/`endMs` are **source** time and must end inside the source.
-- A runtime error never breaks the frame: the box shows a red `⚠ mg-<n>` label instead. An endless loop fails the render after about 40 s.
+- A runtime error never breaks the frame: the box shows a red `⚠ mg-<n>` label instead; an `<Img>` that cannot load shows `⚠ image` in its place. An endless loop fails the render after about 40 s.
 
 ## Craft rules
 
