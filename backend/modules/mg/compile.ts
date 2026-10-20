@@ -13,7 +13,13 @@ export const DENY: ReadonlySet<string> = new Set([
   "dangerouslySetInnerHTML", "innerHTML", "outerHTML", "insertAdjacentHTML", "srcDoc", "srcdoc",
 ]);
 // As string literals only the property names matter (`[].map["constructor"]`, `{ "innerHTML": … }`); "top" is also a CSS value.
-const DENY_KEYS = new Set(["constructor", "__proto__", "dangerouslySetInnerHTML", "innerHTML", "outerHTML", "insertAdjacentHTML", "srcDoc", "srcdoc"]);
+// Dangerous wherever they appear: code from strings, HTML from strings, and the DOM's ways back to `window` (refs, events).
+const DENY_KEYS = new Set([
+  "constructor", "__proto__", "dangerouslySetInnerHTML", "innerHTML", "outerHTML", "insertAdjacentHTML", "srcDoc", "srcdoc",
+  "ownerDocument", "defaultView", "getRootNode", "contentWindow", "contentDocument",
+]);
+// Global names that are also everyday property names (`style.top`, `props.open`); every other denied name stays denied as a property too.
+const SAFE_PROPERTY_NAMES = new Set(["top", "parent", "open", "self", "frames", "location"]);
 const DENY_TAGS = new Set(["script", "iframe", "object", "embed", "frame", "frameset", "link", "meta", "base", "form"]);
 
 // `x[k]` is fine; a property name built from strings (`x["con" + "structor"]`) is how a denylist gets walked around.
@@ -23,12 +29,14 @@ const stringy = (e: ts.Expression): boolean => ts.isStringLiteralLike(e) || ts.i
 
 type CompileResult = { compiled: string } | { error: "bad_code"; detail: string };
 
-// A property or attribute name (`x.open`, `{ top: 0 }`, `<a href>`) is not a reference to the global of that name.
+// A property or attribute name (`x.open`, `{ top: 0 }`, `<a href>`, `const { parent } = …`) is not a reference to the global of that name.
 const isPropertyName = (id: ts.Identifier) => {
   const p = id.parent;
   return ((ts.isPropertyAccessExpression(p) || ts.isPropertyAssignment(p) || ts.isJsxAttribute(p) || ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p)) && p.name === id)
-    || (ts.isBindingElement(p) && p.propertyName === id);
+    || (ts.isBindingElement(p) && (p.propertyName === id || (!p.propertyName && p.name === id))); // `{ parent }` reads the key `parent`
 };
+const deniedIdentifier = (id: ts.Identifier, isLocal: (id: ts.Identifier) => boolean) =>
+  DENY_KEYS.has(id.text) || (DENY.has(id.text) && (isPropertyName(id) ? !SAFE_PROPERTY_NAMES.has(id.text) : !isLocal(id)));
 
 // Binds the file on its own (no lib): a name declared in the code resolves to that declaration; a global resolves to nothing.
 function parseWithScopes(code: string) {
@@ -64,7 +72,7 @@ export function compileMotionGraphic(code: string): CompileResult {
     else if (ts.isExportAssignment(node) || ts.isExportDeclaration(node) || ts.getCombinedModifierFlags(node as ts.Declaration) & ts.ModifierFlags.Export) forbidden = "export";
     else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) forbidden = "import()";
     else if (node.kind === ts.SyntaxKind.WithStatement) forbidden = "with";
-    else if (ts.isIdentifier(node) && (isPropertyName(node) ? DENY_KEYS.has(node.text) : DENY.has(node.text) && !isLocal(node))) forbidden = node.text;
+    else if (ts.isIdentifier(node) && deniedIdentifier(node, isLocal)) forbidden = node.text;
     else if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && DENY.has(node.argumentExpression.text)) forbidden = node.argumentExpression.text;
     else if (ts.isStringLiteralLike(node) && DENY_KEYS.has(node.text)) forbidden = node.text; // { "innerHTML": … }, const k = "constructor"
     else if ((ts.isElementAccessExpression(node) && !ts.isStringLiteralLike(node.argumentExpression) && stringy(node.argumentExpression))

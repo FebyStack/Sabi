@@ -87,6 +87,17 @@ describe("compileMotionGraphic", () => {
     expect(compileMotionGraphic(`const Component = ({ item }) => { item.innerHTML = 1; return null; };`)).toEqual({ error: "bad_code", detail: "forbidden: innerHTML" });
   });
 
+  it("dangerous property names stay forbidden in every position", () => {
+    const cases: [string, string][] = [
+      [`const Component = () => { const { constructor } = [].map; return constructor("return 1")(); };`, "forbidden: constructor"],
+      [`const Component = ({ item }) => { item.fetch("https://x"); return null; };`, "forbidden: fetch"],
+      [`const Component = ({ item }) => { const { postMessage } = item; return null; };`, "forbidden: postMessage"],
+      [`const Component = () => <div ref={(el) => el && el.ownerDocument} />;`, "forbidden: ownerDocument"],
+      [`const Component = () => <div ref={(el) => el && el.getRootNode()} />;`, "forbidden: getRootNode"],
+    ];
+    for (const [code, detail] of cases) expect(compileMotionGraphic(code), code).toEqual({ error: "bad_code", detail });
+  });
+
   it("keeps ordinary indexing", () => {
     expect(compileMotionGraphic(`const Component = ({ item }) => { const xs = [1, 2, 3]; const i = 1; return <div>{xs[i + 1]}{xs[0]}{item.props["title"]}</div>; };`))
       .toHaveProperty("compiled");

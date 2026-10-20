@@ -9,7 +9,7 @@ A motion graphic (MG) is a small Remotion component you write. Sabi draws it ins
   - network, storage and global names: `window document globalThis self top parent frames opener open location navigator fetch XMLHttpRequest WebSocket EventSource Image Audio Worker SharedWorker BroadcastChannel importScripts postMessage localStorage sessionStorage indexedDB`;
   - code from strings and reflection: `eval Function constructor __proto__ Reflect Proxy require process`, timers `setTimeout setInterval setImmediate queueMicrotask`, `with`, dynamic `import()`;
   - HTML from strings: `dangerouslySetInnerHTML innerHTML outerHTML insertAdjacentHTML srcDoc`, `{...spread}` JSX attributes, `<script> <iframe> <object> <embed> <frame> <link> <meta> <base> <form>`, `javascript:` URLs, property names built from strings (`x["a" + "b"]`).
-- These rules apply to *references*: property names (`style={{ top: 0 }}`, `item.props.open`) and names you declare yourself (`const { parent } = item.props`) are fine.
+- `top parent open self frames location` are fine as property names (`style={{ top: 0 }}`, `item.props.open`, `const { parent } = item.props`) and any name you declare yourself is fine; the other names above are refused as properties too, and `ownerDocument defaultView getRootNode contentWindow contentDocument` are refused everywhere (they lead back to `window`).
 - In scope, and nothing else: `React, AbsoluteFill, Img, Easing, interpolate, interpolateColors, random, spring, useCurrentFrame, useVideoConfig`.
 - Your component receives `{ item }`:
   - `item.props` — your declared props as `{ key: value }` (image props arrive as URLs);
