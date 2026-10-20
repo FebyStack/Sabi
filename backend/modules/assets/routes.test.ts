@@ -45,6 +45,17 @@ describe("assets", () => {
     expect(done.body.error).toBe("too_large_image");
   });
 
+  it("rejects an image whose probe finds no dimensions", async () => {
+    const deps = makeTestDeps({ media: new FakeMedia({ durationMs: 0 }) });
+    const a = createApp(deps);
+    const { body: { uploadId } } = await request(a).post("/api/assets/uploads/start").send({ fileName: "x.png", mimeType: "image/png", sizeBytes: 5 });
+    await request(a).put(`/api/assets/uploads/${uploadId}`).set("content-type", "image/png").send(Buffer.from("hello"));
+    const done = await request(a).post(`/api/assets/uploads/${uploadId}/done`).send({});
+    expect(done.status).toBe(422);
+    expect(done.body.error).toBe("bad_image");
+    expect(await deps.storage.stat(`uploads/${uploadId}.png`)).toBeNull();
+  });
+
   it("rejects oversized and wrong mime", async () => {
     const a = createApp(makeTestDeps());
     expect((await request(a).post("/api/assets/uploads/start").send({ fileName: "x.mp4", mimeType: "video/mp4", sizeBytes: 2 * 1024 ** 3 + 1 })).status).toBe(413);

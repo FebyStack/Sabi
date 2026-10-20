@@ -56,9 +56,9 @@ export function assetsRouter(deps: AppDeps) {
     if (!stored) { pending.set(req.params.uploadId, up); return res.status(409).json({ error: "no_bytes" }); }
     const kind = kindOf(up.mimeType);
     const info = await deps.media.probe(deps.storage.localPath(up.key), kind === "image" ? "image" : "av");
-    if (kind === "image" && Math.max(info.width ?? 0, info.height ?? 0) > MAX_IMAGE_PX) {
+    if (kind === "image" && (!info.width || !info.height || Math.max(info.width, info.height) > MAX_IMAGE_PX)) {
       await deps.storage.remove(up.key);
-      return res.status(422).json({ error: "too_large_image", maxPx: MAX_IMAGE_PX });
+      return res.status(422).json(info.width && info.height ? { error: "too_large_image", maxPx: MAX_IMAGE_PX } : { error: "bad_image" });
     }
     if (info.durationMs > MAX_CLIP_MS) {
       await deps.storage.remove(up.key);
