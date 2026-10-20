@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { createReadStream, mkdtempSync, statSync } from "node:fs";
+import { createReadStream, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -56,5 +56,17 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     expect(statSync(out).size).toBeGreaterThan(10_000);
     const probed = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out]).toString();
     expect(Number(probed)).toBeCloseTo(1.6, 1);
+  }, 900_000);
+
+  it("renders a real still", async () => {
+    const phrases: Phrase[] = [{ id: "ph-0", startMs: 100, endMs: 1900, lineBreaksAfter: [1], words }];
+    const inputProps: CaptionVideoProps = { videoSrc, sourceKind: "video", template: getCaptionTemplate("clean"), width: 1080, height: 1920, phrases, durationMs: 2000 };
+    const still = async (width: number, timestampMs: number) => {
+      const outPath = join(dir, `still-${width}.png`);
+      await renderer.renderStill({ compositionId: "CaptionVideo", inputProps, timestampMs, width, outPath });
+      return readFileSync(outPath);
+    };
+    expect((await still(540, 1000)).length).toBeGreaterThan(5_000);
+    expect((await still(270, 2000)).readUInt32BE(16)).toBe(270); // IHDR width; t = durationMs is clamped to the last frame
   }, 900_000);
 });

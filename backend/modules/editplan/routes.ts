@@ -7,6 +7,7 @@ import type { AppDeps } from "../../shared/deps";
 import { projectLoader } from "../../shared/routes";
 import { renderOutputs, startCaptionJob } from "../pipeline/pipeline";
 import { TRANSLATE_BATCH, planEdit, translatePhrases } from "./planner";
+import { validatePlanEdit } from "./validate";
 
 // Job "plan": planning → plan → translate → (save) → rendering → ready. Nothing is saved until the LLM work succeeds,
 // so a failure (Ollama down, model missing) leaves the previous status and outputs; a render failure keeps the plan.
@@ -75,25 +76,15 @@ export function editPlanRouter(deps: AppDeps) {
     if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
     const project = await load(req, res);
     if (!project) return;
-    const plan = project.editPlan;
-    if (!plan) return res.status(404).json({ error: "no_plan" });
-    const { cuts, shots, burnInLanguage } = parsed.data;
-    const trim = new Map(cuts.map((c) => [c.id, c.shouldTrim]));
-    const kinds = new Map(shots.map((s) => [s.id, s.kind]));
-    if ([...trim.keys()].some((id) => !plan.cuts.some((c) => c.id === id)) || [...kinds.keys()].some((id) => !plan.shots.some((s) => s.id === id))) {
-      return res.status(400).json({ error: "unknown_id" });
-    }
-    if (burnInLanguage && !project.translations.some((t) => t.language === burnInLanguage)) return res.status(400).json({ error: "bad_burn_in" });
+    if (!project.editPlan) return res.status(404).json({ error: "no_plan" });
+    const v = validatePlanEdit(project, parsed.data);
+    if ("error" in v) return res.status(400).json({ error: v.error });
     if (deps.jobs.active(project.id)) return res.status(409).json({ error: "busy" });
 
-    const editPlan = {
-      cuts: plan.cuts.map((c) => ({ ...c, shouldTrim: trim.get(c.id) ?? c.shouldTrim })),
-      shots: plan.shots.map((s) => ({ ...s, kind: kinds.get(s.id) ?? s.kind })),
-    };
-    const burnInChanged = burnInLanguage !== undefined && burnInLanguage !== project.burnInLanguage;
-    const updated = await deps.projects.update(project.id, { editPlan, ...(burnInChanged ? { burnInLanguage } : {}) });
+    const { editPlan, burnInChanged, cutsChanged } = v;
+    const updated = await deps.projects.update(project.id, { editPlan, ...(burnInChanged ? { burnInLanguage: parsed.data.burnInLanguage } : {}) });
     // Shot kinds don't change the render yet (no B-roll), so only cuts, burn-in and a failed previous render re-render.
-    if (!burnInChanged && project.status !== "failed" && editPlan.cuts.every((c, i) => c.shouldTrim === plan.cuts[i].shouldTrim)) return res.json(editPlan);
+    if (!burnInChanged && !cutsChanged && project.status !== "failed") return res.json(editPlan);
     res.status(202).json({ jobId: startCaptionJob(deps, updated, { transcribe: false, resegment: false }).id });
   });
 

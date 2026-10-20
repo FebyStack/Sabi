@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type {
-  AspectRatio, AssetSchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
+  ActionSchema, ApplyActionsInput, ApplyActionsResult, AspectRatio, AssetSchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
   ProjectEventSchema, ProjectSchema, ProjectStatus, ShotKind, ShotSchema, TranscriptSchema, TranslationLanguage, TranslationSchema, UpdatePlanInput, WordSchema,
 } from "./contract";
 
@@ -24,6 +24,9 @@ export type Translation = z.infer<typeof TranslationSchema>;
 export type TranslationLanguage = z.infer<typeof TranslationLanguage>;
 export type PlanInput = z.input<typeof PlanInput>;
 export type UpdatePlanInput = z.input<typeof UpdatePlanInput>;
+export type Action = z.infer<typeof ActionSchema>;
+export type ApplyActionsInput = z.input<typeof ApplyActionsInput>;
+export type ApplyActionsResult = z.infer<typeof ApplyActionsResult>;
 export interface CaptionLayout { maxCharsPerLine: number; maxWordsPerLine: number; maxLines: number; pauseSplitMs: number }
 export interface CaptionTemplate {
   id: string;

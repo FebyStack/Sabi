@@ -30,6 +30,8 @@ describe("MemoryJobRunner", () => {
     runner.enqueue("p1", "boom", async () => { throw new Error("boom"); });
     await vi.waitFor(() => expect(seen.at(-1)).toMatchObject({ state: "FAILED", error: "boom" }));
     expect(runner.active("p1")).toBeNull();
+    expect(runner.last("p1")).toMatchObject({ kind: "boom", state: "FAILED", error: "boom" }); // pollers still learn why
+    expect(runner.last("p2")).toBeNull();
   });
 
   it("exposes the active job while it runs", async () => {

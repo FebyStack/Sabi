@@ -65,6 +65,23 @@ export const UpdatePlanInput = z.object({
   burnInLanguage: TranslationLanguage.nullable().optional(),
 });
 
+// Typed edits the agent (MCP) applies atomically; the same edits the web UI makes one at a time.
+export const ActionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("setTitle"), title: z.string().min(1).max(200) }),
+  z.object({ type: z.literal("editPhrase"), phraseId: z.string(), text: z.string().trim().min(1).max(500) }),
+  z.object({ type: z.literal("setCut"), cutId: z.string(), shouldTrim: z.boolean() }),
+  z.object({ type: z.literal("setShotKind"), shotId: z.string(), kind: ShotKind }),
+  z.object({ type: z.literal("setTemplate"), captionTemplateId: CaptionTemplateId }),
+  z.object({ type: z.literal("setBurnIn"), language: TranslationLanguage.nullable() }),
+]);
+export const MAX_ACTIONS = 50;
+export const ApplyActionsInput = z.object({
+  baseVersion: z.string(), // the project's updatedAt the caller last saw
+  actions: z.array(ActionSchema).min(1).max(MAX_ACTIONS),
+  render: z.boolean().default(false),
+});
+export const ApplyActionsResult = z.object({ project: ProjectSchema, applied: z.number(), jobId: z.string().optional() });
+
 export const CreateProjectInput = z.object({
   title: z.string().min(1).max(200),
   aspectRatio: AspectRatio.default("9:16"),
@@ -124,6 +141,10 @@ export const api = {
   projectPhrases: (id: string) => `/api/projects/${id}/phrases`,
   projectTemplate: (id: string) => `/api/projects/${id}/template`,
   projectPlan: (id: string) => `/api/projects/${id}/plan`,
+  projectFrame: (id: string) => `/api/projects/${id}/frame`,
+  projectJob: (id: string) => `/api/projects/${id}/job`,
+  projectActions: (id: string) => `/api/projects/${id}/actions`,
+  projectRender: (id: string) => `/api/projects/${id}/render`,
   uploadsStart: "/api/assets/uploads/start",
   upload: (uploadId: string) => `/api/assets/uploads/${uploadId}`,
   uploadDone: (uploadId: string) => `/api/assets/uploads/${uploadId}/done`,
