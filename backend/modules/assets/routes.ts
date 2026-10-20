@@ -8,7 +8,7 @@ import type { AppDeps } from "../../shared/deps";
 
 const kindOf = (mime: string): Asset["kind"] => (mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "image");
 // Extension comes from the validated mime type, never from the client file name.
-const EXT: Record<string, string> = { "video/mp4": ".mp4", "video/quicktime": ".mov", "audio/mpeg": ".mp3", "audio/wav": ".wav" };
+const EXT: Record<string, string> = { "video/mp4": ".mp4", "video/quicktime": ".mov", "audio/mpeg": ".mp3", "audio/wav": ".wav", "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp" };
 
 class TooLarge extends Error { constructor() { super("too_large"); } }
 const limitBytes = (max: number) => {

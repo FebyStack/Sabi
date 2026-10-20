@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 
 // Uploaded files are untrusted: a crafted playlist could make ffmpeg read local files or URLs. Lock protocols and demuxers.
-const SAFE = ["-protocol_whitelist", "file", "-format_whitelist", "mov,mp4,m4a,3gp,3g2,mj2,mp3,wav"];
+const SAFE = ["-protocol_whitelist", "file", "-format_whitelist", "mov,mp4,m4a,3gp,3g2,mj2,mp3,wav,image2,png_pipe,jpeg_pipe,webp_pipe"];
 
 export interface MediaInfo { durationMs: number; width?: number; height?: number }
 

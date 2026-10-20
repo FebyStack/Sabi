@@ -3,7 +3,7 @@ import type { Project } from "../../../shared/types";
 
 const base: Project = {
   id: "p1", title: "t", aspectRatio: "9:16", mediaSource: "generate", status: "transcribing", sourceAssetId: "a", sourceKind: "video", language: null,
-  captionTemplateId: "clean", transcript: null, phrases: [], outputs: {}, warnings: [], sourceDurationMs: null, editPlan: null, translations: [], burnInLanguage: null, overlays: [], creditsUsedCents: 0, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  captionTemplateId: "clean", transcript: null, phrases: [], outputs: {}, warnings: [], sourceDurationMs: null, editPlan: null, translations: [], burnInLanguage: null, overlays: [], creditsUsedCents: 0, brand: null, motionGraphics: [], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
 describe("ProjectRepository.failStuck", () => {
@@ -43,5 +43,19 @@ describe("ProjectRepository.update ifVersion", () => {
     expect(err).toBeInstanceOf(StaleVersion);
     expect(err.currentVersion).toBe(ok.updatedAt);
     expect((await repo.get("p1"))?.title).toBe("a");
+  });
+});
+
+describe("MemoryProjectRepository brand and motion graphics", () => {
+  it("update round-trips brand and motion graphics", async () => {
+    const repo = new MemoryProjectRepository();
+    await repo.create(base);
+    const brand = { palette: { primary: "#1E90FF", accent: "#FFD60A", text: "#FFFFFF", background: "#0B0B0B" }, fontFamily: "Inter", logoAssetId: null, grade: 0.4 };
+    const mg = {
+      id: "mg-0", name: "Stat", code: "const Component = () => null;", compiled: "x", startMs: 1000, endMs: 3000,
+      box: { x: 0, y: 0, w: 1, h: 0.5 }, props: [{ key: "title", type: "text" as const, value: "42%" }], enabled: true,
+    };
+    await repo.update("p1", { brand, motionGraphics: [mg] });
+    expect(await repo.get("p1")).toMatchObject({ brand, motionGraphics: [mg] });
   });
 });

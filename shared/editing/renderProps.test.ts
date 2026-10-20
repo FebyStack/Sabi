@@ -11,7 +11,7 @@ const es = [ph("p0", [w("a", "Hola", 200, 800), w("b", "amigos", 1200, 1500)]), 
 const project = (patch: Partial<Project> = {}): Project => ({
   id: "p", title: "t", aspectRatio: "9:16", mediaSource: "generate", status: "ready", sourceAssetId: "a", sourceKind: "video", language: "en",
   captionTemplateId: "clean", transcript: null, phrases, outputs: {}, warnings: [], sourceDurationMs: 21000,
-  editPlan: null, translations: [{ language: "es", phrases: es }], burnInLanguage: null, overlays: [], creditsUsedCents: 0, createdAt: "", updatedAt: "", ...patch,
+  editPlan: null, translations: [{ language: "es", phrases: es }], burnInLanguage: null, overlays: [], creditsUsedCents: 0, brand: null, motionGraphics: [], createdAt: "", updatedAt: "", ...patch,
 });
 const opts = { videoSrc: "http://x/v.mp4", sourceDurationMs: 21000 };
 const plan = (cuts: Cut[]) => ({ editPlan: { cuts, shots: [] } });

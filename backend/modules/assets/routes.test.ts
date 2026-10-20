@@ -2,6 +2,7 @@ import type { AddressInfo } from "node:net";
 import request from "supertest";
 import { createApp } from "../../app/app";
 import { FakeMedia } from "../../shared/media";
+import { PNG_1x1_BASE64 } from "../../shared/renderer";
 import { makeTestDeps } from "../../shared/testing";
 
 describe("assets", () => {
@@ -18,6 +19,20 @@ describe("assets", () => {
     expect(file.status).toBe(200);
     expect(file.headers["content-type"]).toContain("video/mp4");
     expect(file.body.toString()).toBe("hello");
+  });
+
+  it("uploads a png as an image asset", async () => {
+    const a = createApp(makeTestDeps({ media: new FakeMedia({ durationMs: 0, width: 1, height: 1 }) }));
+    const png = Buffer.from(PNG_1x1_BASE64, "base64");
+    const start = await request(a).post("/api/assets/uploads/start").send({ fileName: "logo.png", mimeType: "image/png", sizeBytes: png.length });
+    expect(start.status).toBe(200);
+    const { uploadId } = start.body;
+    expect((await request(a).put(`/api/assets/uploads/${uploadId}`).set("content-type", "image/png").send(png)).status).toBe(204);
+    const done = await request(a).post(`/api/assets/uploads/${uploadId}/done`).send({});
+    expect(done.status).toBe(201);
+    expect(done.body).toMatchObject({ kind: "image", mimeType: "image/png", key: `uploads/${uploadId}.png`, width: 1, height: 1 });
+    const file = await request(a).get(`/api/assets/${done.body.id}/file`);
+    expect(file.headers["content-type"]).toContain("image/png");
   });
 
   it("rejects oversized and wrong mime", async () => {

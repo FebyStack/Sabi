@@ -41,7 +41,43 @@ export const OverlaySchema = z.object({
   transition: OverlayTransition.default("fade"), enabled: z.boolean().default(true),
   query: z.string().max(200), prompt: z.string().max(600), intent: z.string().max(200),
   attribution: AttributionSchema.optional(), generationInfo: GenerationInfoSchema.optional(),
+  durationMs: z.number().int().positive().optional(), // video overlays: the clip's own length, for looping
 }).refine((o) => o.endMs > o.startMs, { message: "bad_range", path: ["endMs"] });
+
+export const Hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+export const BrandKitSchema = z.object({
+  palette: z.object({ primary: Hex, accent: Hex, text: Hex, background: Hex }),
+  fontFamily: z.string().regex(/^[A-Za-z0-9 -]{1,60}$/),
+  logoAssetId: z.string().nullable().default(null),
+  grade: z.number().min(0).max(1).default(0.4),
+});
+export const MAX_MG_CODE = 20_000;
+export const MAX_MG_COMPILED = 60_000;
+const PropKey = z.string().regex(/^[a-z][A-Za-z0-9]{0,31}$/);
+export const MotionGraphicPropSchema = z.discriminatedUnion("type", [
+  z.object({ key: PropKey, type: z.literal("text"), value: z.string().max(500) }),
+  z.object({ key: PropKey, type: z.literal("number"), value: z.number() }),
+  z.object({ key: PropKey, type: z.literal("color"), value: Hex }),
+  z.object({ key: PropKey, type: z.literal("boolean"), value: z.boolean() }),
+  z.object({ key: PropKey, type: z.literal("image"), value: z.string().min(1) }), // asset id of kind image
+]);
+const uniqueKeys = (ps: { key: string }[]) => new Set(ps.map((p) => p.key)).size === ps.length;
+export const BoxSchema = z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0.05).max(1), h: z.number().min(0.05).max(1) })
+  .refine((b) => b.x + b.w <= 1.0001 && b.y + b.h <= 1.0001, { message: "out_of_frame" });
+export const FULL_BOX = { x: 0, y: 0, w: 1, h: 1 } as const;
+export const MotionGraphicInput = z.object({
+  name: z.string().min(1).max(60), code: z.string().min(1).max(MAX_MG_CODE),
+  startMs: z.number().int().nonnegative(), endMs: z.number().int().positive(),
+  box: BoxSchema.default(FULL_BOX), props: z.array(MotionGraphicPropSchema).max(20).refine(uniqueKeys, { message: "duplicate_key" }).default([]),
+});
+export const MotionGraphicPatch = z.object({ // no defaults: an absent key means "keep"
+  name: z.string().min(1).max(60).optional(), code: z.string().min(1).max(MAX_MG_CODE).optional(),
+  startMs: z.number().int().nonnegative().optional(), endMs: z.number().int().positive().optional(),
+  box: BoxSchema.optional(), props: z.array(MotionGraphicPropSchema).max(20).refine(uniqueKeys, { message: "duplicate_key" }).optional(), enabled: z.boolean().optional(),
+});
+// Stored in source time; `compiled` is written by the server and executed only in Chrome (render, frames, Player).
+export const MotionGraphicSchema = MotionGraphicInput.extend({ id: z.string(), compiled: z.string().max(MAX_MG_COMPILED), enabled: z.boolean().default(true) })
+  .refine((m) => m.endMs > m.startMs, { message: "bad_range", path: ["endMs"] });
 
 export const ProjectSchema = z.object({
   id: z.string(),
@@ -66,6 +102,8 @@ export const ProjectSchema = z.object({
   burnInLanguage: TranslationLanguage.nullable(),
   overlays: z.array(OverlaySchema).default([]),
   creditsUsedCents: z.number().int().nonnegative().default(0), // fal.ai spend ledger (spec §11.9), no billing
+  brand: BrandKitSchema.nullable().default(null),
+  motionGraphics: z.array(MotionGraphicSchema).default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -84,7 +122,9 @@ export const UpdatePlanInput = z.object({
 });
 
 export const UpdateProjectInput = z.object({ mediaSource: MediaSource });
-export const BrollInput = z.object({ regenerate: z.boolean().default(false) });
+export const BrollInput = z.object({
+  regenerate: z.boolean().default(false), overlayId: z.string().optional(), query: z.string().max(200).optional(), prompt: z.string().max(600).optional(),
+});
 // Typed edits the agent (MCP) applies atomically; the same edits the web UI makes one at a time.
 export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("setTitle"), title: z.string().min(1).max(200) }),
@@ -126,7 +166,7 @@ export const AssetSchema = z.object({
 
 export const UPLOAD_LIMITS = {
   maxBytes: 2 * 1024 ** 3,
-  mimeTypes: ["video/mp4", "video/quicktime", "audio/mpeg", "audio/wav"],
+  mimeTypes: ["video/mp4", "video/quicktime", "audio/mpeg", "audio/wav", "image/png", "image/jpeg", "image/webp"],
 } as const;
 export const MAX_CLIP_MS = 10 * 60_000;
 

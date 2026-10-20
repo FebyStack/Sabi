@@ -43,6 +43,12 @@ describe("api", () => {
     expect(body.creditsUsedCents).toBe(0);
   });
 
+  it("creates a project with no brand and no motion graphics", async () => {
+    const { body } = await request(app()).post("/api/projects").send({ title: "t" });
+    expect(body.brand).toBeNull();
+    expect(body.motionGraphics).toEqual([]);
+  });
+
   it("patches mediaSource", async () => {
     const a = app();
     const { body: p } = await request(a).post("/api/projects").send({ title: "t" });

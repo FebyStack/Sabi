@@ -17,7 +17,7 @@ export function projectsRouter(deps: AppDeps) {
     const project = await deps.projects.create({
       id: deps.id(), status: "draft", createdAt: now, updatedAt: now,
       sourceAssetId: null, sourceKind: null, language: null, captionTemplateId: "clean", transcript: null, phrases: [], outputs: {}, warnings: [],
-      sourceDurationMs: null, editPlan: null, translations: [], burnInLanguage: null, overlays: [], creditsUsedCents: 0,
+      sourceDurationMs: null, editPlan: null, translations: [], burnInLanguage: null, overlays: [], creditsUsedCents: 0, brand: null, motionGraphics: [],
       ...parsed.data,
     });
     res.status(201).json(project);
