@@ -12,3 +12,5 @@ database/backups/*
 .superpowers/
 .remotion-bundle/
 .venv/
+.tmp/
+.cache/
