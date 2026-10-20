@@ -1,5 +1,5 @@
 import request from "supertest";
-import { createApp } from "./app";
+import { createApp, parseAllowedOrigins } from "./app";
 import { makeTestDeps } from "../shared/testing";
 import { PlanInput } from "../../shared/contract";
 
@@ -84,6 +84,20 @@ describe("api", () => {
     for (const host of ["localhost:3001", "127.0.0.1:3001", "[::1]:3001", "localhost", "api:3001"]) {
       expect((await request(a).get("/api/projects").set("host", host)).status, host).toBe(200);
     }
+  });
+
+  it("allowedOrigins opens the API to a LAN dev origin (phone testing) and nothing else", async () => {
+    const a = createApp(makeTestDeps({ allowedOrigins: ["http://192.168.1.5:5173"] }));
+    const lan = { origin: "http://192.168.1.5:5173", host: "192.168.1.5:5173" };
+    expect((await request(a).post("/api/projects").set(lan).send({ title: "x" })).status).toBe(201);
+    expect((await request(a).get("/api/projects").set(lan)).headers["access-control-allow-origin"]).toBe("http://192.168.1.5:5173");
+    expect((await request(a).post("/api/projects").set({ origin: "http://192.168.1.6:5173", host: "192.168.1.5:5173" }).send({ title: "x" })).status).toBe(403);
+    expect((await request(a).get("/api/projects").set("host", "192.168.1.6:5173")).status).toBe(403);
+  });
+
+  it("allowedOrigins comes from ALLOWED_ORIGINS", () => {
+    expect(parseAllowedOrigins(" http://192.168.1.5:5173 ,https://sabi.local/ ,")).toEqual(["http://192.168.1.5:5173", "https://sabi.local"]);
+    expect(parseAllowedOrigins(undefined)).toEqual([]);
   });
 
   it("PlanInput rejects burn-in of an untranslated language", () => {

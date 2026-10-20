@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseAllowedOrigins } from "../app/app";
 import { MemoryAssetRepository } from "../modules/assets/repository";
 import { MemoryProjectRepository } from "../modules/projects/repository";
 import type { AppDeps } from "./deps";
@@ -107,6 +108,7 @@ export function makeMemoryDeps(dataDir: string, apiBaseUrl = `http://127.0.0.1:$
       generator: process.env.FAL_KEY ? new FalGenerator(process.env.FAL_KEY, globalThis.fetch) : null,
     }),
     apiBaseUrl: process.env.API_BASE_URL ?? apiBaseUrl,
+    allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
     now: () => new Date(),
     id: randomUUID,
   };

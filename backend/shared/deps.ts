@@ -25,6 +25,7 @@ export interface AppDeps {
   stock: StockSearch | null; // null when PEXELS_KEY is unset
   generator: MediaGenerator | null; // null when FAL_KEY is unset
   apiBaseUrl: string; // where Chromium (Remotion) fetches source media during renders
+  allowedOrigins?: string[]; // non-localhost pages allowed to use the API (ALLOWED_ORIGINS), e.g. a phone on the LAN
   now: () => Date;
   id: () => string;
 }

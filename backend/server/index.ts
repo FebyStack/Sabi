@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { createApp } from "../app/app";
+import { createApp, parseAllowedOrigins } from "../app/app";
 import { PgAssetRepository } from "../modules/assets/repository";
 import { PgProjectRepository } from "../modules/projects/repository";
 import { MemoryEventBus } from "../shared/events";
@@ -39,6 +39,7 @@ createApp({
   stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
   generator: process.env.FAL_KEY ? new FalGenerator(process.env.FAL_KEY, globalThis.fetch) : null,
   apiBaseUrl: process.env.API_BASE_URL ?? `http://127.0.0.1:${port}`,
+  allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
   now: () => new Date(),
   id: randomUUID,
 }).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));
