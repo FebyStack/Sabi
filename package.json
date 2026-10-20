@@ -15,6 +15,7 @@
     "build:server": "esbuild backend/server/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist-server/index.cjs --external:pg-native",
     "verify": "npm run typecheck && npm run typecheck:server && npm run test",
     "prepare": "git config core.hooksPath .githooks || true",
+    "deps": "sh infrastructure/dev/deps.sh",
     "render:sample": "mkdir -p .tmp && RUN_RENDER=1 TMPDIR=$PWD/.tmp vitest run tests/integration/render.test.ts",
     "ai:whisperx": "UV_CACHE_DIR=${UV_CACHE_DIR:-$PWD/.cache/uv} HF_HOME=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/hf uv run --directory ai/transcription uvicorn server:app --host 127.0.0.1 --port 8010",
     "ai:ollama": "OLLAMA_MODELS=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/ollama ollama serve"
