@@ -1,9 +1,11 @@
 import { AbsoluteFill, Audio, OffthreadVideo, Series, Video, getRemotionEnvironment, useCurrentFrame, useVideoConfig } from "remotion";
-import type { BrandLook } from "../editing/brand";
+import { gradeStyles, type BrandLook } from "../editing/brand";
 import type { Segment } from "../editing/cuts";
 import type { MotionGraphicProps, OverlayProps } from "../editing/overlays";
 import type { CaptionTemplate, Phrase } from "../types";
 import { activeWordIndex, phraseAt, segmentFrames, wordColor } from "./activeWord";
+import { MotionGraphicLayer } from "./MotionGraphicLayer";
+import { OverlayLayer } from "./OverlayLayer";
 
 export type CaptionVideoProps = {
   videoSrc: string;
@@ -21,14 +23,16 @@ export type CaptionVideoProps = {
 
 export const FPS = 30;
 
-export function CaptionVideo({ videoSrc, sourceKind, phrases, template, segments }: CaptionVideoProps) {
+// Layers, back to front: footage → B-roll overlays → brand tint → motion graphics → captions. The grade touches only the first two.
+export function CaptionVideo({ videoSrc, sourceKind, phrases, template, segments, brand, overlays, motionGraphics }: CaptionVideoProps) {
   const frame = useCurrentFrame();
-  const { fps, height } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  const grade = gradeStyles(brand);
   const timeMs = (frame / fps) * 1000;
   const phrase = phraseAt(phrases, timeMs);
   const active = phrase ? activeWordIndex(phrase, timeMs) : -1;
   const Src = getRemotionEnvironment().isRendering ? OffthreadVideo : Video;
-  const media = sourceKind === "audio" ? <Audio src={videoSrc} /> : <Src src={videoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
+  const media = sourceKind === "audio" ? <Audio src={videoSrc} /> : <Src src={videoSrc} style={{ width: "100%", height: "100%", objectFit: "cover", ...grade.footage }} />;
   const emojiPx = template.font.sizePx * 1.2;
 
   return (
@@ -40,6 +44,9 @@ export function CaptionVideo({ videoSrc, sourceKind, phrases, template, segments
           ))}
         </Series>
       ) : media}
+      {overlays.map((o) => <OverlayLayer key={o.id} overlay={o} footageStyle={grade.footage} />)}
+      {grade.tint && <AbsoluteFill style={grade.tint} />}
+      {motionGraphics.map((m) => <MotionGraphicLayer key={m.id} mg={m} brand={brand} width={width} height={height} />)}
       {phrase && (
         <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "center", paddingTop: height * template.position.y - template.font.sizePx - emojiPx }}>
           {/* Always laid out, so the caption block does not jump between phrases with and without an emoji. */}
