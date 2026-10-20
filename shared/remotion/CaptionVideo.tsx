@@ -1,5 +1,7 @@
 import { AbsoluteFill, Audio, OffthreadVideo, Series, Video, getRemotionEnvironment, useCurrentFrame, useVideoConfig } from "remotion";
+import type { BrandLook } from "../editing/brand";
 import type { Segment } from "../editing/cuts";
+import type { MotionGraphicProps, OverlayProps } from "../editing/overlays";
 import type { CaptionTemplate, Phrase } from "../types";
 import { activeWordIndex, phraseAt, segmentFrames, wordColor } from "./activeWord";
 
@@ -12,6 +14,9 @@ export type CaptionVideoProps = {
   height: number;
   durationMs: number;
   segments?: Segment[]; // kept source ranges when cuts are enabled; phrases are already in output time
+  brand: BrandLook;
+  overlays: OverlayProps[]; // output time, like phrases
+  motionGraphics: MotionGraphicProps[]; // output time
 };
 
 export const FPS = 30;

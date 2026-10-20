@@ -57,7 +57,7 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
 // Render the MP4 and every subtitle track (original + translations) on the cut timeline.
 export async function renderOutputs(deps: AppDeps, project: Project, source: Asset, report: (p: number, stage?: string) => void): Promise<Project["outputs"]> {
   report(70, "render");
-  const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0 });
+  const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0, assetUrl: (id) => `${deps.apiBaseUrl}${api.assetFile(id)}` });
   const jobKey = `renders/${project.id}/${deps.id()}`;
   const outPath = deps.storage.localPath(`${jobKey}.mp4`);
   await mkdir(dirname(outPath), { recursive: true });
