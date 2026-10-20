@@ -10,7 +10,7 @@ import { FakeLlm } from "../shared/llm";
 import { makeTestDeps } from "../shared/testing";
 import type { Project } from "../../shared/types";
 import { SabiApi } from "./client";
-import { TOOL_NAMES, callTool } from "./tools";
+import { TOOL_NAMES, callTool, toolSpec } from "./tools";
 
 let deps: AppDeps, server: Server, api: SabiApi, project: Project, home: string;
 beforeEach(async () => {
@@ -163,7 +163,7 @@ describe("sabi mcp tools", () => {
       list_projects: {}, inspect_project: { projectId: "p" }, render_frame: { projectId: "p", timestampMs: 0 },
       apply_actions: { projectId: "p", baseVersion: "v", actions: [{ type: "setTitle", title: "x" }] },
       run_job: { projectId: "p", kind: "render" }, wait_job: { projectId: "p" },
-      create_project: { title: "x", path: clip }, export_outputs: { projectId: "p", outDir: home },
+      create_project: { title: "x", path: clip }, export_outputs: { projectId: "p", outDir: home }, upload_asset: { projectId: "p", path: clip },
     };
     const t0 = Date.now();
     for (const name of TOOL_NAMES) {
@@ -172,5 +172,70 @@ describe("sabi mcp tools", () => {
       expect(res.text, name).toBe("Sabi API not reachable at http://127.0.0.1:1 — start it with `npm run dev:lite` (or the \"api-lite-fake\" launch config)");
     }
     expect(Date.now() - t0).toBeLessThan(2000);
+  });
+
+  const planned = async () => {
+    await callTool(api, "run_job", { projectId: project.id, kind: "plan" });
+    expect((await callTool(api, "wait_job", { projectId: project.id })).isError).toBeFalsy();
+    return deps.projects.get(project.id) as Promise<Project>;
+  };
+  const MG = { type: "addMotionGraphic", name: "Stat", code: "const Component = ({ item }) => <div style={{ color: item.brand.accent }}>{item.props.title}</div>;",
+    startMs: 1000, endMs: 3000, props: [{ key: "title", type: "text", value: "42%" }] };
+
+  it("inspect broll section lists beats, overlays, motion graphics and brand", async () => {
+    const p = await planned();
+    const shot = p.editPlan!.shots.find((s) => s.kind === "B-Roll")!;
+    const seeded = await deps.projects.update(p.id, { overlays: [{
+      id: "ov-0", shotId: shot.id, assetId: "a1", media: "image", source: "stock", startMs: shot.startMs + 300, endMs: shot.startMs + 2300,
+      placement: "full", transition: "fade", enabled: true, query: "glass of water", prompt: "p", intent: "i", attribution: { author: "Jane Doe", url: "https://www.pexels.com/photo/1" },
+    }] });
+    const applied = await callTool(api, "apply_actions", { projectId: p.id, baseVersion: seeded.updatedAt, actions: [{ ...MG, box: { x: 0, y: 0.6, w: 1, h: 0.3 } }] });
+    expect(applied.isError).toBeFalsy();
+    const res = await callTool(api, "inspect_project", { projectId: p.id, section: "broll" });
+    expect(res.text).toContain(`beat-0 ${shot.id} full`);
+    expect(res.text).toMatch(/ov-0 shot-\d image stock full \d:\d\d\.\d–\d:\d\d\.\d on "glass of water" \(Photo: Jane Doe \/ Pexels\)/);
+    expect(res.text).toMatch(/mg-0 "Stat" 0:01\.0–0:03\.0 box 0,0\.6 1×0\.3 on props: title ⚠ overlaps captions/);
+    expect(res.text).toContain("brand: none (template colours)");
+    const summary = await callTool(api, "inspect_project", { projectId: p.id });
+    expect(summary.text).toContain("overlays 1 (1 on) · motion graphics 1 · brand none");
+    expect(summary.text).toContain("media source generate");
+  });
+
+  it("run_job broll reaches ready with overlays", async () => {
+    await planned();
+    const started = await callTool(api, "run_job", { projectId: project.id, kind: "broll" });
+    expect(started.text).toMatch(/job .+ \(broll\) started; next: wait_job/);
+    expect((await callTool(api, "wait_job", { projectId: project.id })).isError).toBeFalsy();
+    const summary = await callTool(api, "inspect_project", { projectId: project.id });
+    expect(summary.text).toContain("overlays 1 (1 on)");
+  });
+
+  it("upload_asset returns an image asset id and refuses other types", async () => {
+    const png = join(home, "logo.png");
+    writeFileSync(png, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64"));
+    const ok = await callTool(api, "upload_asset", { projectId: project.id, path: png });
+    expect(ok.isError).toBeFalsy();
+    expect(ok.text).toMatch(/^asset id-\d+ \(image 1080×1920\); use it in replaceOverlay, setBrand\.logoAssetId or an image prop$/);
+    const gif = join(home, "x.gif");
+    writeFileSync(gif, "GIF89a");
+    const bad = await callTool(api, "upload_asset", { projectId: project.id, path: gif });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain("unsupported file type .gif");
+  });
+
+  it("apply_actions sets a brand and a motion graphic and render_frame still answers", async () => {
+    const brand = { palette: { primary: "#1E90FF", accent: "#FFD60A", text: "#FFFFFF", background: "#0B0B0B" }, fontFamily: "Inter" };
+    const res = await callTool(api, "apply_actions", { projectId: project.id, baseVersion: project.updatedAt, actions: [{ type: "setBrand", brand }, MG] });
+    expect(res.isError).toBeFalsy();
+    const frame = await callTool(api, "render_frame", { projectId: project.id, timestampMs: 1500 });
+    expect(frame.image!.mimeType).toBe("image/png");
+    const summary = await callTool(api, "inspect_project", { projectId: project.id });
+    expect(summary.text).toContain("brand #1E90FF Inter grade 0.4");
+  });
+
+  it("apply_actions lists every action type", () => {
+    for (const t of ["setMediaSource", "setOverlay", "removeOverlay", "replaceOverlay", "setBrand", "addMotionGraphic", "updateMotionGraphic", "removeMotionGraphic"]) {
+      expect(toolSpec("apply_actions").description).toContain(t);
+    }
   });
 });

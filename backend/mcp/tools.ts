@@ -3,7 +3,9 @@ import { homedir } from "node:os";
 import { extname, join, sep } from "node:path";
 import { z } from "zod";
 import { ActionSchema, MAX_ACTIONS, TranslationLanguage } from "../../shared/contract";
+import { deriveBeats } from "../../shared/editing/beats";
 import { keptSegments, mapTime } from "../../shared/editing/cuts";
+import { staleOverlays } from "../../shared/editing/overlays";
 import { enabledCuts } from "../../shared/editing/renderProps";
 import type { JobState, Project } from "../../shared/types";
 import { SabiHttpError, SabiUnreachable, type SabiApi } from "./client";
@@ -12,6 +14,8 @@ export type ToolResult = { text: string; image?: { data: Buffer; mimeType: "imag
 
 const RUNNING = ["transcribing", "planning", "generating", "rendering"];
 const MIME: Record<string, string> = { ".mp4": "video/mp4", ".mov": "video/quicktime", ".mp3": "audio/mpeg", ".wav": "audio/wav" };
+const ASSET_MIME: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".mp4": "video/mp4", ".mov": "video/quicktime" };
+const CAPTION_BAND_Y = 0.72; // a motion-graphic box reaching below this sits on the captions
 const LIST_CAP = 30; // summary lists stay inside the token budget; the plan section has everything
 const POLL_MS = 1000;
 
@@ -36,6 +40,7 @@ function summary(p: Project) {
   const on = cuts.filter((c) => c.shouldTrim);
   const words = p.phrases.reduce((n, ph) => n + ph.words.length, 0);
   const o = p.outputs;
+  const stale = staleOverlays(p);
   return [
     `${p.title} (${p.id})`,
     `status ${p.status} · source ${mmss(p.sourceDurationMs ?? 0)} · output ${mmss(outputMs(p))} · ${p.language ?? "language ?"} · template ${p.captionTemplateId}`,
@@ -46,6 +51,9 @@ function summary(p: Project) {
       "enabled cuts:", ...capped(on.map((c) => `  ${c.id} ${c.reason} ${mmssd(c.startMs)}–${mmssd(c.endMs)} (on)`), 'section: "plan"'),
     ] : ["no edit plan yet (run_job plan)"]),
     `outputs: ${o.mp4AssetId ? `mp4 ${o.mp4AssetId}` : "none"}${o.srtAssetId ? " · srt · vtt" : ""}${o.translations?.length ? ` · ${o.translations.map((t) => t.language).join(",")}` : ""}`,
+    `overlays ${p.overlays.length} (${p.overlays.filter((o) => o.enabled).length} on${stale.length ? `, ${stale.length} stale` : ""})` +
+      ` · motion graphics ${p.motionGraphics.length} · brand ${p.brand ? `${p.brand.palette.primary} ${p.brand.fontFamily} grade ${p.brand.grade}` : "none"}`,
+    `media source ${p.mediaSource}${p.creditsUsedCents ? ` · ${credits(p)}` : ""}`,
     ...(p.warnings.length ? [`warnings: ${p.warnings.join(", ")}`] : []),
     "times are source time; render_frame takes output time (shown as \"out\" when cuts are on)",
     `baseVersion: ${p.updatedAt}`,
@@ -82,6 +90,25 @@ function planSection(p: Project) {
   ].join("\n");
 }
 
+const credits = (p: Project) => `credits: $${(p.creditsUsedCents / 100).toFixed(2)} used`;
+
+function brollSection(p: Project) {
+  const stale = new Set(staleOverlays(p));
+  const beats = p.editPlan ? deriveBeats(p.editPlan.shots, { allowVideo: p.mediaSource === "generate" }) : [];
+  const b = p.brand;
+  return [
+    "beats:", ...(beats.length ? beats.map((x) => `  ${x.id} ${x.shotId} ${x.placement} ${mmssd(x.startMs)}–${mmssd(x.endMs)}`) : [p.editPlan ? "  none (no B-Roll shots)" : "  none (run_job plan)"]),
+    "overlays:", ...(p.overlays.length ? p.overlays.map((o) => `  ${o.id} ${o.shotId} ${o.media} ${o.source} ${o.placement} ${mmssd(o.startMs)}–${mmssd(o.endMs)} ${o.enabled ? "on" : "off"}` +
+      ` "${o.query}"${o.attribution ? ` (Photo: ${o.attribution.author} / Pexels)` : ""}${stale.has(o.id) ? " stale" : ""}`) : ["  none (run_job broll)"]),
+    "motion graphics:", ...(p.motionGraphics.length ? p.motionGraphics.map((m) => `  ${m.id} "${m.name}" ${mmssd(m.startMs)}–${mmssd(m.endMs)} box ${m.box.x},${m.box.y} ${m.box.w}×${m.box.h}` +
+      ` ${m.enabled ? "on" : "off"} props: ${m.props.map((x) => x.key).join(",") || "none"}${m.box.y + m.box.h > CAPTION_BAND_Y ? " ⚠ overlaps captions" : ""}`) : ["  none"]),
+    b ? `brand: primary ${b.palette.primary} accent ${b.palette.accent} text ${b.palette.text} background ${b.palette.background} font ${b.fontFamily} logo ${b.logoAssetId ?? "none"} grade ${b.grade}`
+      : "brand: none (template colours)",
+    ...(p.creditsUsedCents ? [credits(p)] : []),
+    `baseVersion: ${p.updatedAt}`,
+  ].join("\n");
+}
+
 function outputsSection(p: Project) {
   const o = p.outputs;
   return [
@@ -105,10 +132,11 @@ const TOOLS = {
   },
   inspect_project: {
     description: "Inspect a project. Default: a compact summary ending with baseVersion (pass it to apply_actions). " +
-      'section "phrases" pages caption phrases (offset/limit); search finds words by regex with their times; "plan" lists all cuts and shots; "outputs" lists rendered assets.',
+      'section "phrases" pages caption phrases (offset/limit); search finds words by regex with their times; "plan" lists all cuts and shots; ' +
+      '"broll" lists beats, overlays, motion graphics and the brand kit; "outputs" lists rendered assets.',
     inputSchema: {
       projectId,
-      section: z.enum(["summary", "phrases", "plan", "outputs"]).default("summary"),
+      section: z.enum(["summary", "phrases", "plan", "broll", "outputs"]).default("summary"),
       search: z.string().min(1).optional().describe("case-insensitive regex over caption words"),
       offset: z.number().int().min(0).default(0),
       limit: z.number().int().min(1).max(200).default(40),
@@ -118,6 +146,7 @@ const TOOLS = {
       if (i.search) return { text: searchWords(p, i.search, i.offset, i.limit) };
       if (i.section === "phrases") return { text: phrasesPage(p, i.offset, i.limit) };
       if (i.section === "plan") return { text: planSection(p) };
+      if (i.section === "broll") return { text: brollSection(p) };
       if (i.section === "outputs") return { text: outputsSection(p) };
       return { text: summary(p) };
     },
@@ -135,7 +164,8 @@ const TOOLS = {
     },
   },
   apply_actions: {
-    description: "Apply typed edits atomically (all or nothing): setTitle, editPhrase, setCut, setShotKind, setTemplate, setBurnIn. " +
+    description: "Apply typed edits atomically (all or nothing): setTitle, editPhrase, setCut, setShotKind, setTemplate, setBurnIn, " +
+      "setMediaSource, setOverlay, removeOverlay, replaceOverlay, setBrand, addMotionGraphic, updateMotionGraphic, removeMotionGraphic (see the sabi-editor skill). " +
       "Pass the baseVersion from your last inspect_project; render:true also starts a re-render (otherwise verify with render_frame first).",
     inputSchema: {
       projectId,
@@ -154,17 +184,26 @@ const TOOLS = {
     },
   },
   run_job: {
-    description: 'Start a job: "captions" (transcribe + captions + render), "plan" (cuts, shots, emphasis, emoji, translations; local Ollama), "render" (re-render current edits).',
+    description: 'Start a job: "captions" (transcribe + captions + render), "plan" (cuts, shots, emphasis, emoji, translations; local Ollama), "render" (re-render current edits), ' +
+      '"broll" (stock or fal.ai media for every B-Roll shot, then render; generate mode spends fal credits).',
     inputSchema: {
       projectId,
-      kind: z.enum(["captions", "plan", "render"]),
+      kind: z.enum(["captions", "plan", "render", "broll"]),
       languages: z.array(TranslationLanguage).max(3).optional().describe("plan only: translated subtitle tracks"),
       burnInLanguage: TranslationLanguage.nullable().optional().describe("plan only: burn this translation into the MP4"),
+      regenerate: z.boolean().optional().describe("broll only: replace every overlay instead of keeping matching ones"),
+      overlayId: z.string().optional().describe("broll only: re-pick just this overlay (next stock result or a new generation)"),
+      query: z.string().max(200).optional().describe("broll + overlayId only: new stock search words"),
+      prompt: z.string().max(600).optional().describe("broll + overlayId only: new generation prompt"),
     },
-    run: async (api: SabiApi, i: { projectId: string; kind: "captions" | "plan" | "render"; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null }) => {
+    run: async (api: SabiApi, i: {
+      projectId: string; kind: "captions" | "plan" | "render" | "broll"; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;
+      regenerate?: boolean; overlayId?: string; query?: string; prompt?: string;
+    }) => {
       const { jobId } = i.kind === "captions" ? await api.run(i.projectId)
         : i.kind === "plan" ? await api.plan(i.projectId, { languages: i.languages ?? [], burnInLanguage: i.burnInLanguage ?? null })
-          : await api.render(i.projectId);
+          : i.kind === "broll" ? await api.broll(i.projectId, { regenerate: i.regenerate ?? false, overlayId: i.overlayId, query: i.query, prompt: i.prompt })
+            : await api.render(i.projectId);
       return { text: `job ${jobId} (${i.kind}) started; next: wait_job` };
     },
   },
@@ -203,6 +242,19 @@ const TOOLS = {
       const asset = await api.uploadFile(real, mimeType, project.id);
       await api.setSource(project.id, asset.id);
       return { text: `project ${project.id} created; next: run_job captions` };
+    },
+  },
+  upload_asset: {
+    description: "Upload an image (.png .jpg .webp) or video (.mp4 .mov) under your home directory into a project, for replaceOverlay, setBrand.logoAssetId or an image prop.",
+    inputSchema: { projectId, path: z.string().describe("absolute path under $HOME") },
+    run: async (api: SabiApi, i: { projectId: string; path: string }) => {
+      const real = await underHome(i.path);
+      if (real === null) return fail(`no such file: ${i.path}`);
+      if (real === "outside") return fail(`refused: ${i.path} is outside your home directory`);
+      const mimeType = ASSET_MIME[extname(real).toLowerCase()];
+      if (!mimeType) return fail(`unsupported file type ${extname(real) || "(none)"}; use ${Object.keys(ASSET_MIME).join(" ")}`);
+      const a = await api.uploadFile(real, mimeType, i.projectId);
+      return { text: `asset ${a.id} (${a.kind} ${a.width ?? "?"}×${a.height ?? "?"}); use it in replaceOverlay, setBrand.logoAssetId or an image prop` };
     },
   },
   export_outputs: {

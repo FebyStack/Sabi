@@ -1,6 +1,6 @@
 ---
 name: sabi-editor
-description: Edit a Sabi video project through the sabi MCP tools — inspect, apply typed actions, verify with a rendered frame, re-render, export. Use when the user asks to edit captions, cuts, shots, templates, translations or exports of a Sabi project.
+description: Edit a Sabi video project through the sabi MCP tools — inspect, apply typed actions, verify with a rendered frame, re-render, export. Use when the user asks to edit captions, cuts, shots, templates, translations, B-roll, motion graphics, the brand kit or exports of a Sabi project.
 ---
 
 # Sabi editor
@@ -11,7 +11,8 @@ The `sabi` MCP server is a thin client of the running Sabi API. No model runs in
 
 1. `list_projects` → pick the id (or `create_project {title, path}` → `run_job captions` → `wait_job`).
 2. `inspect_project {projectId}` → the summary. Keep its `baseVersion`.
-3. Specifics only when needed: `inspect_project {section: "phrases", offset, limit}` or `{search: "<regex>"}` (word times), `{section: "plan"}` (every cut and shot).
+3. Specifics only when needed: `inspect_project {section: "phrases", offset, limit}` or `{search: "<regex>"}` (word times), `{section: "plan"}` (every cut and shot), `{section: "broll"}` (beats, overlays, motion graphics, brand kit).
+   Once a plan exists, `run_job {kind: "broll"}` → `wait_job` fills every `B-Roll` / `Talking Head & B-Roll` shot with stock (Pexels) or generated (fal.ai) media, by the project's media source. It needs `PEXELS_KEY` or `FAL_KEY` on the API.
 4. `apply_actions {projectId, baseVersion, actions: [...]}` — batch every edit of the turn into one call, `render: false` while iterating. Each result gives the new `baseVersion`; use it next time.
 5. `render_frame {projectId, timestampMs}` at the edited moment to check it. Frames are **output** time: when cuts are on, use the `→ out` / `(out …)` time inspect prints, not the source time.
 6. Happy → `run_job {kind: "render"}` once (or `apply_actions` with `render: true`) → `wait_job`.
@@ -19,11 +20,36 @@ The `sabi` MCP server is a thin client of the running Sabi API. No model runs in
 
 Actions: `setTitle {title}`, `editPhrase {phraseId, text}` (timings kept; a different word count is spread over the phrase), `setCut {cutId, shouldTrim}`, `setShotKind {shotId, kind}`, `setTemplate {captionTemplateId: clean|bold|karaoke}`, `setBurnIn {language|null}` (only a language already translated). Max 50 per call; one bad id rejects the whole batch.
 
+Layer actions (source time, like everything inspect prints):
+- `setMediaSource {mediaSource: generate|stock}` — where the next `run_job broll` gets media (stock = Pexels only, never fal).
+- `setOverlay {overlayId, enabled?, startMs?, endMs?, placement?: full|top, transition?: fade|none}` — the range must stay inside its shot (`400 out_of_shot`).
+- `removeOverlay {overlayId}` · `replaceOverlay {overlayId, assetId}` — an image or video asset from `upload_asset`.
+- `setBrand {brand: {palette: {primary, accent, text, background}, fontFamily, logoAssetId?, grade?} | null}` — the whole kit at once; `null` = template colours, no grade.
+- `addMotionGraphic {name, code, startMs, endMs, box?, props?}` · `updateMotionGraphic {mgId, …any of those, enabled?}` · `removeMotionGraphic {mgId}` — read `motion-graphics.md` in this skill folder before writing one.
+
+## B-roll
+
+- Overlays are drawn only over shots whose kind is `B-Roll` (full frame) or `Talking Head & B-Roll` (top band, above the captions). Flip a shot with `setShotKind`; inspect marks the overlays of other shots `stale`, and the next `run_job broll` replaces them.
+- Toggle or retime: `setOverlay`. Another pick for one overlay: `run_job {kind: "broll", overlayId, query?}` (stock: next results page; generate: a new fal image). Redo all: `run_job {kind: "broll", regenerate: true}`.
+- The user's own picture or clip: `upload_asset {projectId, path}` → `replaceOverlay {overlayId, assetId}`.
+- Stock overlays carry a Pexels attribution; keep it (the panel shows "Photo: <author> / Pexels").
+
+## Brand kit
+
+- `setBrand` colours the captions (text, accent = active word + keywords, primary = nouns and pictorial words), every motion graphic (`item.brand`) and grades the footage and B-roll (`grade` 0–1, default 0.4; 0 = none). Hex colours `#RRGGBB`; `fontFamily` must be a font installed on this Mac (render and preview both use it).
+- A logo: `upload_asset` the PNG → `setBrand {brand: {…, logoAssetId}}`; motion graphics read it as `item.brand.logoUrl`.
+- Check with one `render_frame` on a caption and one on B-roll before `run_job render`.
+
+## Motion graphics
+
+Agent-written Remotion components drawn between the B-roll and the captions. Read `motion-graphics.md` (contract, craft rules, example) first. One representative MG, verified and approved by the user, before any batch; at most 2 `render_frame` per MG.
+
 ## Budget
 
 - Summary first; never page through every phrase "just to look". Search instead.
 - At most 4 `render_frame` calls per turn (each is an image in context).
 - `run_job plan` recomputes cuts and shots (manual toggles are lost) and needs local Ollama: run it before fine edits, not after.
+- `run_job broll` in generate mode spends fal.ai credits (≈ $0.01 an image, $0.25 the one video beat); the summary's `credits` line shows the total. Prefer stock while exploring.
 
 ## When something fails
 
@@ -31,6 +57,8 @@ Actions: `setTitle {title}`, `editPhrase {phraseId, text}` (timings kept; a diff
 - `busy: <kind> job …` — a job is running. `wait_job`, then re-inspect.
 - `Sabi API not reachable …` — tell the user to start the API: `FAKE_AI=1 npm run dev:lite` (launch config `api-lite-fake`) or `npm run dev:lite`.
 - `400 no_captions` — `run_job captions` first. `400 unknown_id` — the id came from a stale view; re-inspect.
+- `400 bad_code {detail}` — the motion-graphic code broke a rule in `motion-graphics.md`; fix what `detail` names. `400 bad_asset` — the asset is missing or the wrong kind (logos and image props need an image). `400 out_of_range` — an MG must end inside the source.
+- `wait_job` → `broll FAILED: stock_unavailable` / `generator_unavailable` — the key for the project's media source is not set on the API; switch with `setMediaSource` or ask the user to set it. Warnings `broll_not_found:beat-n` / `no_broll_shots` mean a beat got no media / there is no B-roll shot.
 
 ## Examples
 

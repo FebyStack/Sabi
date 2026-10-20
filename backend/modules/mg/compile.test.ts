@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { compileMotionGraphic } from "./compile";
 
 const ok = (code: string) => {
@@ -85,5 +86,11 @@ describe("compileMotionGraphic", () => {
       [`const Component = () => React.createElement("iframe", { src: "https://x" });`, "forbidden: <iframe>"],
     ];
     for (const [code, detail] of cases) expect(compileMotionGraphic(code), code).toEqual({ error: "bad_code", detail });
+  });
+
+  it("the sabi-editor skill's example passes the vetting", () => {
+    const doc = readFileSync(".claude/skills/sabi-editor/motion-graphics.md", "utf8");
+    const example = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(doc)![1]);
+    expect(compileMotionGraphic(example.code)).toHaveProperty("compiled");
   });
 });
