@@ -12,6 +12,8 @@ Web app that auto-captions talking-head video and adds AI B-roll (generated or s
 - Hybrid architecture: `frontend/` (Vite+React+Tailwind v4), `backend/` (Express 5, `createApp(deps)` composition root), `shared/` (`contract.ts` = the only wire contract), `ai/`, `database/schema/schema.sql` (idempotent, applied on api boot), `infrastructure/docker/`.
 - One root `package.json`, no workspaces. Aliases `@`, `@ai`, `@shared` exist for frontend only; backend imports stay relative.
 
+- **SabiDev mount recovery (2026-10-20):** the SSD is an FSKit (per-user) ExFAT mount, so root auto-mount of `sabi-dev.sparsebundle` fails ("no mountable file systems" / "container superblock is invalid" / `mount_apfs: cannot open backing store: Operation not permitted`) even though the image is fine (`sudo fsck_apfs -n` on the physical store: OK). The LaunchAgent now attaches with `-nomount` and mounts the APFS volume as the user into the user-owned `/Volumes/SabiDev`; do the same by hand if `~/Developer/captions-clone` dangles. Unmount SabiDev before ejecting the SSD.
+
 ## Run / verify
 Processes (terminal tabs, or `.claude/launch.json` entries `api-lite`, `dev`, `whisperx`, `ollama`):
 1. `npm run ai:whisperx` — whisperX sidecar on :8010 (first run: `uv` installs torch/whisperx into `ai/transcription/.venv` on the Mac (~3 GB), then downloads the `small` Whisper model + a wav2vec2 aligner into `DATA_DIR/hf` on the SSD).
