@@ -1,8 +1,9 @@
 const CAPTION_STAGES = [["extract-audio", "Audio"], ["transcribe", "Transcribing"], ["segment", "Captions"], ["render", "Rendering"], ["subtitles", "Subtitles"]];
 const PLAN_STAGES = [["plan", "Planning"], ["translate", "Translating"], ["render", "Rendering"], ["subtitles", "Subtitles"]];
+const BROLL_STAGES = [["beats", "Beats"], ["label", "Describing"], ["fetch", "Fetching media"], ["render", "Rendering"], ["subtitles", "Subtitles"]];
 
 export function StageProgress({ kind, stage, progress }: { kind: string | null; stage: string | null; progress: number }) {
-  const stages = kind === "plan" ? PLAN_STAGES : CAPTION_STAGES;
+  const stages = kind === "plan" ? PLAN_STAGES : kind === "broll" ? BROLL_STAGES : CAPTION_STAGES;
   const current = stages.findIndex(([s]) => s === stage);
   const pct = Math.round(progress);
   return (

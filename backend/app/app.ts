@@ -3,6 +3,7 @@ import express from "express";
 import { api } from "../../shared/contract";
 import { actionsRouter } from "../modules/actions/routes";
 import { assetsRouter } from "../modules/assets/routes";
+import { brollRouter } from "../modules/broll/routes";
 import { editPlanRouter } from "../modules/editplan/routes";
 import { eventsRouter } from "../modules/events/routes";
 import { framesRouter } from "../modules/frames/routes";
@@ -24,6 +25,7 @@ export function createApp(deps: AppDeps) {
   app.use(editPlanRouter(deps));
   app.use(framesRouter(deps));
   app.use(actionsRouter(deps));
+  app.use(brollRouter(deps));
 
   app.use("/api", (_req, res) => res.status(404).json({ error: "not_found" }));
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
