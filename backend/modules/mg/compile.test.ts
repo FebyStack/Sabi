@@ -61,6 +61,11 @@ describe("compileMotionGraphic", () => {
     for (const [code, detail] of cases) expect(compileMotionGraphic(code), code).toEqual({ error: "bad_code", detail });
   });
 
+  it("element access by a denied name stays forbidden", () => {
+    expect(compileMotionGraphic(`const Component = ({ item }) => item["fetch"];`)).toEqual({ error: "bad_code", detail: "forbidden: fetch" });
+    expect(compileMotionGraphic(`const Component = ({ item }) => item[\`top\`];`)).toEqual({ error: "bad_code", detail: "forbidden: top" });
+  });
+
   it("keeps css values that share a name with a global", () => {
     expect(compileMotionGraphic(`const Component = () => <div style={{ verticalAlign: "top", transformOrigin: "top", position: "absolute" }}>Open</div>;`)).toHaveProperty("compiled");
   });

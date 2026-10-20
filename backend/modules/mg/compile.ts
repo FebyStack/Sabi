@@ -42,7 +42,8 @@ export function compileMotionGraphic(code: string): CompileResult {
     else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) forbidden = "import()";
     else if (node.kind === ts.SyntaxKind.WithStatement) forbidden = "with";
     else if (ts.isIdentifier(node) && DENY.has(node.text)) forbidden = node.text;
-    else if (ts.isStringLiteralLike(node) && DENY_KEYS.has(node.text)) forbidden = node.text; // also covers x["constructor"] and { "innerHTML": … }
+    else if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && DENY.has(node.argumentExpression.text)) forbidden = node.argumentExpression.text;
+    else if (ts.isStringLiteralLike(node) && DENY_KEYS.has(node.text)) forbidden = node.text; // { "innerHTML": … }, const k = "constructor"
     else if ((ts.isElementAccessExpression(node) && !ts.isStringLiteralLike(node.argumentExpression) && stringy(node.argumentExpression))
       || (ts.isComputedPropertyName(node) && stringy(node.expression))) forbidden = "computed property name";
     else if (ts.isJsxSpreadAttribute(node)) forbidden = "{...spread} attribute";
