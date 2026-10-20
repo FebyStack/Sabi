@@ -76,6 +76,16 @@ describe("api", () => {
     expect(local.headers["access-control-allow-origin"]).toBe("http://127.0.0.1:3000");
   });
 
+  it("refuses requests addressed to a foreign host (DNS rebinding)", async () => {
+    const a = createApp(makeTestDeps({ apiBaseUrl: "http://api:3001" }));
+    const evil = await request(a).get("/api/projects").set("host", "evil.example:3001");
+    expect(evil.status).toBe(403);
+    expect(evil.body).toEqual({ error: "bad_host" });
+    for (const host of ["localhost:3001", "127.0.0.1:3001", "[::1]:3001", "localhost", "api:3001"]) {
+      expect((await request(a).get("/api/projects").set("host", host)).status, host).toBe(200);
+    }
+  });
+
   it("PlanInput rejects burn-in of an untranslated language", () => {
     expect(PlanInput.safeParse({ languages: ["es"], burnInLanguage: "fr" }).success).toBe(false);
     expect(PlanInput.safeParse({ languages: ["es", "fr", "de", "ja"] }).success).toBe(false);
