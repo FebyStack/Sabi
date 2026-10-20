@@ -62,6 +62,20 @@ describe("api", () => {
     expect((await request(a).patch("/api/projects/nope").send({ mediaSource: "stock" })).status).toBe(404);
   });
 
+  it("refuses writes from another site and only lets local pages read", async () => {
+    const a = app();
+    const evil = await request(a).post("/api/projects").set("origin", "https://evil.example").send({ title: "x" });
+    expect(evil.status).toBe(403);
+    expect(evil.body).toEqual({ error: "cross_origin" });
+    expect((await request(a).post("/api/projects").set("origin", "null").send({ title: "x" })).status).toBe(403);
+    expect((await request(a).post("/api/projects").set("origin", "http://localhost:5173").send({ title: "x" })).status).toBe(201);
+    expect((await request(a).post("/api/projects").send({ title: "x" })).status).toBe(201); // MCP, curl: no Origin
+    const read = await request(a).get("/api/projects").set("origin", "https://evil.example");
+    expect(read.headers["access-control-allow-origin"]).toBeUndefined();
+    const local = await request(a).get("/api/projects").set("origin", "http://127.0.0.1:3000");
+    expect(local.headers["access-control-allow-origin"]).toBe("http://127.0.0.1:3000");
+  });
+
   it("PlanInput rejects burn-in of an untranslated language", () => {
     expect(PlanInput.safeParse({ languages: ["es"], burnInLanguage: "fr" }).success).toBe(false);
     expect(PlanInput.safeParse({ languages: ["es", "fr", "de", "ja"] }).success).toBe(false);
