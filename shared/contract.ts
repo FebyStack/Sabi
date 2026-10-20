@@ -166,6 +166,7 @@ export const AssetSchema = z.object({
 
 export const UPLOAD_LIMITS = {
   maxBytes: 2 * 1024 ** 3,
+  maxImageBytes: 50 * 1024 ** 2,
   mimeTypes: ["video/mp4", "video/quicktime", "audio/mpeg", "audio/wav", "image/png", "image/jpeg", "image/webp"],
 } as const;
 export const MAX_CLIP_MS = 10 * 60_000;

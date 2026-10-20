@@ -33,6 +33,12 @@ describe.skipIf(!hasFfprobe)("FfmpegMedia.probe", () => {
   it("probe accepts a png", async () => {
     const file = join(mkdtempSync(join(tmpdir(), "probe-")), "one.png");
     writeFileSync(file, Buffer.from(PNG_1x1_BASE64, "base64"));
-    expect(await new FfmpegMedia().probe(file)).toEqual({ durationMs: 0, width: 1, height: 1 });
+    expect(await new FfmpegMedia().probe(file, "image")).toEqual({ durationMs: 0, width: 1, height: 1 });
+  });
+
+  it("a png is refused by the audio/video whitelist", async () => {
+    const file = join(mkdtempSync(join(tmpdir(), "probe-")), "clip.mp4");
+    writeFileSync(file, Buffer.from(PNG_1x1_BASE64, "base64"));
+    await expect(new FfmpegMedia().probe(file, "av")).rejects.toThrow();
   });
 });

@@ -5,9 +5,11 @@ import { PgProjectRepository } from "../modules/projects/repository";
 import { MemoryEventBus } from "../shared/events";
 import { MemoryJobRunner } from "../shared/jobs";
 import { OllamaLlm } from "../shared/llm";
+import { FalGenerator } from "../shared/generator";
 import { FfmpegMedia } from "../shared/media";
 import { applySchema, createPool } from "../shared/pg";
 import { RemotionRenderer } from "../shared/renderer";
+import { PexelsStock } from "../shared/stock";
 import { FsStorage } from "../shared/storage";
 import { WhisperXTranscriber } from "../shared/transcriber";
 
@@ -33,6 +35,9 @@ createApp({
   transcriber: new WhisperXTranscriber(process.env.WHISPERX_URL ?? "http://localhost:8010"),
   renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts", bundleDir: ".remotion-bundle" }),
   llm: new OllamaLlm(process.env.OLLAMA_URL ?? "http://localhost:11434", process.env.OLLAMA_MODEL ?? "qwen2.5:3b"),
+  fetch: globalThis.fetch,
+  stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
+  generator: process.env.FAL_KEY ? new FalGenerator(process.env.FAL_KEY, globalThis.fetch) : null,
   apiBaseUrl: process.env.API_BASE_URL ?? `http://127.0.0.1:${port}`,
   now: () => new Date(),
   id: randomUUID,

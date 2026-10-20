@@ -35,6 +35,16 @@ describe("assets", () => {
     expect(file.headers["content-type"]).toContain("image/png");
   });
 
+  it("caps image uploads at 50 MiB and 8192 px", async () => {
+    const a = createApp(makeTestDeps({ media: new FakeMedia({ durationMs: 0, width: 9000, height: 10 }) }));
+    expect((await request(a).post("/api/assets/uploads/start").send({ fileName: "x.png", mimeType: "image/png", sizeBytes: 50 * 1024 ** 2 + 1 })).status).toBe(413);
+    const { body: { uploadId } } = await request(a).post("/api/assets/uploads/start").send({ fileName: "x.png", mimeType: "image/png", sizeBytes: 5 });
+    await request(a).put(`/api/assets/uploads/${uploadId}`).set("content-type", "image/png").send(Buffer.from("hello"));
+    const done = await request(a).post(`/api/assets/uploads/${uploadId}/done`).send({});
+    expect(done.status).toBe(422);
+    expect(done.body.error).toBe("too_large_image");
+  });
+
   it("rejects oversized and wrong mime", async () => {
     const a = createApp(makeTestDeps());
     expect((await request(a).post("/api/assets/uploads/start").send({ fileName: "x.mp4", mimeType: "video/mp4", sizeBytes: 2 * 1024 ** 3 + 1 })).status).toBe(413);
