@@ -138,6 +138,22 @@ describe("b-roll api", () => {
     expect(refreshed.overlays.map((o) => o.shotId)).toEqual(["shot-1"]);
   });
 
+  it("a re-plan that moves a b-roll shot hides its overlay until the next b-roll run", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await plannedProject(deps);
+    const done = await broll(a, project.id);
+    // What run_job plan leaves behind when new shots reuse the ids at other times.
+    const shots = done.editPlan!.shots.map((s) => (s.id === "shot-2" ? { ...s, startMs: s.startMs + 3000 } : s.id === "shot-1" ? { ...s, endMs: s.endMs + 3000 } : s));
+    await deps.projects.update(project.id, { editPlan: { ...done.editPlan!, shots } });
+    await act(a, project.id, [{ type: "setTitle", title: "re-planned" }], true);
+    await request(a).post(`/api/projects/${project.id}/render`).send({});
+    await untilJob(a, project.id, "COMPLETE");
+    expect((deps.renderer as FakeRenderer).calls.at(-1)!.inputProps.overlays.map((o) => o.id)).toEqual(["ov-0"]);
+    expect(staleOverlays(await get(a, project.id))).toEqual(["ov-1"]);
+    const refreshed = await broll(a, project.id);
+    expect(refreshed.overlays.find((o) => o.shotId === "shot-2")!.startMs).toBe(shots[2].startMs + 300);
+  });
+
   it("re-run clears overlays", async () => {
     const deps = makeTestDeps();
     const { a, project } = await plannedProject(deps);

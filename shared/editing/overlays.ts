@@ -9,7 +9,11 @@ export type OverlayProps = {
 };
 export type MotionGraphicProps = { id: string; compiled: string; startMs: number; endMs: number; box: Box; props: Record<string, string | number | boolean> };
 
-const isBroll = (s: Shot | undefined) => s?.kind === "B-Roll" || s?.kind === "Talking Head & B-Roll";
+// Drawn only over a B-roll shot that still holds it: a re-plan reuses shot ids at other times.
+const onLiveShot = (o: Overlay, shots: Shot[]) => {
+  const s = shots.find((x) => x.id === o.shotId);
+  return !!s && (s.kind === "B-Roll" || s.kind === "Talking Head & B-Roll") && o.startMs >= s.startMs && o.endMs <= s.endMs;
+};
 
 // A range through the enabled cuts; null when what is left is too short to show.
 function toOutput(startMs: number, endMs: number, cuts: Cut[]) {
@@ -17,15 +21,15 @@ function toOutput(startMs: number, endMs: number, cuts: Cut[]) {
   return e - s < MIN_LAYER_MS ? null : { startMs: s, endMs: e };
 }
 
-// Overlays whose shot was re-planned away or is no longer a B-roll kind: kept, not drawn, replaced by the next B-roll run.
+// Overlays whose shot was re-planned away, moved, or is no longer a B-roll kind: kept, not drawn, replaced by the next B-roll run.
 export function staleOverlays(project: Project): string[] {
   const shots = project.editPlan?.shots ?? [];
-  return project.overlays.filter((o) => !isBroll(shots.find((s) => s.id === o.shotId))).map((o) => o.id);
+  return project.overlays.filter((o) => !onLiveShot(o, shots)).map((o) => o.id);
 }
 
 export function overlayTimeline(overlays: Overlay[], shots: Shot[], cuts: Cut[], assetUrl: (id: string) => string): OverlayProps[] {
   return overlays
-    .filter((o) => o.enabled && isBroll(shots.find((s) => s.id === o.shotId)))
+    .filter((o) => o.enabled && onLiveShot(o, shots))
     .flatMap((o) => {
       const range = toOutput(o.startMs, o.endMs, cuts);
       if (!range) return [];

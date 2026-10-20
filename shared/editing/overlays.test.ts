@@ -46,6 +46,16 @@ describe("overlayTimeline", () => {
   });
 });
 
+describe("overlays after a re-plan", () => {
+  it("an overlay outside its re-planned shot is stale and not drawn", () => {
+    // run_job plan renumbered shots: "shot-1" is still a B-Roll shot but now spans 14000–21000.
+    const replanned: Shot[] = [{ id: "shot-0", kind: "Hook", startMs: 0, endMs: 14000 }, { id: "shot-1", kind: "B-Roll", startMs: 14000, endMs: 21000 }];
+    const overlays = [ov("ov-0", 4300, 9300), ov("ov-1", 14300, 19300)];
+    expect(overlayTimeline(overlays, replanned, [], url).map((o) => o.id)).toEqual(["ov-1"]);
+    expect(staleOverlays({ overlays, editPlan: { cuts: [], shots: replanned } } as unknown as Project)).toEqual(["ov-0"]);
+  });
+});
+
 describe("motionGraphicTimeline", () => {
   it("motion graphics resolve image props to urls", () => {
     const mg: MotionGraphic = {
