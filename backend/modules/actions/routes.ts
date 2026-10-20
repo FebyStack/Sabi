@@ -4,7 +4,7 @@ import type { AppDeps } from "../../shared/deps";
 import { projectLoader } from "../../shared/routes";
 import { StaleVersion } from "../projects/repository";
 import { startCaptionJob } from "../pipeline/pipeline";
-import { applyActions } from "./apply";
+import { applyActions, referencedAssetIds } from "./apply";
 
 // The agent's write path: one atomic batch guarded by optimistic concurrency (baseVersion = updatedAt it last saw).
 export function actionsRouter(deps: AppDeps) {
@@ -20,7 +20,8 @@ export function actionsRouter(deps: AppDeps) {
     if (baseVersion !== project.updatedAt) return res.status(409).json({ error: "stale", currentVersion: project.updatedAt });
     const job = deps.jobs.active(project.id);
     if (job) return res.status(409).json({ error: "busy", job });
-    const out = applyActions(project, actions);
+    const loaded = await Promise.all(referencedAssetIds(actions).map((id) => deps.assets.get(id)));
+    const out = applyActions(project, actions, { assets: new Map(loaded.flatMap((a) => (a ? [[a.id, a] as const] : []))) });
     if ("error" in out) return res.status(400).json(out);
 
     let updated;

@@ -133,6 +133,15 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("setShotKind"), shotId: z.string(), kind: ShotKind }),
   z.object({ type: z.literal("setTemplate"), captionTemplateId: CaptionTemplateId }),
   z.object({ type: z.literal("setBurnIn"), language: TranslationLanguage.nullable() }),
+  z.object({ type: z.literal("setMediaSource"), mediaSource: MediaSource }),
+  z.object({ type: z.literal("setOverlay"), overlayId: z.string(), enabled: z.boolean().optional(), startMs: z.number().int().nonnegative().optional(),
+    endMs: z.number().int().positive().optional(), placement: OverlayPlacement.optional(), transition: OverlayTransition.optional() }),
+  z.object({ type: z.literal("removeOverlay"), overlayId: z.string() }),
+  z.object({ type: z.literal("replaceOverlay"), overlayId: z.string(), assetId: z.string().min(1) }),
+  z.object({ type: z.literal("setBrand"), brand: BrandKitSchema.nullable() }),
+  z.object({ type: z.literal("addMotionGraphic"), ...MotionGraphicInput.shape }),
+  z.object({ type: z.literal("updateMotionGraphic"), mgId: z.string(), ...MotionGraphicPatch.shape }),
+  z.object({ type: z.literal("removeMotionGraphic"), mgId: z.string() }),
 ]);
 export const MAX_ACTIONS = 50;
 export const ApplyActionsInput = z.object({

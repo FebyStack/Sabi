@@ -1,5 +1,6 @@
 import request from "supertest";
 import { readyProject, untilStatus } from "../../shared/apiTestHelpers";
+import { PNG_1x1_BASE64 } from "../../shared/renderer";
 import { FakeRenderer } from "../../shared/renderer";
 import { makeTestDeps } from "../../shared/testing";
 import type { Project, ProjectEvent } from "../../../shared/types";
@@ -114,5 +115,34 @@ describe("actions api", () => {
     expect(done.phrases).toEqual(project.phrases);
     const fresh = await request(a).post("/api/projects").send({ title: "empty" });
     expect((await request(a).post(`/api/projects/${fresh.body.id}/render`)).body).toEqual({ error: "no_captions" });
+  });
+
+  it("looks up assets referenced by actions", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const overlay = {
+      id: "ov-0", shotId: "shot-x", assetId: "old", media: "image" as const, source: "stock" as const, startMs: 300, endMs: 2300, placement: "full" as const,
+      transition: "fade" as const, enabled: true, query: "q", prompt: "p", intent: "i", attribution: { author: "A", url: "https://www.pexels.com/photo/1" },
+    };
+    const seeded = await deps.projects.update(project.id, { overlays: [overlay] });
+    const png = Buffer.from(PNG_1x1_BASE64, "base64");
+    const { body: { uploadId } } = await request(a).post("/api/assets/uploads/start").send({ fileName: "p.png", mimeType: "image/png", sizeBytes: png.length });
+    await request(a).put(`/api/assets/uploads/${uploadId}`).set("content-type", "image/png").send(png);
+    const { body: img } = await request(a).post(`/api/assets/uploads/${uploadId}/done`).send({ projectId: project.id });
+    const bad = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: seeded.updatedAt, actions: [{ type: "replaceOverlay", overlayId: "ov-0", assetId: "nope" }] });
+    expect(bad.status).toBe(400);
+    expect(bad.body).toEqual({ error: "bad_asset", id: "nope" });
+    const ok = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: seeded.updatedAt, actions: [{ type: "replaceOverlay", overlayId: "ov-0", assetId: img.id }] });
+    expect(ok.status).toBe(200);
+    expect(ok.body.project.overlays[0]).toMatchObject({ assetId: img.id, source: "uploaded" });
+  });
+
+  it("bad motion-graphic code is a 400 with detail", async () => {
+    const { a, project } = await readyProject(makeTestDeps());
+    const res = await request(a).post(`/api/projects/${project.id}/actions`).send({
+      baseVersion: project.updatedAt, actions: [{ type: "addMotionGraphic", name: "x", code: "const Component = () => window.x;", startMs: 0, endMs: 1000 }],
+    });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "bad_code", detail: "forbidden: window" });
   });
 });
