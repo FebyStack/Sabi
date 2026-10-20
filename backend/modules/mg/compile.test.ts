@@ -44,4 +44,25 @@ describe("compileMotionGraphic", () => {
     expect(compileMotionGraphic(`const Component = () => eval("1");`)).toEqual({ error: "bad_code", detail: "forbidden: eval" });
     expect(compileMotionGraphic(`const Component = () => [].map.constructor("return 1")();`)).toEqual({ error: "bad_code", detail: "forbidden: constructor" });
   });
+
+  it("closes string-to-code and window routes", () => {
+    const cases: [string, string][] = [
+      [`const Component = () => <div dangerouslySetInnerHTML={{ __html: "<img src=x onerror=alert(1)>" }} />;`, "forbidden: dangerouslySetInnerHTML"],
+      [`const Component = () => <iframe srcDoc="<script>1</script>" />;`, "forbidden: <iframe>"],
+      [`const Component = () => <script>{"1"}</script>;`, "forbidden: <script>"],
+      [`const Component = () => <a href="javascript:alert(1)">x</a>;`, "forbidden: javascript: URL"],
+      [`const Component = () => [].map["con" + "structor"]("return 1")();`, "forbidden: computed property name"],
+      [`const Component = () => [].map[\`constructor\`]("return 1")();`, "forbidden: constructor"],
+      [`const Component = () => top.location;`, "forbidden: top"],
+      [`const Component = () => { new Image().src = "https://x/?d=1"; return null; };`, "forbidden: Image"],
+      [`const Component = () => Reflect.get([], "x");`, "forbidden: Reflect"],
+      [`const Component = ({ item }) => { const el = {}; el.innerHTML = item.props.t; return null; };`, "forbidden: innerHTML"],
+    ];
+    for (const [code, detail] of cases) expect(compileMotionGraphic(code), code).toEqual({ error: "bad_code", detail });
+  });
+
+  it("keeps ordinary indexing", () => {
+    expect(compileMotionGraphic(`const Component = ({ item }) => { const xs = [1, 2, 3]; const i = 1; return <div>{xs[i + 1]}{xs[0]}{item.props["title"]}</div>; };`))
+      .toHaveProperty("compiled");
+  });
 });

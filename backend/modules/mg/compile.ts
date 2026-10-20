@@ -8,7 +8,16 @@ export const DENY: ReadonlySet<string> = new Set([
   "window", "document", "globalThis", "self", "fetch", "XMLHttpRequest", "WebSocket", "eval", "Function", "require", "process",
   "localStorage", "sessionStorage", "indexedDB", "navigator", "setTimeout", "setInterval", "setImmediate", "queueMicrotask",
   "Worker", "importScripts", "postMessage", "location", "constructor", "__proto__",
+  // window aliases, requests by other means, reflection, and HTML-from-string
+  "top", "parent", "frames", "opener", "open", "Image", "Audio", "EventSource", "BroadcastChannel", "SharedWorker", "Reflect", "Proxy",
+  "dangerouslySetInnerHTML", "innerHTML", "outerHTML", "insertAdjacentHTML", "srcDoc", "srcdoc",
 ]);
+const DENY_TAGS = new Set(["script", "iframe", "object", "embed", "frame", "frameset", "link", "meta", "base", "form"]);
+
+// `x[k]` is fine; a property name built from strings (`x["con" + "structor"]`) is how a denylist gets walked around.
+const stringy = (e: ts.Expression): boolean => ts.isStringLiteralLike(e) || ts.isTemplateExpression(e)
+  || (ts.isParenthesizedExpression(e) && stringy(e.expression))
+  || (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.PlusToken && (stringy(e.left) || stringy(e.right)));
 
 type CompileResult = { compiled: string } | { error: "bad_code"; detail: string };
 
@@ -32,6 +41,10 @@ export function compileMotionGraphic(code: string): CompileResult {
     else if (node.kind === ts.SyntaxKind.WithStatement) forbidden = "with";
     else if (ts.isIdentifier(node) && DENY.has(node.text)) forbidden = node.text;
     else if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && DENY.has(node.argumentExpression.text)) forbidden = node.argumentExpression.text;
+    else if (ts.isElementAccessExpression(node) && !ts.isStringLiteralLike(node.argumentExpression) && stringy(node.argumentExpression)) forbidden = "computed property name";
+    else if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && DENY_TAGS.has(node.tagName.getText(file).toLowerCase())) forbidden = `<${node.tagName.getText(file)}>`;
+    else if (ts.isJsxAttribute(node) && DENY.has(node.name.getText(file))) forbidden = node.name.getText(file);
+    else if (ts.isStringLiteralLike(node) && /^\s*javascript:/i.test(node.text)) forbidden = "javascript: URL";
     else ts.forEachChild(node, visit);
   };
   visit(file);
