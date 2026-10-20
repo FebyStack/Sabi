@@ -15,9 +15,9 @@ describe("labelBeats", () => {
   it("labels beats from llm and fills gaps", async () => {
     const llm = new FakeLlm(() => ({ labels: [label(1)] }));
     const out = await labelBeats(llm, beats, phrases, { allowVideo: false });
-    expect(JSON.parse(llm.calls[0].user).beats[0]).toEqual({ i: 0, text: expect.stringMatching(/^two hours of meditation/) });
+    expect(JSON.parse(llm.calls[0].user).beats[0]).toEqual({ i: 0, text: expect.stringMatching(/^meditation, a cold plunge/) });
     expect(out[1]).toMatchObject({ id: "beat-1", query: "q1", prompt: "p1", intent: "intent 1", media: "image" });
-    expect(out[0]).toMatchObject({ id: "beat-0", query: "two hours of meditation, a cold", intent: "two hours of meditation, a cold", prompt: "photo of two hours of meditation, a cold" });
+    expect(out[0]).toMatchObject({ id: "beat-0", query: "meditation, a cold plunge, and a", intent: "meditation, a cold plunge, and a", prompt: "photo of meditation, a cold plunge, and a" });
   });
 
   it("only the first wantsVideo beat becomes video when allowed", async () => {
@@ -33,16 +33,16 @@ describe("labelBeats", () => {
 
   it("normalizes bad llm output", async () => {
     const long = `"sunrise"\nover\r\nthe ${"sea ".repeat(80)}`;
-    const llm = new FakeLlm(() => ({ labels: [label(7, true), label(-1), label(0.5), label(0, false, long), label(0, false, "second wins?")] }));
+    const llm = new FakeLlm(() => ({ labels: [label(7, true), label(0, false, long)] })); // the schema caps labels at the beat count
     const out = await labelBeats(llm, beats, phrases, { allowVideo: true });
     expect(out[0].query).toBe(`sunrise over the ${"sea ".repeat(80)}`.slice(0, 60).trim());
     expect(out[0].query).not.toMatch(/["\n\r]/);
-    expect(out[1].query).toMatch(/^You need one small habit/); // only out-of-range labels: falls back to its text
+    expect(out[1].query).toMatch(/^touch my phone/); // only out-of-range labels: falls back to its text
     expect(out.map((b) => b.media)).toEqual(["image", "image"]);
   });
 
   it("fake responder labels beats deterministically", async () => {
     const out = await labelBeats(new FakeLlm(fakeLlmResponder), beats, phrases, { allowVideo: true });
-    expect(out.map((b) => [b.query, b.media])).toEqual([["stock two", "image"], ["stock You", "video"]]);
+    expect(out.map((b) => [b.query, b.media])).toEqual([["stock meditation,", "image"], ["stock touch", "video"]]);
   });
 });

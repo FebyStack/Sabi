@@ -7,12 +7,14 @@ export type JobFn = (ctx: { report(progress: number, stage?: string): void }) =>
 export interface JobRunner {
   enqueue(projectId: string, kind: string, run: JobFn): JobState;
   active(projectId: string): JobState | null;
+  last(projectId: string): JobState | null; // most recent finished job (COMPLETE/FAILED), so pollers learn the outcome
 }
 
 // In-process runner: one job at a time per project, FIFO. BullMQ replaces it in plan 5.
 export class MemoryJobRunner implements JobRunner {
   private queues = new Map<string, { job: JobState; run: JobFn }[]>();
   private running = new Map<string, JobState>();
+  private finished = new Map<string, JobState>();
 
   constructor(private bus: EventBus) {}
 
@@ -31,6 +33,11 @@ export class MemoryJobRunner implements JobRunner {
     return j ? { ...j } : null;
   }
 
+  last(projectId: string) {
+    const j = this.finished.get(projectId);
+    return j ? { ...j } : null;
+  }
+
   private async drain(projectId: string) {
     const q = this.queues.get(projectId);
     const next = q?.shift();
@@ -46,6 +53,7 @@ export class MemoryJobRunner implements JobRunner {
       job.state = "FAILED"; job.error = err instanceof Error ? err.message : String(err);
     }
     this.running.delete(projectId);
+    this.finished.set(projectId, job);
     emit();
     void this.drain(projectId);
   }

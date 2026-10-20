@@ -5,11 +5,15 @@ export interface ProjectRepository {
   list(): Promise<Project[]>;
   get(id: string): Promise<Project | null>; // also bumps last_access (30-day retention key)
   create(p: Project): Promise<Project>;
-  update(id: string, patch: Partial<Project>): Promise<Project>;
+  update(id: string, patch: Partial<Project>, opts?: { ifVersion?: string }): Promise<Project>; // ifVersion: compare-and-swap on updatedAt, else StaleVersion
   failStuck(): Promise<number>; // on boot: no job survives a restart, so running statuses become failed
 }
 
 const RUNNING = ["transcribing", "planning", "generating", "rendering"];
+
+export class StaleVersion extends Error {
+  constructor(readonly currentVersion: string) { super("stale"); }
+}
 
 export class MemoryProjectRepository implements ProjectRepository {
   private rows = new Map<string, Project>();
@@ -21,9 +25,10 @@ export class MemoryProjectRepository implements ProjectRepository {
     for (const p of this.rows.values()) if (RUNNING.includes(p.status)) { p.status = "failed"; n++; }
     return n;
   }
-  async update(id: string, patch: Partial<Project>) {
+  async update(id: string, patch: Partial<Project>, opts: { ifVersion?: string } = {}) {
     const cur = this.rows.get(id);
     if (!cur) throw new Error("not_found");
+    if (opts.ifVersion !== undefined && opts.ifVersion !== cur.updatedAt) throw new StaleVersion(cur.updatedAt);
     const next = { ...cur, ...patch, updatedAt: new Date().toISOString() };
     this.rows.set(id, next);
     return next;
@@ -80,13 +85,17 @@ export class PgProjectRepository implements ProjectRepository {
     const { rowCount } = await this.pool.query("UPDATE projects SET status = 'failed', updated_at = now() WHERE status = ANY($1)", [RUNNING]);
     return rowCount ?? 0;
   }
-  async update(id: string, patch: Partial<Project>) {
+  async update(id: string, patch: Partial<Project>, opts: { ifVersion?: string } = {}) {
     const keys = (Object.keys(patch) as (keyof typeof COL)[]).filter((k) => k in COL);
     const sets = keys.map((k, i) => `${COL[k]} = $${i + 2}`);
-    const vals = keys.map((k) => (JSON_COLS.has(k) ? JSON.stringify(patch[k]) : patch[k]));
+    const vals: unknown[] = keys.map((k) => (JSON_COLS.has(k) ? JSON.stringify(patch[k]) : patch[k]));
+    // Versions are ISO strings with ms precision; timestamptz keeps µs, so compare truncated.
+    const guard = opts.ifVersion === undefined ? "" : ` AND date_trunc('milliseconds', updated_at) = $${vals.push(opts.ifVersion) + 1}::timestamptz`;
     const { rows } = await this.pool.query<Row>(
-      `UPDATE projects SET ${[...sets, "updated_at = now()"].join(", ")} WHERE id = $1 RETURNING *`, [id, ...vals]);
-    if (!rows[0]) throw new Error("not_found");
-    return toProject(rows[0]);
+      `UPDATE projects SET ${[...sets, "updated_at = now()"].join(", ")} WHERE id = $1${guard} RETURNING *`, [id, ...vals]);
+    if (rows[0]) return toProject(rows[0]);
+    const cur = await this.pool.query<Row>("SELECT * FROM projects WHERE id = $1", [id]);
+    if (!cur.rows[0]) throw new Error("not_found");
+    throw new StaleVersion(toProject(cur.rows[0]).updatedAt);
   }
 }
