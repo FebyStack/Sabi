@@ -23,6 +23,29 @@ const stringy = (e: ts.Expression): boolean => ts.isStringLiteralLike(e) || ts.i
 
 type CompileResult = { compiled: string } | { error: "bad_code"; detail: string };
 
+// A property or attribute name (`x.open`, `{ top: 0 }`, `<a href>`) is not a reference to the global of that name.
+const isPropertyName = (id: ts.Identifier) => {
+  const p = id.parent;
+  return ((ts.isPropertyAccessExpression(p) || ts.isPropertyAssignment(p) || ts.isJsxAttribute(p) || ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p)) && p.name === id)
+    || (ts.isBindingElement(p) && p.propertyName === id);
+};
+
+// Binds the file on its own (no lib): a name declared in the code resolves to that declaration; a global resolves to nothing.
+function parseWithScopes(code: string) {
+  const fileName = "mg.jsx";
+  const options: ts.CompilerOptions = { allowJs: true, noLib: true, noResolve: true, types: [], target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.Preserve };
+  const file = ts.createSourceFile(fileName, code, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JSX);
+  const host = ts.createCompilerHost(options);
+  host.getSourceFile = (name) => (name === fileName ? file : undefined);
+  host.fileExists = (name) => name === fileName;
+  const checker = ts.createProgram([fileName], options, host).getTypeChecker();
+  const isLocal = (id: ts.Identifier) => {
+    const sym = ts.isShorthandPropertyAssignment(id.parent) ? checker.getShorthandAssignmentValueSymbol(id.parent) : checker.getSymbolAtLocation(id);
+    return !!sym?.declarations?.some((d) => d.getSourceFile() === file);
+  };
+  return { file, isLocal };
+}
+
 // Plain JS + JSX in, React.createElement JS out — vetted, never executed here.
 export function compileMotionGraphic(code: string): CompileResult {
   const bad = (detail: string): CompileResult => ({ error: "bad_code", detail });
@@ -33,7 +56,7 @@ export function compileMotionGraphic(code: string): CompileResult {
   const diag = out.diagnostics?.[0];
   if (diag) return bad(ts.flattenDiagnosticMessageText(diag.messageText, "\n"));
 
-  const file = ts.createSourceFile("mg.jsx", code, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JSX);
+  const { file, isLocal } = parseWithScopes(code);
   let forbidden: string | null = null;
   const visit = (node: ts.Node): void => {
     if (forbidden) return;
@@ -41,7 +64,7 @@ export function compileMotionGraphic(code: string): CompileResult {
     else if (ts.isExportAssignment(node) || ts.isExportDeclaration(node) || ts.getCombinedModifierFlags(node as ts.Declaration) & ts.ModifierFlags.Export) forbidden = "export";
     else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) forbidden = "import()";
     else if (node.kind === ts.SyntaxKind.WithStatement) forbidden = "with";
-    else if (ts.isIdentifier(node) && DENY.has(node.text)) forbidden = node.text;
+    else if (ts.isIdentifier(node) && (isPropertyName(node) ? DENY_KEYS.has(node.text) : DENY.has(node.text) && !isLocal(node))) forbidden = node.text;
     else if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && DENY.has(node.argumentExpression.text)) forbidden = node.argumentExpression.text;
     else if (ts.isStringLiteralLike(node) && DENY_KEYS.has(node.text)) forbidden = node.text; // { "innerHTML": … }, const k = "constructor"
     else if ((ts.isElementAccessExpression(node) && !ts.isStringLiteralLike(node.argumentExpression) && stringy(node.argumentExpression))
@@ -50,7 +73,7 @@ export function compileMotionGraphic(code: string): CompileResult {
     else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "createElement"
       && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]) && DENY_TAGS.has(node.arguments[0].text.toLowerCase())) forbidden = `<${node.arguments[0].text}>`;
     else if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && DENY_TAGS.has(node.tagName.getText(file).toLowerCase())) forbidden = `<${node.tagName.getText(file)}>`;
-    else if (ts.isJsxAttribute(node) && DENY.has(node.name.getText(file))) forbidden = node.name.getText(file);
+    else if (ts.isJsxAttribute(node) && DENY_KEYS.has(node.name.getText(file))) forbidden = node.name.getText(file);
     else if (ts.isStringLiteralLike(node) && /^\s*javascript:/i.test(node.text)) forbidden = "javascript: URL";
     else ts.forEachChild(node, visit);
   };

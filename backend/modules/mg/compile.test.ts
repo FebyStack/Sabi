@@ -71,6 +71,22 @@ describe("compileMotionGraphic", () => {
     expect(compileMotionGraphic(`const Component = () => <div style={{ verticalAlign: "top", transformOrigin: "top", position: "absolute" }}>Open</div>;`)).toHaveProperty("compiled");
   });
 
+  it("property and binding names may share a name with a global", () => {
+    for (const code of [
+      `const Component = () => <div style={{ position: "absolute", top: 0, left: 0 }} />;`,
+      `const Component = ({ item }) => <div>{item.props.open ? "yes" : "no"}</div>;`,
+      `const Component = ({ item }) => { const { parent, self: me } = item.props; return <div>{parent}{me}</div>; };`,
+      `const Component = ({ item }) => { const location = item.props.city; return <div>{location}</div>; };`,
+    ]) expect(compileMotionGraphic(code), code).toHaveProperty("compiled");
+  });
+
+  it("bare references to those globals stay forbidden", () => {
+    expect(compileMotionGraphic(`const Component = () => <div>{top.name}</div>;`)).toEqual({ error: "bad_code", detail: "forbidden: top" });
+    expect(compileMotionGraphic(`const Component = () => { const o = { top }; return null; };`)).toEqual({ error: "bad_code", detail: "forbidden: top" });
+    expect(compileMotionGraphic(`const Component = () => [].map.constructor("return 1")();`)).toEqual({ error: "bad_code", detail: "forbidden: constructor" });
+    expect(compileMotionGraphic(`const Component = ({ item }) => { item.innerHTML = 1; return null; };`)).toEqual({ error: "bad_code", detail: "forbidden: innerHTML" });
+  });
+
   it("keeps ordinary indexing", () => {
     expect(compileMotionGraphic(`const Component = ({ item }) => { const xs = [1, 2, 3]; const i = 1; return <div>{xs[i + 1]}{xs[0]}{item.props["title"]}</div>; };`))
       .toHaveProperty("compiled");
