@@ -2,6 +2,7 @@ import { Component as ReactComponent, type ReactNode } from "react";
 import { Sequence, useVideoConfig } from "remotion";
 import type { BrandLook } from "../editing/brand";
 import type { MotionGraphicProps } from "../editing/overlays";
+import { fontCssFamily } from "./fonts";
 import { MgBroken, MgPlaceholder, buildMotionGraphic } from "./mgRuntime";
 import { msToFrames } from "./OverlayLayer";
 
@@ -24,7 +25,8 @@ export function MotionGraphicLayer({ mg, brand, width, height }: { mg: MotionGra
       <div style={{ position: "absolute", ...box, overflow: "hidden" }}>
         {Mg === MgBroken ? <MgPlaceholder id={mg.id} /> : (
           <MgBoundary key={mg.compiled} id={mg.id}>{/* new code → fresh boundary, so a fixed MG drops its ⚠ in the Player */}
-            <Mg item={{ props: mg.props, brand, width: box.width, height: box.height, durationInFrames }} />
+            {/* fontFamily is the bundled CSS family, so `${b.fontFamily}, system-ui` in MG code finds the loaded face */}
+            <Mg item={{ props: mg.props, brand: { ...brand, fontFamily: fontCssFamily(brand.fontFamily) }, width: box.width, height: box.height, durationInFrames }} />
           </MgBoundary>
         )}
       </div>

@@ -74,9 +74,19 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     expect(Number(probed)).toBeCloseTo(1.6, 1);
   }, 900_000);
 
+  it("renders with a bundled display font", async () => {
+    const font = (family: string) => ({ ...getCaptionTemplate("clean"), font: { ...getCaptionTemplate("clean").font, family } });
+    const one = [{ ...phrases[0], words: words.map((w) => ({ ...w, startMs: 0, endMs: 1000 })) }];
+    const bebas = await render({ phrases: one, durationMs: 1000, template: font("Bebas Neue") }, "bebas.mp4");
+    const inter = await render({ phrases: one, durationMs: 1000, template: font("Inter") }, "inter.mp4");
+    const y = Math.round(1920 * 0.78 + 40);
+    const row = (f: string) => [300, 370, 440, 510, 580, 650, 720, 790].map((x) => pixel(f, 0.5, x, y).join(","));
+    expect(row(bebas)).not.toEqual(row(inter));
+  }, 300_000);
+
   it("renders at scale 2", async () => {
     const out = await render({ phrases, durationMs: 1000 }, "4k.mp4", 2);
-    const width = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width", "-of", "csv=p=0", out]).toString().trim();
+    const width = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width", "-of", "default=nw=1:nk=1", out]).toString().trim();
     expect(width).toBe("2160");
   }, 300_000);
 
