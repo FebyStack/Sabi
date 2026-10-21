@@ -1,5 +1,5 @@
 import { ApplyActionsResult, AssetSchema, ProjectSchema, api } from "@shared/contract";
-import type { ApplyActionsInput, Asset, BrollInput, PlanInput } from "@shared/types";
+import type { ApplyActionsInput, Asset, BrollInput, PlanInput, RenderInput } from "@shared/types";
 import { json } from "@/services/http";
 
 export const getProject = (id: string) => json<unknown>(api.project(id)).then(ProjectSchema.parse);
@@ -14,6 +14,13 @@ export const addBroll = (id: string, input: BrollInput) =>
 // Same write path as the editing agent; a 409 stale (someone else edited first) rejects with Error("stale").
 export const applyProjectActions = (id: string, input: ApplyActionsInput) =>
   json<unknown>(api.projectActions(id), { method: "POST", body: JSON.stringify(input) }).then(ApplyActionsResult.parse);
+// The explicit export: 1080p (scale 1) or 4K (scale 2).
+export const renderProject = (id: string, input: RenderInput) =>
+  json<{ jobId: string }>(api.projectRender(id), { method: "POST", body: JSON.stringify(input) });
+export async function deleteProject(id: string): Promise<void> {
+  const res = await fetch(api.project(id), { method: "DELETE" });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error ?? `DELETE → ${res.status}`);
+}
 export const assetFileUrl = (assetId: string) => api.assetFile(assetId);
 
 // start → PUT bytes (XHR for progress) → done
