@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "mkdir -p .tmp && TMPDIR=$PWD/.tmp tsx watch backend/server/index.ts",
-    "dev:lite": "mkdir -p .tmp && TMPDIR=$PWD/.tmp tsx watch backend/server/index-lite.ts",
+    "dev:server": "mkdir -p $HOME/Developer/.sabi-tmp && TMPDIR=$HOME/Developer/.sabi-tmp tsx watch backend/server/index.ts",
+    "dev:lite": "mkdir -p $HOME/Developer/.sabi-tmp && TMPDIR=$HOME/Developer/.sabi-tmp tsx watch backend/server/index-lite.ts",
     "mcp": "tsx backend/mcp/index.ts",
     "demo:pack": "tsx infrastructure/dev/pack-demo.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -17,7 +17,7 @@
     "verify": "npm run typecheck && npm run typecheck:server && npm run test",
     "prepare": "git config core.hooksPath .githooks || true",
     "deps": "sh infrastructure/dev/deps.sh",
-    "render:sample": "mkdir -p .tmp && RUN_RENDER=1 TMPDIR=$PWD/.tmp vitest run tests/integration/render.test.ts",
+    "render:sample": "mkdir -p $HOME/Developer/.sabi-tmp && RUN_RENDER=1 TMPDIR=$HOME/Developer/.sabi-tmp vitest run tests/integration/render.test.ts",
     "ai:whisperx": "UV_CACHE_DIR=${UV_CACHE_DIR:-$PWD/.cache/uv} HF_HOME=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/hf uv run --directory ai/transcription uvicorn server:app --host 127.0.0.1 --port 8010",
     "ai:ollama": "OLLAMA_MODELS=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/ollama ollama serve"
   },
