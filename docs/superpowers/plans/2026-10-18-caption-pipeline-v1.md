@@ -181,7 +181,7 @@ it("streams the active job then live events", async () => { /* enqueue a job tha
 - [ ] **Step 1: Write failing tests in `pipeline.test.ts`** (supertest + `makeTestDeps`, await `vi.waitFor` on `GET /api/projects/:id` status): `runs upload → ready with three outputs` (phrases non-empty, `outputs` has all three ids, `GET /api/assets/:srt/file` text starts with `"1\n00:00:00,040"`), `source sets aspect ratio from probe` (FakeMedia 1920×1080 → `16:9`), `run while busy returns 409`, `run without source returns 400`, `transcriber failure marks project failed` (`FakeTranscriber` that throws `transcriber_unavailable`), `pipeline marks no_speech` (`FakeTranscriber({language:"en", words: []})`), `phrase edit re-renders without transcribing` (counter on the fake transcriber stays 1).
 - [ ] **Step 2: Run `npx vitest run backend/modules/pipeline` — expect FAIL**
 - [ ] **Step 3: Implement the pipeline module, project repository `update` (Memory + Pg), routes, contract changes and schema columns; register the router in `app.ts`.**
-- [ ] **Step 4: Run `npm run verify` — expect PASS. Then the real path once: `npm run ai:whisperx`, `npm run dev:lite`, upload `~/Desktop/Reverse Engineer/test-clip-9x16.mp4` with curl, `POST /run`, watch `curl -N localhost:3001/api/projects/<id>/events` reach `ready`, open the MP4.**
+- [ ] **Step 4: Run `npm run verify` — expect PASS. Then the real path once: `npm run ai:whisperx`, `npm run dev:lite`, upload `~/Developer/Reverse Engineer/test-clip-9x16.mp4` with curl, `POST /run`, watch `curl -N localhost:3001/api/projects/<id>/events` reach `ready`, open the MP4.**
 - [ ] **Step 5: Commit** `git commit -am "feat(pipeline): upload→transcribe→captions→render orchestration and project API"`
 
 ### Task 7: Project page (mobile-first)

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -11,7 +12,7 @@ import { FakeRenderer } from "../shared/renderer";
 import { makeTestDeps } from "../shared/testing";
 import type { Project } from "../../shared/types";
 import { SabiApi } from "./client";
-import { TOOL_NAMES, callTool, toolSpec } from "./tools";
+import { TOOL_NAMES, callTool, syncedToICloud, toolSpec } from "./tools";
 
 let deps: AppDeps, server: Server, api: SabiApi, project: Project, home: string;
 beforeEach(async () => {
@@ -154,6 +155,28 @@ describe("sabi mcp tools", () => {
     expect((await callTool(api, "export_outputs", { projectId: project.id, outDir: "/nope" })).isError).toBe(true);
     expect((await callTool(api, "export_outputs", { projectId: project.id, outDir: "/tmp" })).text).toContain("outside your home directory");
     expect((await callTool(api, "export_outputs", { projectId: project.id, outDir: join(home, "nope") })).text).toContain("no such directory");
+  });
+
+  it("a folder iCloud syncs is found by its synced ancestor below $HOME", async () => {
+    // macOS marks the roots it syncs (~/Desktop, ~/Documents, ~/Library/Mobile Documents), not their subfolders.
+    const domains: Record<string, string> = { [join(home, "Desktop")]: "com.apple.CloudDocs.iCloudDriveFileProvider/X", [join(home, "Drop")]: "com.getdropbox.dropbox/Y" };
+    const domainOf = async (dir: string) => domains[dir] ?? "";
+    expect(await syncedToICloud(join(home, "Desktop", "renders", "a"), home, domainOf)).toBe(true);
+    expect(await syncedToICloud(join(home, "Desktop"), home, domainOf)).toBe(true);
+    expect(await syncedToICloud(join(home, "Movies", "Sabi"), home, domainOf)).toBe(false);
+    expect(await syncedToICloud(join(home, "Drop"), home, domainOf)).toBe(false);
+    expect(await syncedToICloud(home, home, domainOf)).toBe(false);
+  });
+
+  // iCloud Drive's own root is read-only, so even a broken check writes nothing there.
+  const iCloudDrive = join(homedir(), "Library", "Mobile Documents");
+  const iCloudOn = (() => { try { return execFileSync("xattr", ["-p", "com.apple.file-provider-domain-id", iCloudDrive], { stdio: "pipe" }).toString().startsWith("com.apple.CloudDocs"); } catch { return false; } })();
+  it.runIf(iCloudOn)("export refuses a folder iCloud syncs (it can evict the files off this Mac)", async () => {
+    const out = await callTool(api, "export_outputs", { projectId: project.id, outDir: iCloudDrive });
+    expect(out).toMatchObject({ isError: true });
+    expect(out.text).toContain("syncs to iCloud");
+    expect(out.text).toContain("~/Movies/Sabi");
+    expect((await callTool(api, "export_outputs", { projectId: project.id, outDir: home })).isError).toBeFalsy();
   });
 
   it("tools report an unreachable api", async () => {

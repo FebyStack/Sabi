@@ -75,4 +75,4 @@ Docker Compose: `web` (nginx static), `api`, `worker-cpu` (ffmpeg, remotion), `p
 
 
 
-See `docs/spec.md` for the locked spec and `~/Desktop/Reverse Engineer/captions-ai-reverse-engineering.md` §1–9 for the evidence.
+See `docs/spec.md` for the locked spec and `~/Developer/Reverse Engineer/captions-ai-reverse-engineering.md` §1–9 for the evidence.

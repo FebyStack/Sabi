@@ -18,7 +18,7 @@ The web editor is open beside you more often than not: the user sees your edits 
 4. `apply_actions {projectId, baseVersion, actions: [...]}` — batch every edit of the turn into one call, `render: false` while iterating. Each result gives the new `baseVersion`; use it next time.
 5. `render_frame {projectId, timestampMs}` at the edited moment to check it. Frames are **output** time: when cuts are on, use the `→ out` / `(out …)` time inspect prints, not the source time.
 6. Happy → `run_job {kind: "render"}` once (`scale: 2` = 4K; or `apply_actions` with `render: true`) → `wait_job`. Until then the summary's `outputs:` line ends with `(stale)`.
-7. `export_outputs {projectId, outDir}` (an existing folder under the user's home).
+7. `export_outputs {projectId, outDir}` (an existing folder under the user's home that iCloud does not sync; default to `~/Movies/Sabi`, `mkdir -p` it first).
 
 Actions: `setTitle {title}`, `editPhrase {phraseId, text}` (timings kept; a different word count is spread over the phrase), `setCut {cutId, shouldTrim}`, `setShotKind {shotId, kind}`, `setTemplate {captionTemplateId: clean|bold|karaoke}`, `setBurnIn {language|null}` (only a language already translated). Max 50 per call; one bad id rejects the whole batch; actions apply in order, each seeing the ones before it.
 
@@ -64,6 +64,7 @@ Agent-written Remotion components drawn between the B-roll and the captions. Rea
 
 - `project changed since baseVersion … re-run inspect_project` — the user (web UI, maybe mid-drag) or another session edited first. Re-inspect, re-apply on the new state; never retry blindly.
 - `outputs are stale; run_job render first` (export_outputs) — an edit landed after the last render; `run_job {kind: "render"}` → `wait_job`, then export.
+- `refused: … syncs to iCloud` (export_outputs) — Desktop, Documents and iCloud Drive can evict the files off the Mac; export to `~/Movies/Sabi` instead.
 - `busy: <kind> job …` — a job is running. `wait_job`, then re-inspect.
 - `Sabi API not reachable …` — tell the user to start the API: `FAKE_AI=1 npm run dev:lite` (launch config `api-lite-fake`) or `npm run dev:lite`.
 - `400 no_captions` — `run_job captions` first. `400 unknown_id` — the id came from a stale view; re-inspect.

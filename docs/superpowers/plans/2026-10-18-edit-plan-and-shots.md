@@ -331,7 +331,7 @@ it("tracks the job kind", () => { /* PROCESSING plan job → state.kind === "pla
 ```
 - [ ] **Step 2: Run `npx vitest run frontend` — FAIL.**
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4: `npm run verify` — PASS; browser check** with `FAKE_AI=1 npm run dev:lite` + `npm run dev`: upload `~/Desktop/Reverse Engineer/test-clip-9x16.mp4` (via the API with curl if the pane cannot pick files) → Generate captions → Plan edit (es, burn-in) → scrubber + cuts render at 375 px wide with no horizontal scroll; tap a shot seeks; untick a cut → Apply → re-render → Spanish SRT downloads; Ollama-down run (no `FAKE_AI`) shows `llm_unavailable` and keeps downloads.
+- [ ] **Step 4: `npm run verify` — PASS; browser check** with `FAKE_AI=1 npm run dev:lite` + `npm run dev`: upload `~/Developer/Reverse Engineer/test-clip-9x16.mp4` (via the API with curl if the pane cannot pick files) → Generate captions → Plan edit (es, burn-in) → scrubber + cuts render at 375 px wide with no horizontal scroll; tap a shot seeks; untick a cut → Apply → re-render → Spanish SRT downloads; Ollama-down run (no `FAKE_AI`) shows `llm_unavailable` and keeps downloads.
 - [ ] **Step 5: Commit** `feat(web): edit plan panel with shot scrubber, cut toggles and translations`
 
 ---

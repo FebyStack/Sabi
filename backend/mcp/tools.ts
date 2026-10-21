@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { lstat, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { extname, join, sep } from "node:path";
+import { dirname, extname, join, sep } from "node:path";
+import { promisify } from "node:util";
 import { z } from "zod";
 import { ActionSchema, MAX_ACTIONS, TranslationLanguage } from "../../shared/contract";
 import { deriveBeats } from "../../shared/editing/beats";
@@ -33,6 +35,16 @@ async function underHome(path: string) {
   const real = await realpath(path).catch(() => null);
   if (real === null) return null;
   return real === home || real.startsWith(home + sep) ? real : "outside";
+}
+
+// iCloud can evict a synced file to the cloud, leaving a placeholder on this Mac. macOS marks the roots it syncs
+// (~/Desktop and ~/Documents with Desktop & Documents sync, ~/Library/Mobile Documents) with a file-provider domain.
+const run = promisify(execFile);
+const fileProviderDomain = (dir: string) =>
+  process.platform === "darwin" ? run("xattr", ["-p", "com.apple.file-provider-domain-id", dir]).then((r) => r.stdout, () => "") : Promise.resolve("");
+export async function syncedToICloud(dir: string, home: string, domainOf = fileProviderDomain) {
+  for (let d = dir; d.startsWith(home + sep); d = dirname(d)) if ((await domainOf(d)).startsWith("com.apple.CloudDocs")) return true;
+  return false;
 }
 
 function summary(p: Project) {
@@ -262,12 +274,14 @@ const TOOLS = {
     },
   },
   export_outputs: {
-    description: "Write the rendered MP4 and SRT/VTT (plus translated tracks) into an existing directory under your home directory.",
-    inputSchema: { projectId, outDir: z.string().describe("existing directory under $HOME") },
+    description: "Write the rendered MP4 and SRT/VTT (plus translated tracks) into an existing directory under your home directory that iCloud does not sync (e.g. ~/Movies/Sabi).",
+    inputSchema: { projectId, outDir: z.string().describe("existing directory under $HOME, not synced to iCloud") },
     run: async (api: SabiApi, i: { projectId: string; outDir: string }) => {
       const dir = await underHome(i.outDir);
       if (dir === "outside") return fail(`refused: ${i.outDir} is outside your home directory`);
       if (dir === null || !(await stat(dir)).isDirectory()) return fail(`no such directory: ${i.outDir}`);
+      if (await syncedToICloud(dir, await realpath(homedir())))
+        return fail(`refused: ${i.outDir} syncs to iCloud, which can move the files off this Mac; export to a folder outside it, e.g. ~/Movies/Sabi (mkdir -p ~/Movies/Sabi)`);
       const p = await api.getProject(i.projectId);
       const o = p.outputs;
       if (!o.mp4AssetId) return fail("no outputs yet; run_job captions (or render) first");
