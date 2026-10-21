@@ -100,7 +100,7 @@ export function makeMemoryDeps(dataDir: string, apiBaseUrl = `http://127.0.0.1:$
     bus,
     jobs: new MemoryJobRunner(bus),
     transcriber: fakeAi ? new FakeTranscriber(sampleTranscript) : new WhisperXTranscriber(process.env.WHISPERX_URL ?? "http://localhost:8010"),
-    renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts", bundleDir: ".remotion-bundle" }),
+    renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts" }),
     llm: fakeAi ? new FakeLlm(fakeLlmResponder) : new OllamaLlm(process.env.OLLAMA_URL ?? "http://localhost:11434", process.env.OLLAMA_MODEL ?? "qwen2.5:3b"),
     ...(fakeAi ? fakeBroll() : {
       fetch: globalThis.fetch,

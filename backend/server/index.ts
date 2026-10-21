@@ -36,7 +36,7 @@ const deps: AppDeps = {
   bus,
   jobs: new MemoryJobRunner(bus),
   transcriber: new WhisperXTranscriber(process.env.WHISPERX_URL ?? "http://localhost:8010"),
-  renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts", bundleDir: ".remotion-bundle" }),
+  renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts" }),
   llm: new OllamaLlm(process.env.OLLAMA_URL ?? "http://localhost:11434", process.env.OLLAMA_MODEL ?? "qwen2.5:3b"),
   fetch: globalThis.fetch,
   stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
@@ -50,3 +50,5 @@ const demo = await seedDemo(deps).catch((err) => { console.error("demo seed fail
 if (demo) console.log(`seeded demo project ${demo.id}`);
 createApp(deps).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));
 startRetention(deps);
+const warmStart = Date.now(); // bundle + browser now, so the first render or frame does not pay for them
+deps.renderer.warm?.().then(() => console.log(`renderer warm in ${((Date.now() - warmStart) / 1000).toFixed(1)}s`), (err) => console.error("renderer warm-up failed", err));
