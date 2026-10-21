@@ -1,22 +1,19 @@
-const CAPTION_STAGES = [["extract-audio", "Audio"], ["transcribe", "Transcribing"], ["segment", "Captions"], ["render", "Rendering"], ["subtitles", "Subtitles"]];
-const PLAN_STAGES = [["plan", "Planning"], ["translate", "Translating"], ["render", "Rendering"], ["subtitles", "Subtitles"]];
-const BROLL_STAGES = [["beats", "Beats"], ["label", "Describing"], ["fetch", "Fetching media"], ["render", "Rendering"], ["subtitles", "Subtitles"]];
+import { STAGES, STAGE_LABELS, type Stage } from "./progressModel";
 
-export function StageProgress({ kind, stage, progress }: { kind: string | null; stage: string | null; progress: number }) {
-  const stages = kind === "plan" ? PLAN_STAGES : kind === "broll" ? BROLL_STAGES : CAPTION_STAGES;
-  const current = stages.findIndex(([s]) => s === stage);
-  const pct = Math.round(progress);
+export function StageProgress({ view }: { view: { stage: Stage; pct: number } }) {
+  const current = STAGES.indexOf(view.stage);
   return (
-    <div className="space-y-2" role="status" aria-live="polite">
-      <ol className="flex gap-1 text-xs">
-        {stages.map(([s, label], i) => (
-          <li key={s} className={`flex-1 rounded px-2 py-2 text-center ${i < current ? "bg-neutral-700" : i === current ? "bg-white text-black" : "bg-neutral-900 text-neutral-500"}`}>
-            {label}
+    <div className="space-y-2">
+      <ol className="flex gap-1 text-[11px]">
+        {STAGES.map((s, i) => (
+          <li key={s} aria-current={i === current ? "step" : undefined}
+            className={`flex-1 truncate rounded-1 px-1 py-1.5 text-center ${i < current ? "bg-surface-2 text-ink" : i === current ? "bg-accent text-accent-ink" : "bg-surface-1 text-ink-muted"}`}>
+            {STAGE_LABELS[s]}
           </li>
         ))}
       </ol>
-      <div className="h-2 w-full overflow-hidden rounded bg-neutral-800"><div className="h-full bg-white transition-all" style={{ width: `${pct}%` }} /></div>
-      <p className="text-xs text-neutral-400">{pct}%</p>
+      <div className="h-1.5 w-full overflow-hidden rounded-1 bg-surface-2"><div className="h-full bg-accent transition-all duration-(--duration-slow)" style={{ width: `${view.pct}%` }} /></div>
+      <p role="status" aria-live="polite" className="text-xs text-ink-muted">{STAGE_LABELS[view.stage]} {view.pct}%</p>
     </div>
   );
 }

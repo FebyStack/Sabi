@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { STAGE_LABELS, stageView } from "@/features/editor/panels/progressModel";
 import { createProject, listProjects } from "@/services/http";
 
 export function ProjectList() {
@@ -28,7 +29,7 @@ export function ProjectList() {
           <li key={p.id}>
             <Link to={`/p/${p.id}`} className="flex min-h-11 items-center justify-between py-2 hover:text-white">
               <span>{p.title}</span>
-              <span className="text-xs text-neutral-400">{p.aspectRatio} · {p.mediaSource} · {p.status}</span>
+              <span className="text-xs text-neutral-400">{p.aspectRatio} · {p.mediaSource} · {statusLabel(p.status)}</span>
             </Link>
           </li>
         ))}
@@ -36,3 +37,9 @@ export function ProjectList() {
     </section>
   );
 }
+
+// Running statuses read as the editor's stepper does ("Planning the edit"); others as stored.
+const statusLabel = (status: Parameters<typeof stageView>[0]["status"]) => {
+  const v = stageView({ uploadPct: null, kind: null, stage: null, progress: 0, status });
+  return v ? STAGE_LABELS[v.stage] : status;
+};

@@ -3,8 +3,10 @@ import { UPLOAD_LIMITS } from "@shared/contract";
 import type { Asset } from "@shared/types";
 import { uploadFile } from "../api/projects";
 
-export function UploadDropzone({ projectId, onUploaded }: { projectId: string; onUploaded: (asset: Asset) => void }) {
-  const [pct, setPct] = useState<number | null>(null);
+// Reports its progress upward (onProgress), so the editor shows "Uploading" in the same stepper as every job.
+export function UploadDropzone({ projectId, onUploaded, onProgress }: { projectId: string; onUploaded: (asset: Asset) => void; onProgress?: (pct: number | null) => void }) {
+  const [pct, setPctState] = useState<number | null>(null);
+  const setPct = (v: number | null) => { setPctState(v); onProgress?.(v); };
   const [error, setError] = useState<string | null>(null);
 
   const handle = async (file: File | undefined) => {
