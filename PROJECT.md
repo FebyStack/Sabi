@@ -12,7 +12,7 @@ Web app that auto-captions talking-head video and adds AI B-roll (generated or s
 - Hybrid architecture: `frontend/` (Vite+React+Tailwind v4), `backend/` (Express 5, `createApp(deps)` composition root), `shared/` (`contract.ts` = the only wire contract), `ai/`, `database/schema/schema.sql` (idempotent, applied on api boot), `infrastructure/docker/`.
 - One root `package.json`, no workspaces. Aliases `@`, `@ai`, `@shared` exist for frontend only; backend imports stay relative.
 
-- **SabiDev mount recovery (2026-10-20):** the SSD is an FSKit (per-user) ExFAT mount, so root auto-mount of `sabi-dev.sparsebundle` fails ("no mountable file systems" / "container superblock is invalid" / `mount_apfs: cannot open backing store: Operation not permitted`) even though the image is fine (`sudo fsck_apfs -n` on the physical store: OK). The LaunchAgent now attaches with `-nomount` and mounts the APFS volume as the user into the user-owned `~/SabiDev`; do the same by hand if `~/Developer/captions-clone` dangles. Unmount SabiDev before ejecting the SSD.
+- **SabiDev auto-mount (2026-10-21):** macOS privacy blocks background jobs from reading `/Volumes/PortableSSD` (that, not FSKit, caused the earlier "superblock invalid" / "cannot open backing store" errors). The launchd agent `com.febriel.sabidev-mount` runs `~/Applications/SabiDev Mount.app` (Full Disk Access granted) → `~/.local/bin/sabidev-mount` → mounts the image at `~/SabiDev` within ~10 s of the SSD appearing; log `~/Library/Logs/sabidev-mount.log`. Eject SabiDev, then PortableSSD, before unplugging.
 
 ## Run / verify
 Processes (terminal tabs, or `.claude/launch.json` entries `api-lite`, `dev`, `whisperx`, `ollama`):
