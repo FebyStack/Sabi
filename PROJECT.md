@@ -55,6 +55,7 @@ Plan 3b (`docs/superpowers/plans/2026-10-20-broll-mg-brand.md`, supersedes `2026
 - **Unapplied DB migration:** `schema.sql` gained `overlays`, `credits_used_cents`, `brand`, `motion_graphics` (on top of plan 2's columns); applies on the next `make db && npm run dev:server` (Docker not running).
 - **Real Pexels / fal.ai never called** (no keys set): first run — set `PEXELS_KEY` (free), `run_job broll` on a short clip in "Stock only"; then `FAL_KEY` and one generate-mode run (watch `creditsUsedCents`).
 - **Open decision — MG sandbox:** run agent MG code in a sandboxed cross-origin iframe with a CSP (`connect-src 'none'`) and block network in the render browser, instead of relying on the AST denylist.
-Next: plan 4 `editor-ui` (README row 4) → Tagalog plan (3c, row 13, PR #3 docs still open) → real-speech + real-Ollama + real-Pexels run.
+Plan 4 (`docs/superpowers/plans/2026-10-21-editor-ui.md`, editor UI) **written, not started** (Fable 5.1 high; 14 TDD tasks + one final review; spec rows 14–18 record its decisions: one write path with `render: false` + explicit 1080p/4K export and `outputs.stale`, timeline in source time with new actions `setShotBounds` / `retimePhraseRange` / `setWordEmphasis` / `setPhraseEmoji` / `setCaptionStyle`, bundled `@fontsource` OFL fonts, per-project caption style, committed demo bundle under `database/seed/demo/`, consent banner + opt-in PostHog HTTP capture, the 30-day retention sweep (moved out of plan 5), `DELETE /api/projects/:id`, retirement of `PUT /phrases`, `PUT /template`, `PATCH /plan`, `PATCH /projects/:id`). Execute in worktree `.claude/worktrees/editor-ui` (branch `worktree-editor-ui`) with Opus 5.5 xhigh; Task 13 needs two Pexels stills picked by hand and `~/Desktop/Reverse Engineer/test-clip-9x16.mp4`.
+Next: execute plan 4 → Tagalog plan (3c, row 13, PR #3 docs still open) → real-speech + real-Ollama + real-Pexels run.
 
-last Claude session: 2026-10-20 00:30
+last Claude session: 2026-10-21 12:30
