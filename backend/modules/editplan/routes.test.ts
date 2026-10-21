@@ -90,6 +90,20 @@ describe("edit plan api", () => {
     expect(renderer.calls.length).toBe(calls);
   });
 
+  it("a shot-kind change re-renders when overlays exist", async () => {
+    const { deps, a, project, renderer } = await planned();
+    const shot = project.editPlan!.shots.find((s) => s.kind === "B-Roll")!;
+    await deps.projects.update(project.id, { overlays: [{
+      id: "ov-0", shotId: shot.id, assetId: "x", media: "image", source: "stock", startMs: shot.startMs + 300, endMs: shot.startMs + 2300,
+      placement: "full", transition: "fade", enabled: true, query: "q", prompt: "p", intent: "i",
+    }] });
+    const calls = renderer.calls.length;
+    const res = await request(a).patch(`/api/projects/${project.id}/plan`).send({ shots: [{ id: shot.id, kind: "Talking Head" }] });
+    expect(res.status).toBe(202);
+    await untilStatus(a, project.id, "ready");
+    expect(renderer.calls.length).toBe(calls + 1);
+  });
+
   it("re-renders on any plan change after a failed render", async () => {
     const renderer = new FakeRenderer();
     let fail = false;

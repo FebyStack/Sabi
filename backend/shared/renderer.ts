@@ -64,7 +64,7 @@ export class RemotionRenderer implements Renderer {
 }
 
 // Smallest valid PNG (1×1), so tests and FAKE renders return real image bytes.
-const PNG_1x1_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+export const PNG_1x1_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
 export class FakeRenderer implements Renderer {
   calls: RenderRequest[] = [];

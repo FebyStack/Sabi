@@ -81,10 +81,11 @@ export function editPlanRouter(deps: AppDeps) {
     if ("error" in v) return res.status(400).json({ error: v.error });
     if (deps.jobs.active(project.id)) return res.status(409).json({ error: "busy" });
 
-    const { editPlan, burnInChanged, cutsChanged } = v;
+    const { editPlan, burnInChanged, cutsChanged, shotsChanged } = v;
     const updated = await deps.projects.update(project.id, { editPlan, ...(burnInChanged ? { burnInLanguage: parsed.data.burnInLanguage } : {}) });
-    // Shot kinds don't change the render yet (no B-roll), so only cuts, burn-in and a failed previous render re-render.
-    if (!burnInChanged && !cutsChanged && project.status !== "failed") return res.json(editPlan);
+    // B-roll overlays are drawn only over B-roll shots, so a shot-kind change re-renders when there are overlays.
+    const overlaysChanged = shotsChanged && project.overlays.length > 0;
+    if (!burnInChanged && !cutsChanged && !overlaysChanged && project.status !== "failed") return res.json(editPlan);
     res.status(202).json({ jobId: startCaptionJob(deps, updated, { transcribe: false, resegment: false }).id });
   });
 

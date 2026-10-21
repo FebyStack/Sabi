@@ -42,8 +42,9 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
         if (!opts.transcribe) phrases = carryEmoji(project.phrases, phrases);
       }
       const warnings = transcript && transcript.words.length === 0 ? ["no_speech"] : [];
-      // A new transcript invalidates the plan (cuts, shots, translations all refer to the old words).
-      const cleared = opts.transcribe ? { editPlan: null, translations: [], burnInLanguage: null } : {};
+      // A new transcript invalidates the plan (cuts, shots, translations all refer to the old words) and the B-roll placed on its shots.
+      // Motion graphics and the brand kit are the agent's own work and stay.
+      const cleared = opts.transcribe ? { editPlan: null, translations: [], burnInLanguage: null, overlays: [] } : {};
       const current = await setStatus("rendering", { transcript, phrases, language: transcript?.language ?? project.language, warnings, ...cleared });
       await setStatus("ready", { outputs: await renderOutputs(deps, current, source, report) });
       report(100);
@@ -57,7 +58,7 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
 // Render the MP4 and every subtitle track (original + translations) on the cut timeline.
 export async function renderOutputs(deps: AppDeps, project: Project, source: Asset, report: (p: number, stage?: string) => void): Promise<Project["outputs"]> {
   report(70, "render");
-  const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0 });
+  const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0, assetUrl: (id) => `${deps.apiBaseUrl}${api.assetFile(id)}` });
   const jobKey = `renders/${project.id}/${deps.id()}`;
   const outPath = deps.storage.localPath(`${jobKey}.mp4`);
   await mkdir(dirname(outPath), { recursive: true });

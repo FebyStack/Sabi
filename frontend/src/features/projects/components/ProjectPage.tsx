@@ -1,14 +1,15 @@
 import type { PlayerRef } from "@remotion/player";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useRef } from "react";
+import { Fragment, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { CAPTION_TEMPLATES } from "@shared/captions/templates";
 import { mapTime } from "@shared/editing/cuts";
 import { enabledCuts } from "@shared/editing/renderProps";
 import { FPS } from "@shared/remotion/CaptionVideo";
-import type { PlanInput, Project, UpdatePlanInput } from "@shared/types";
-import { assetFileUrl, getProject, planProject, runProject, setSource, updatePhrases, updatePlan, updateTemplate } from "../api/projects";
+import type { Action, BrollInput, MediaSource, PlanInput, Project, UpdatePlanInput } from "@shared/types";
+import { addBroll, applyProjectActions, assetFileUrl, getProject, planProject, runProject, setSource, updatePhrases, updatePlan, updateProject, updateTemplate } from "../api/projects";
 import { useProjectEvents } from "../hooks/useProjectEvents";
+import { BrollPanel, actionErrorNotice } from "./BrollPanel";
 import { CaptionPreview } from "./CaptionPreview";
 import { EditPlanPanel } from "./EditPlanPanel";
 import { PhraseEditor } from "./PhraseEditor";
@@ -29,13 +30,22 @@ export function ProjectPage() {
   const template = useMutation({ mutationFn: (t: Project["captionTemplateId"]) => updateTemplate(id, t), onSuccess: refresh });
   const plan = useMutation({ mutationFn: (input: PlanInput) => planProject(id, input), onSuccess: refresh });
   const planUpdate = useMutation({ mutationFn: (input: UpdatePlanInput) => updatePlan(id, input), onSuccess: refresh });
+  const mediaSource = useMutation({ mutationFn: (m: MediaSource) => updateProject(id, { mediaSource: m }), onSuccess: refresh });
+  const broll = useMutation({ mutationFn: (input: BrollInput) => addBroll(id, input), onSuccess: refresh });
+  const [notice, setNotice] = useState<string | null>(null);
+  const actions = useMutation({
+    mutationFn: (a: Action[]) => applyProjectActions(id, { baseVersion: project.data!.updatedAt, actions: a, render: true }),
+    onSuccess: () => { setNotice(null); refresh(); },
+    // The agent (or another tab) edited first: reload so the next tap starts from its state.
+    onError: (e) => { const n = actionErrorNotice(e); if (n) { setNotice(n); refresh(); } },
+  });
   const playerRef = useRef<PlayerRef>(null);
 
   const p = project.data;
   if (!p) return <main className="p-4 text-neutral-300">{project.isError ? "Project not found." : "Loading…"}</main>;
-  const mutations = [run, phrases, template, plan, planUpdate];
+  const mutations = [run, phrases, template, plan, planUpdate, mediaSource, broll, actions];
   const busy = RUNNING.includes(p.status) || mutations.some((m) => m.isPending);
-  const failure = events.error ?? mutations.find((m) => m.error)?.error?.message ?? (p.status === "failed" ? "see server logs" : null);
+  const failure = events.error ?? mutations.find((m) => m.error && !actionErrorNotice(m.error))?.error?.message ?? (p.status === "failed" ? "see server logs" : null);
   const sourceUrl = p.sourceAssetId ? assetFileUrl(p.sourceAssetId) : null;
   const durationMs = p.sourceDurationMs ?? sourceDuration(p);
   // Plan times are source time; the player runs on the cut timeline.
@@ -84,6 +94,10 @@ export function ProjectPage() {
             )}
             {p.transcript && p.phrases.length > 0 && (
               <EditPlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} onUpdate={(input) => planUpdate.mutate(input)} onSeek={seek} />
+            )}
+            {p.editPlan && (
+              <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} notice={notice} onMediaSource={(m) => mediaSource.mutate(m)}
+                onAdd={(input) => broll.mutate(input)} onActions={(a) => actions.mutate(a)} onSeek={seek} />
             )}
           </section>
           <section>

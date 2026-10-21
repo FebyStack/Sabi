@@ -27,3 +27,15 @@ export const llmPlanSchema = (n: number) => z.object({
 });
 
 export const llmLinesSchema = (n: number) => z.object({ lines: z.array(z.string()).length(n) });
+
+export const BEAT_LABEL_SYSTEM = `You pick B-roll for a short-form video. The user sends JSON {"beats":[{"i":<index>,"text":<what the speaker says during the beat>}]}.
+For each beat answer with:
+- "query": 2 to 5 words to search a stock photo/video library, concrete and visual (e.g. "glass of water", "person making bed").
+- "prompt": one sentence describing a photorealistic vertical image that illustrates the text, no words or logos in the image.
+- "intent": 2 to 4 plain words naming what the beat should show.
+- "wantsVideo": true only when motion matters (pouring, running, a city at night); otherwise false.
+Answer with JSON only: {"labels":[{"i","query","prompt","intent","wantsVideo"}]}. Use only the indices you were given.`;
+
+export const llmBeatSchema = (n: number) => z.object({
+  labels: z.array(z.object({ i: z.number(), query: z.string(), prompt: z.string(), intent: z.string(), wantsVideo: z.boolean() })).max(n),
+});

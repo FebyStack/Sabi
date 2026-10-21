@@ -5,7 +5,7 @@ export type PlanEditError = { error: "no_plan" | "unknown_id" | "bad_burn_in"; i
 
 // Shared by PATCH /plan and the agent's actions: ids must exist, burn-in must name a translation. Pure.
 export function validatePlanEdit(project: Project, edit: PlanEdit):
-  PlanEditError | { editPlan: EditPlan | null; burnInChanged: boolean; cutsChanged: boolean } {
+  PlanEditError | { editPlan: EditPlan | null; burnInChanged: boolean; cutsChanged: boolean; shotsChanged: boolean } {
   const plan = project.editPlan;
   if (!plan && (edit.cuts.length || edit.shots.length)) return { error: "no_plan" };
   const unknown = edit.cuts.find((c) => !plan!.cuts.some((p) => p.id === c.id))?.id ?? edit.shots.find((s) => !plan!.shots.some((p) => p.id === s.id))?.id;
@@ -23,5 +23,6 @@ export function validatePlanEdit(project: Project, edit: PlanEdit):
     editPlan,
     burnInChanged: burnInLanguage !== undefined && burnInLanguage !== project.burnInLanguage,
     cutsChanged: !!editPlan && editPlan.cuts.some((c, i) => c.shouldTrim !== plan!.cuts[i].shouldTrim),
+    shotsChanged: !!editPlan && editPlan.shots.some((s, i) => s.kind !== plan!.shots[i].kind),
   };
 }

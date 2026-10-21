@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RemotionRenderer } from "../../backend/shared/renderer";
 import { getCaptionTemplate } from "../../shared/captions/templates";
+import { templateLook } from "../../shared/editing/brand";
 import type { CaptionVideoProps } from "../../shared/remotion/CaptionVideo";
 import type { Phrase } from "../../shared/types";
 
@@ -15,9 +16,14 @@ const words = [
   { id: "w-2", text: "world", startMs: 1300, endMs: 1900 },
 ];
 
+// RGB of one pixel of the frame at `atS` seconds.
+const pixel = (file: string, atS: number, x: number, y: number) =>
+  [...execFileSync("ffmpeg", ["-v", "error", "-ss", String(atS), "-i", file, "-frames:v", "1", "-vf", `crop=2:2:${x}:${y}`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])].slice(0, 3);
+const phrases: Phrase[] = [{ id: "ph-0", startMs: 100, endMs: 1900, lineBreaksAfter: [1], words }];
+
 // Real Chromium render; opt in with RUN_RENDER=1 (npm run render:sample).
 describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
-  let dir: string, videoSrc: string, server: Server, renderer: RemotionRenderer;
+  let dir: string, videoSrc: string, base: string, server: Server, renderer: RemotionRenderer;
 
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), "render-"));
@@ -25,8 +31,14 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     const clip = join(dir, "clip.mp4");
     execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=2:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", clip]);
     // Chromium needs an http(s) URL for the source video, same as the API serves in production.
-    server = createServer((_req, res) => { res.writeHead(200, { "content-type": "video/mp4" }); createReadStream(clip).pipe(res); }).listen(0);
-    videoSrc = `http://127.0.0.1:${(server.address() as AddressInfo).port}/clip.mp4`;
+    execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=400x600", "-frames:v", "1", join(dir, "red.png")]);
+    server = createServer((req, res) => {
+      const png = req.url === "/red.png";
+      res.writeHead(200, { "content-type": png ? "image/png" : "video/mp4" });
+      createReadStream(png ? join(dir, "red.png") : clip).pipe(res);
+    }).listen(0);
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    videoSrc = `${base}/clip.mp4`;
   });
   afterAll(() => server.close());
 
@@ -34,7 +46,10 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     const outPath = join(dir, name);
     await renderer.render({
       compositionId: "CaptionVideo",
-      inputProps: { videoSrc, sourceKind: "video", template: getCaptionTemplate("clean"), width: 1080, height: 1920, ...props },
+      inputProps: {
+        videoSrc, sourceKind: "video", template: getCaptionTemplate("clean"), width: 1080, height: 1920,
+        brand: templateLook(getCaptionTemplate("clean")), overlays: [], motionGraphics: [], ...props,
+      },
       durationMs: props.durationMs,
       outPath,
     });
@@ -68,5 +83,48 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     };
     expect((await still(540, 1000)).length).toBeGreaterThan(5_000);
     expect((await still(270, 2000)).readUInt32BE(16)).toBe(270); // IHDR width; t = durationMs is clamped to the last frame
+  }, 900_000);
+
+  it("renders a top overlay image under the captions", async () => {
+    const out = await render({ phrases, durationMs: 2000, overlays: [{ id: "ov-0", src: `${base}/red.png`, media: "image", startMs: 0, endMs: 2000, placement: "top", transition: "fade" }] }, "overlay.mp4");
+    expect(statSync(out).size).toBeGreaterThan(10_000);
+    const [r, g] = pixel(out, 1, 540, 600); // inside the top band (6 %–55 %)
+    expect(r).toBeGreaterThan(150);
+    expect(g).toBeLessThan(80);
+    expect(pixel(out, 1, 540, 1250)[0]).toBeLessThan(60); // below the band: the black clip
+  }, 900_000);
+
+  it("renders a brand-graded clip with a motion graphic", async () => {
+    const brand = { primary: "#1E90FF", accent: "#FFD60A", text: "#FFFFFF", background: "#0B0B0B", fontFamily: "Inter", logoUrl: null, grade: 0.6 };
+    const compiled = `const Component = ({ item }) => React.createElement("div", { style: { position: "absolute", inset: 0, background: item.brand.accent } });`;
+    const out = await render({ phrases, durationMs: 2000, brand, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 2000, box: { x: 0, y: 0, w: 1, h: 0.2 }, props: {} }] }, "brand.mp4");
+    expect(statSync(out).size).toBeGreaterThan(10_000);
+    const [r, g, b] = pixel(out, 1, 540, 100); // the MG is drawn above the grade, in the accent colour
+    expect(r).toBeGreaterThan(200);
+    expect(g).toBeGreaterThan(170);
+    expect(b).toBeLessThan(90);
+  }, 900_000);
+
+  it("renders a motion graphic that throws without failing", async () => {
+    const compiled = "const Component = () => { throw new Error('boom'); };";
+    const out = await render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {} }] }, "throws.mp4");
+    const [r, g] = pixel(out, 0.5, 6, 6); // the red ⚠ mg-0 label at the box's top-left
+    expect(r).toBeGreaterThan(150);
+    expect(g).toBeLessThan(60);
+  }, 900_000);
+
+  it("an MG image that fails to load draws a marker instead of failing the render", async () => {
+    const compiled = `const Component = () => React.createElement(Img, { src: "${base}/missing.png", style: { position: "absolute", inset: 0, width: "100%", height: "100%" } });`;
+    const out = await render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 0.3 }, props: {} }] }, "badimg.mp4");
+    const [r, g] = pixel(out, 0.5, 900, 400); // inside the red ⚠ image marker that replaced the image
+    expect(r).toBeGreaterThan(150);
+    expect(g).toBeLessThan(60);
+  }, 900_000);
+
+  it("an infinite loop fails the render within the timeout", async () => {
+    const compiled = "const Component = () => { for (;;) {} };";
+    const started = Date.now();
+    await expect(render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {} }] }, "loop.mp4")).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(90_000);
   }, 900_000);
 });

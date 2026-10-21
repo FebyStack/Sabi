@@ -22,7 +22,7 @@ export function framesRouter(deps: AppDeps) {
     const source = project.sourceAssetId ? await deps.assets.get(project.sourceAssetId) : null;
     if (!source) return res.status(400).json({ error: "no_source" });
 
-    const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0 });
+    const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0, assetUrl: (id) => `${deps.apiBaseUrl}${api.assetFile(id)}` });
     const t = Math.round(clamp(Number(req.query.t) || 0, 0, props.durationMs));
     const w = Math.round(clamp(Number(req.query.w) || 540, 160, 1080));
     // One file per request, deleted once read: DATA_DIR is ExFAT with 1 MiB blocks, so stills must never accumulate.

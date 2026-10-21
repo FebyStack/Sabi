@@ -1,20 +1,15 @@
 import { Router } from "express";
-import { Transform } from "node:stream";
 // stream.compose exists since Node 19 but @types/node@22 still lacks it.
 const { compose } = (await import("node:stream")) as unknown as { compose: (...streams: NodeJS.ReadableStream[]) => import("node:stream").Duplex };
 import { MAX_CLIP_MS, UPLOAD_LIMITS, UploadStartInput, api } from "../../../shared/contract";
 import type { Asset } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
+import { MAX_IMAGE_PX } from "../../shared/media";
+import { TooLarge, limitBytes } from "../../shared/streams";
 
 const kindOf = (mime: string): Asset["kind"] => (mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "image");
 // Extension comes from the validated mime type, never from the client file name.
-const EXT: Record<string, string> = { "video/mp4": ".mp4", "video/quicktime": ".mov", "audio/mpeg": ".mp3", "audio/wav": ".wav" };
-
-class TooLarge extends Error { constructor() { super("too_large"); } }
-const limitBytes = (max: number) => {
-  let seen = 0;
-  return new Transform({ transform(chunk: Buffer, _enc, cb) { seen += chunk.length; cb(seen > max ? new TooLarge() : null, chunk); } });
-};
+const EXT: Record<string, string> = { "video/mp4": ".mp4", "video/quicktime": ".mov", "audio/mpeg": ".mp3", "audio/wav": ".wav", "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp" };
 
 export function assetsRouter(deps: AppDeps) {
   const r = Router();
@@ -24,7 +19,7 @@ export function assetsRouter(deps: AppDeps) {
     const parsed = UploadStartInput.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_input", issues: parsed.error.issues });
     const { fileName, mimeType, sizeBytes } = parsed.data;
-    if (sizeBytes > UPLOAD_LIMITS.maxBytes) return res.status(413).json({ error: "too_large" });
+    if (sizeBytes > (kindOf(mimeType) === "image" ? UPLOAD_LIMITS.maxImageBytes : UPLOAD_LIMITS.maxBytes)) return res.status(413).json({ error: "too_large" });
     if (!(UPLOAD_LIMITS.mimeTypes as readonly string[]).includes(mimeType)) return res.status(415).json({ error: "unsupported_type" });
     const uploadId = deps.id();
     pending.set(uploadId, { fileName, mimeType, sizeBytes, key: `uploads/${uploadId}${EXT[mimeType]}`, writing: false });
@@ -59,13 +54,18 @@ export function assetsRouter(deps: AppDeps) {
     pending.delete(req.params.uploadId); // claim synchronously: no PUT can start between here and the probe
     const stored = await deps.storage.stat(up.key);
     if (!stored) { pending.set(req.params.uploadId, up); return res.status(409).json({ error: "no_bytes" }); }
-    const info = await deps.media.probe(deps.storage.localPath(up.key));
+    const kind = kindOf(up.mimeType);
+    const info = await deps.media.probe(deps.storage.localPath(up.key), kind === "image" ? "image" : "av");
+    if (kind === "image" && (!info.width || !info.height || Math.max(info.width, info.height) > MAX_IMAGE_PX)) {
+      await deps.storage.remove(up.key);
+      return res.status(422).json(info.width && info.height ? { error: "too_large_image", maxPx: MAX_IMAGE_PX } : { error: "bad_image" });
+    }
     if (info.durationMs > MAX_CLIP_MS) {
       await deps.storage.remove(up.key);
       return res.status(422).json({ error: "too_long", maxMs: MAX_CLIP_MS });
     }
     const asset = await deps.assets.create({
-      id: deps.id(), projectId: typeof req.body?.projectId === "string" ? req.body.projectId : null, kind: kindOf(up.mimeType),
+      id: deps.id(), projectId: typeof req.body?.projectId === "string" ? req.body.projectId : null, kind,
       key: up.key, mimeType: up.mimeType, sizeBytes: stored.size, ...info, createdAt: deps.now().toISOString(),
     });
     res.status(201).json(asset);

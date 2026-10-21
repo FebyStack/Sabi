@@ -22,6 +22,7 @@ const project = {
   id: "A", title: "t", status: "ready", sourceAssetId: "src", sourceDurationMs: 1000, captionTemplateId: "clean", language: "en",
   transcript: { language: "en", words: [word] }, phrases: [{ id: "p", startMs: 0, endMs: 500, words: [word], lineBreaksAfter: [] }],
   outputs: {}, warnings: [], editPlan: { cuts: [], shots: [{ id: "shot-0", kind: "Hook", startMs: 0, endMs: 1000 }] }, translations: [], burnInLanguage: null,
+  mediaSource: "generate", overlays: [], motionGraphics: [], creditsUsedCents: 0, brand: null, updatedAt: "v1",
 } as unknown as Project;
 
 function page(p: Project) {
@@ -45,5 +46,20 @@ describe("ProjectPage", () => {
   it("shows a failed plan request in the Failed line", () => {
     vi.mocked(useMutation).mockReturnValue({ error: new Error("busy"), isPending: false, mutate: () => {} } as never);
     expect(page(project)).toContain("Failed: busy");
+  });
+
+  it("a stale action refetches and explains", async () => {
+    const { QueryClient } = await import("@tanstack/react-query");
+    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+    page(project);
+    const opts = vi.mocked(useMutation).mock.calls.map(([o]) => o as { onError?: (e: Error) => void }).find((o) => o.onError);
+    expect(opts).toBeTruthy();
+    opts!.onError!(new Error("stale"));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["project", "A"] });
+    invalidate.mockRestore();
+  });
+
+  it("renders the b-roll panel once a plan exists", () => {
+    expect(page(project)).toContain("Add B-roll");
   });
 });

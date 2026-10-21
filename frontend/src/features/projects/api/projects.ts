@@ -1,5 +1,5 @@
-import { AssetSchema, ProjectSchema, api } from "@shared/contract";
-import type { Asset, Phrase, PlanInput, Project, UpdatePlanInput } from "@shared/types";
+import { ApplyActionsResult, AssetSchema, ProjectSchema, api } from "@shared/contract";
+import type { ApplyActionsInput, Asset, BrollInput, MediaSource, Phrase, PlanInput, Project, UpdatePlanInput } from "@shared/types";
 import { json } from "@/services/http";
 
 export const getProject = (id: string) => json<unknown>(api.project(id)).then(ProjectSchema.parse);
@@ -16,6 +16,13 @@ export const planProject = (id: string, input: PlanInput) =>
 // 200 EditPlan when nothing needs re-rendering, else 202 {jobId}; either way the project query is refreshed.
 export const updatePlan = (id: string, input: UpdatePlanInput) =>
   json<unknown>(api.projectPlan(id), { method: "PATCH", body: JSON.stringify(input) });
+export const updateProject = (id: string, input: { mediaSource: MediaSource }) =>
+  json<unknown>(api.projectUpdate(id), { method: "PATCH", body: JSON.stringify(input) }).then(ProjectSchema.parse);
+export const addBroll = (id: string, input: BrollInput) =>
+  json<{ jobId: string }>(api.projectBroll(id), { method: "POST", body: JSON.stringify(input) });
+// Same write path as the editing agent; a 409 stale (someone else edited first) rejects with Error("stale").
+export const applyProjectActions = (id: string, input: ApplyActionsInput) =>
+  json<unknown>(api.projectActions(id), { method: "POST", body: JSON.stringify(input) }).then(ApplyActionsResult.parse);
 export const assetFileUrl = (assetId: string) => api.assetFile(assetId);
 
 // start → PUT bytes (XHR for progress) → done

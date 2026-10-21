@@ -3,13 +3,17 @@ import { promisify } from "node:util";
 
 const run = promisify(execFile);
 
-// Uploaded files are untrusted: a crafted playlist could make ffmpeg read local files or URLs. Lock protocols and demuxers.
-const SAFE = ["-protocol_whitelist", "file", "-format_whitelist", "mov,mp4,m4a,3gp,3g2,mj2,mp3,wav"];
+// Uploaded files are untrusted: a crafted playlist could make ffmpeg read local files or URLs. Lock protocols and demuxers,
+// and probe each file only with the demuxers of the kind it claims to be, so an "image" can never be read as a container.
+export type ProbeKind = "image" | "av";
+const FORMATS: Record<ProbeKind, string> = { av: "mov,mp4,m4a,3gp,3g2,mj2,mp3,wav", image: "image2,png_pipe,jpeg_pipe,webp_pipe" };
+const safe = (kind: ProbeKind) => ["-protocol_whitelist", "file", "-format_whitelist", FORMATS[kind]];
+export const MAX_IMAGE_PX = 8192; // Chrome decodes every image layer at full size
 
 export interface MediaInfo { durationMs: number; width?: number; height?: number }
 
 export interface Media {
-  probe(path: string): Promise<MediaInfo>;
+  probe(path: string, kind?: ProbeKind): Promise<MediaInfo>; // kind defaults to "av"
   extractAudio(input: string, outWav: string): Promise<void>; // 16 kHz mono PCM for the transcriber
 }
 
@@ -28,13 +32,13 @@ export function parseProbe(j: ProbeJson): MediaInfo {
 }
 
 export class FfmpegMedia implements Media {
-  async probe(path: string): Promise<MediaInfo> {
-    const { stdout } = await run("ffprobe", ["-v", "error", ...SAFE, "-show_entries",
+  async probe(path: string, kind: ProbeKind = "av"): Promise<MediaInfo> {
+    const { stdout } = await run("ffprobe", ["-v", "error", ...safe(kind), "-show_entries",
       "format=duration:stream=codec_type,width,height:stream_tags=rotate:stream_side_data=rotation", "-of", "json", "--", path]);
     return parseProbe(JSON.parse(stdout) as ProbeJson);
   }
   async extractAudio(input: string, outWav: string) {
-    await run("ffmpeg", ["-y", "-v", "error", ...SAFE, "-i", input, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", outWav]);
+    await run("ffmpeg", ["-y", "-v", "error", ...safe("av"), "-i", input, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", outWav]);
   }
 }
 
