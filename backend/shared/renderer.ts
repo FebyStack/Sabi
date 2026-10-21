@@ -12,6 +12,7 @@ export interface RenderRequest {
   inputProps: CaptionVideoProps;
   durationMs: number;
   outPath: string;
+  scale: 1 | 2; // 2 = 4K (Remotion scales the 1080p composition)
 }
 
 export interface StillRequest {
@@ -46,7 +47,7 @@ export class RemotionRenderer implements Renderer {
     const inputProps = { ...req.inputProps, durationMs: req.durationMs };
     const browserExecutable = this.browser();
     const composition = await selectComposition({ serveUrl, id: req.compositionId, inputProps, browserExecutable });
-    await renderMedia({ serveUrl, composition, codec: "h264", crf: 18, inputProps, outputLocation: req.outPath, browserExecutable });
+    await renderMedia({ serveUrl, composition, codec: "h264", crf: 18, inputProps, outputLocation: req.outPath, browserExecutable, scale: req.scale });
   }
 
   async renderStill(req: StillRequest) {

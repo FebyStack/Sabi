@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { LANGUAGE_NAMES, SHOT_KINDS } from "@shared/contract";
-import type { Cut, PlanInput, Project, Shot, ShotKind, TranslationLanguage, UpdatePlanInput } from "@shared/types";
+import type { Action, Cut, PlanInput, Project, Shot, ShotKind, TranslationLanguage } from "@shared/types";
 
 type Draft = { trim: Record<string, boolean>; kinds: Record<string, ShotKind>; burnIn?: TranslationLanguage | null };
 
@@ -13,18 +13,18 @@ const cutLabel = (c: Cut) =>
 export const shotLayout = (shots: Shot[], durationMs: number) =>
   shots.map((s) => ({ id: s.id, leftPct: (s.startMs / durationMs) * 100, widthPct: ((s.endMs - s.startMs) / durationMs) * 100 }));
 
-// Only entries that differ from the saved plan; null when nothing does.
-export function planChanges(project: Project, draft: Draft): UpdatePlanInput | null {
+// Only entries that differ from the saved plan, as actions; null when nothing does.
+export function planChanges(project: Project, draft: Draft): Action[] | null {
   const plan = project.editPlan;
   if (!plan) return null;
-  const cuts = plan.cuts.filter((c) => c.id in draft.trim && draft.trim[c.id] !== c.shouldTrim).map((c) => ({ id: c.id, shouldTrim: draft.trim[c.id] }));
-  const shots = plan.shots.filter((s) => s.id in draft.kinds && draft.kinds[s.id] !== s.kind).map((s) => ({ id: s.id, kind: draft.kinds[s.id] }));
-  const burnIn = draft.burnIn !== undefined && draft.burnIn !== project.burnInLanguage;
-  if (!cuts.length && !shots.length && !burnIn) return null;
-  return { cuts, shots, ...(burnIn ? { burnInLanguage: draft.burnIn } : {}) };
+  const cuts: Action[] = plan.cuts.filter((c) => c.id in draft.trim && draft.trim[c.id] !== c.shouldTrim).map((c) => ({ type: "setCut", cutId: c.id, shouldTrim: draft.trim[c.id] }));
+  const shots: Action[] = plan.shots.filter((s) => s.id in draft.kinds && draft.kinds[s.id] !== s.kind).map((s) => ({ type: "setShotKind", shotId: s.id, kind: draft.kinds[s.id] }));
+  const burnIn: Action[] = draft.burnIn !== undefined && draft.burnIn !== project.burnInLanguage ? [{ type: "setBurnIn", language: draft.burnIn }] : [];
+  const all = [...cuts, ...shots, ...burnIn];
+  return all.length ? all : null;
 }
 
-type Props = { project: Project; busy: boolean; onPlan: (input: PlanInput) => void; onUpdate: (input: UpdatePlanInput) => void; onSeek: (ms: number) => void };
+type Props = { project: Project; busy: boolean; onPlan: (input: PlanInput) => void; onUpdate: (actions: Action[]) => void; onSeek: (ms: number) => void };
 
 export function EditPlanPanel({ project, busy, onPlan, onUpdate, onSeek }: Props) {
   const plan = project.editPlan;

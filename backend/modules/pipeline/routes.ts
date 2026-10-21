@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { RunInput, SetSourceInput, UpdatePhrasesInput, UpdateTemplateInput, api } from "../../../shared/contract";
+import { RenderInput, RunInput, SetSourceInput, api } from "../../../shared/contract";
 import type { AppDeps } from "../../shared/deps";
 import { projectLoader } from "../../shared/routes";
 import { startCaptionJob, type RunOptions } from "./pipeline";
@@ -39,37 +39,16 @@ export function pipelineRouter(deps: AppDeps) {
     await run(req, res, { language: parsed.data.language, transcribe: true, resegment: true });
   });
 
-  // Re-render the current edits (no transcription, no re-flow).
+  // The explicit export: re-render the current edits (no transcription, no re-flow) at 1080p or 4K.
   r.post<{ id: string }>(api.projectRender(":id"), async (req, res) => {
+    const parsed = RenderInput.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
     const project = await load(req, res);
     if (!project) return;
     if (!project.phrases.length) return res.status(400).json({ error: "no_captions" });
     const job = deps.jobs.active(project.id);
     if (job) return res.status(409).json({ error: "busy", job });
-    res.status(202).json({ jobId: startCaptionJob(deps, project, { transcribe: false, resegment: false }).id });
-  });
-
-  r.put<{ id: string }>(api.projectPhrases(":id"), async (req, res) => {
-    const parsed = UpdatePhrasesInput.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
-    const project = await load(req, res);
-    if (!project) return;
-    if (deps.jobs.active(project.id)) return res.status(409).json({ error: "busy" });
-    const updated = await deps.projects.update(project.id, { phrases: parsed.data.phrases });
-    const job = startCaptionJob(deps, updated, { transcribe: false, resegment: false });
-    res.status(202).json({ jobId: job.id });
-  });
-
-  r.put<{ id: string }>(api.projectTemplate(":id"), async (req, res) => {
-    const parsed = UpdateTemplateInput.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
-    const project = await load(req, res);
-    if (!project) return;
-    if (deps.jobs.active(project.id)) return res.status(409).json({ error: "busy" });
-    const updated = await deps.projects.update(project.id, { captionTemplateId: parsed.data.captionTemplateId });
-    if (!updated.sourceAssetId || !updated.transcript) return res.json(updated); // nothing to re-render yet
-    const job = startCaptionJob(deps, updated, { transcribe: false, resegment: true });
-    res.status(202).json({ jobId: job.id });
+    res.status(202).json({ jobId: startCaptionJob(deps, project, { transcribe: false, resegment: false, scale: parsed.data.scale }).id });
   });
 
   return r;

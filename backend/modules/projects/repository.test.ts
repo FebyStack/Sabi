@@ -33,6 +33,21 @@ describe("MemoryProjectRepository.update", () => {
   });
 });
 
+describe("ProjectRepository retention", () => {
+  it("staleIds lists projects by last access", async () => {
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const repo = new MemoryProjectRepository(() => now);
+    await repo.create(base);
+    await repo.create({ ...base, id: "p2" });
+    now = new Date("2026-02-01T00:00:00.000Z");
+    await repo.get("p2"); // opening a project refreshes it
+    expect(await repo.staleIds(new Date("2026-01-15T00:00:00.000Z"))).toEqual(["p1"]);
+    await repo.remove("p1");
+    expect(await repo.get("p1")).toBeNull();
+    expect(await repo.staleIds(new Date("2026-03-01T00:00:00.000Z"))).toEqual(["p2"]);
+  });
+});
+
 describe("ProjectRepository.update ifVersion", () => {
   it("writes only when the stored version still matches", async () => {
     const repo = new MemoryProjectRepository();

@@ -1,5 +1,5 @@
 import { ApplyActionsResult, AssetSchema, ProjectSchema, api } from "@shared/contract";
-import type { ApplyActionsInput, Asset, BrollInput, MediaSource, Phrase, PlanInput, Project, UpdatePlanInput } from "@shared/types";
+import type { ApplyActionsInput, Asset, BrollInput, PlanInput } from "@shared/types";
 import { json } from "@/services/http";
 
 export const getProject = (id: string) => json<unknown>(api.project(id)).then(ProjectSchema.parse);
@@ -7,17 +7,8 @@ export const setSource = (id: string, assetId: string) =>
   json<unknown>(api.projectSource(id), { method: "POST", body: JSON.stringify({ assetId }) }).then(ProjectSchema.parse);
 export const runProject = (id: string, language?: string) =>
   json<{ jobId: string }>(api.projectRun(id), { method: "POST", body: JSON.stringify(language ? { language } : {}) });
-export const updatePhrases = (id: string, phrases: Phrase[]) =>
-  json<{ jobId: string }>(api.projectPhrases(id), { method: "PUT", body: JSON.stringify({ phrases }) });
-export const updateTemplate = (id: string, captionTemplateId: Project["captionTemplateId"]) =>
-  json<{ jobId: string }>(api.projectTemplate(id), { method: "PUT", body: JSON.stringify({ captionTemplateId }) });
 export const planProject = (id: string, input: PlanInput) =>
   json<{ jobId: string }>(api.projectPlan(id), { method: "POST", body: JSON.stringify(input) });
-// 200 EditPlan when nothing needs re-rendering, else 202 {jobId}; either way the project query is refreshed.
-export const updatePlan = (id: string, input: UpdatePlanInput) =>
-  json<unknown>(api.projectPlan(id), { method: "PATCH", body: JSON.stringify(input) });
-export const updateProject = (id: string, input: { mediaSource: MediaSource }) =>
-  json<unknown>(api.projectUpdate(id), { method: "PATCH", body: JSON.stringify(input) }).then(ProjectSchema.parse);
 export const addBroll = (id: string, input: BrollInput) =>
   json<{ jobId: string }>(api.projectBroll(id), { method: "POST", body: JSON.stringify(input) });
 // Same write path as the editing agent; a 409 stale (someone else edited first) rejects with Error("stale").

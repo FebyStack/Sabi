@@ -6,8 +6,8 @@ import { CAPTION_TEMPLATES } from "@shared/captions/templates";
 import { mapTime } from "@shared/editing/cuts";
 import { enabledCuts } from "@shared/editing/renderProps";
 import { FPS } from "@shared/remotion/CaptionVideo";
-import type { Action, BrollInput, MediaSource, PlanInput, Project, UpdatePlanInput } from "@shared/types";
-import { addBroll, applyProjectActions, assetFileUrl, getProject, planProject, runProject, setSource, updatePhrases, updatePlan, updateProject, updateTemplate } from "../api/projects";
+import type { Action, BrollInput, PlanInput, Project } from "@shared/types";
+import { addBroll, applyProjectActions, assetFileUrl, getProject, planProject, runProject, setSource } from "../api/projects";
 import { useProjectEvents } from "../hooks/useProjectEvents";
 import { BrollPanel, actionErrorNotice } from "./BrollPanel";
 import { CaptionPreview } from "./CaptionPreview";
@@ -26,11 +26,7 @@ export function ProjectPage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["project", id] });
   const source = useMutation({ mutationFn: (assetId: string) => setSource(id, assetId), onSuccess: refresh });
   const run = useMutation({ mutationFn: () => runProject(id), onSuccess: refresh });
-  const phrases = useMutation({ mutationFn: (p: Project["phrases"]) => updatePhrases(id, p), onSuccess: refresh });
-  const template = useMutation({ mutationFn: (t: Project["captionTemplateId"]) => updateTemplate(id, t), onSuccess: refresh });
   const plan = useMutation({ mutationFn: (input: PlanInput) => planProject(id, input), onSuccess: refresh });
-  const planUpdate = useMutation({ mutationFn: (input: UpdatePlanInput) => updatePlan(id, input), onSuccess: refresh });
-  const mediaSource = useMutation({ mutationFn: (m: MediaSource) => updateProject(id, { mediaSource: m }), onSuccess: refresh });
   const broll = useMutation({ mutationFn: (input: BrollInput) => addBroll(id, input), onSuccess: refresh });
   const [notice, setNotice] = useState<string | null>(null);
   const actions = useMutation({
@@ -43,7 +39,7 @@ export function ProjectPage() {
 
   const p = project.data;
   if (!p) return <main className="p-4 text-neutral-300">{project.isError ? "Project not found." : "Loading…"}</main>;
-  const mutations = [run, phrases, template, plan, planUpdate, mediaSource, broll, actions];
+  const mutations = [run, plan, broll, actions];
   const busy = RUNNING.includes(p.status) || mutations.some((m) => m.isPending);
   const failure = events.error ?? mutations.find((m) => m.error && !actionErrorNotice(m.error))?.error?.message ?? (p.status === "failed" ? "see server logs" : null);
   const sourceUrl = p.sourceAssetId ? assetFileUrl(p.sourceAssetId) : null;
@@ -69,7 +65,7 @@ export function ProjectPage() {
               ? <CaptionPreview project={p} videoSrc={sourceUrl} durationMs={durationMs} playerRef={playerRef} />
               : <video src={sourceUrl} controls className="mx-auto max-h-[70vh] w-full rounded-lg bg-black" />}
             <div className="flex flex-wrap gap-2">
-              <select className="min-h-11 rounded-md bg-neutral-800 px-3" value={p.captionTemplateId} disabled={busy} onChange={(e) => template.mutate(e.target.value as Project["captionTemplateId"])}>
+              <select className="min-h-11 rounded-md bg-neutral-800 px-3" value={p.captionTemplateId} disabled={busy} onChange={(e) => actions.mutate([{ type: "setTemplate", captionTemplateId: e.target.value as Project["captionTemplateId"] }])}>
                 {CAPTION_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
               <button className="min-h-11 rounded-md bg-white px-4 font-medium text-black disabled:opacity-50" disabled={busy} onClick={() => run.mutate()}>
@@ -93,16 +89,16 @@ export function ProjectPage() {
               </div>
             )}
             {p.transcript && p.phrases.length > 0 && (
-              <EditPlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} onUpdate={(input) => planUpdate.mutate(input)} onSeek={seek} />
+              <EditPlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} onUpdate={(a) => actions.mutate(a)} onSeek={seek} />
             )}
             {p.editPlan && (
-              <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} notice={notice} onMediaSource={(m) => mediaSource.mutate(m)}
+              <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} notice={notice} onMediaSource={(m) => actions.mutate([{ type: "setMediaSource", mediaSource: m }])}
                 onAdd={(input) => broll.mutate(input)} onActions={(a) => actions.mutate(a)} onSeek={seek} />
             )}
           </section>
           <section>
             {p.phrases.length > 0
-              ? <PhraseEditor phrases={p.phrases} busy={busy} onApply={(next) => phrases.mutate(next)} />
+              ? <PhraseEditor phrases={p.phrases} busy={busy} onApply={(next) => actions.mutate(textEdits(p.phrases, next))} />
               : <p className="text-sm text-neutral-400">{busy ? "Working…" : "Run the pipeline to generate captions."}</p>}
           </section>
         </div>
@@ -110,6 +106,11 @@ export function ProjectPage() {
     </main>
   );
 }
+
+// Interim (plan 4 Task 2 → Task 8): the phrase editor's result as editPhrase actions; emptied phrases are not deleted.
+const textOf = (ph: Project["phrases"][number]) => ph.words.map((w) => w.text).join(" ");
+const textEdits = (before: Project["phrases"], after: Project["phrases"]): Action[] =>
+  after.flatMap((ph) => (before.some((b) => b.id === ph.id && textOf(b) !== textOf(ph)) ? [{ type: "editPhrase" as const, phraseId: ph.id, text: textOf(ph) }] : []));
 
 // Fallback for projects saved before sourceDurationMs existed: derive it from the last transcript word or phrase.
 function sourceDuration(p: Project) {

@@ -126,18 +126,9 @@ export const ProjectSchema = z.object({
 export const SetSourceInput = z.object({ assetId: z.string().min(1) });
 export const RunInput = z.object({ language: z.string().min(2).max(8).optional() });
 export const RenderInput = z.object({ scale: z.union([z.literal(1), z.literal(2)]).default(1) }); // 2 = 4K
-export const UpdatePhrasesInput = z.object({ phrases: z.array(PhraseSchema) });
-export const UpdateTemplateInput = z.object({ captionTemplateId: CaptionTemplateId });
 export const PlanInput = z
   .object({ languages: z.array(TranslationLanguage).max(3).default([]), burnInLanguage: TranslationLanguage.nullable().default(null) })
   .refine((v) => v.burnInLanguage === null || v.languages.includes(v.burnInLanguage), { message: "burn_in_not_translated", path: ["burnInLanguage"] });
-export const UpdatePlanInput = z.object({
-  cuts: z.array(z.object({ id: z.string(), shouldTrim: z.boolean() })).default([]),
-  shots: z.array(z.object({ id: z.string(), kind: ShotKind })).default([]),
-  burnInLanguage: TranslationLanguage.nullable().optional(),
-});
-
-export const UpdateProjectInput = z.object({ mediaSource: MediaSource });
 export const BrollInput = z.object({
   regenerate: z.boolean().default(false), overlayId: z.string().optional(), query: z.string().max(200).optional(), prompt: z.string().max(600).optional(),
 });
@@ -229,10 +220,7 @@ export const api = {
   projectEvents: (id: string) => `/api/projects/${id}/events`,
   projectSource: (id: string) => `/api/projects/${id}/source`,
   projectRun: (id: string) => `/api/projects/${id}/run`,
-  projectPhrases: (id: string) => `/api/projects/${id}/phrases`,
-  projectTemplate: (id: string) => `/api/projects/${id}/template`,
   projectPlan: (id: string) => `/api/projects/${id}/plan`,
-  projectUpdate: (id: string) => `/api/projects/${id}`,
   projectBroll: (id: string) => `/api/projects/${id}/broll`,
   projectFrame: (id: string) => `/api/projects/${id}/frame`,
   projectJob: (id: string) => `/api/projects/${id}/job`,

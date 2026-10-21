@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { CreateProjectInput, UpdateProjectInput, api } from "../../../shared/contract";
+import { CreateProjectInput, api } from "../../../shared/contract";
 import type { AppDeps } from "../../shared/deps";
 import { projectLoader } from "../../shared/routes";
+import { removeProject } from "./remove";
 
 export function projectsRouter(deps: AppDeps) {
   const r = Router();
@@ -29,13 +30,12 @@ export function projectsRouter(deps: AppDeps) {
     res.json(project);
   });
 
-  r.patch<{ id: string }>(api.projectUpdate(":id"), async (req, res) => {
-    const parsed = UpdateProjectInput.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+  r.delete<{ id: string }>(api.project(":id"), async (req, res) => {
     const project = await projectLoader(deps)(req, res);
     if (!project) return;
     if (deps.jobs.active(project.id)) return res.status(409).json({ error: "busy" });
-    res.json(await deps.projects.update(project.id, parsed.data));
+    await removeProject(deps, project.id);
+    res.status(204).end();
   });
 
   return r;

@@ -42,9 +42,10 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
   });
   afterAll(() => server.close());
 
-  const render = async (props: Partial<CaptionVideoProps> & { phrases: Phrase[]; durationMs: number }, name: string) => {
+  const render = async (props: Partial<CaptionVideoProps> & { phrases: Phrase[]; durationMs: number }, name: string, scale: 1 | 2 = 1) => {
     const outPath = join(dir, name);
     await renderer.render({
+      scale,
       compositionId: "CaptionVideo",
       inputProps: {
         videoSrc, sourceKind: "video", template: getCaptionTemplate("clean"), width: 1080, height: 1920,
@@ -72,6 +73,12 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     const probed = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out]).toString();
     expect(Number(probed)).toBeCloseTo(1.6, 1);
   }, 900_000);
+
+  it("renders at scale 2", async () => {
+    const out = await render({ phrases, durationMs: 1000 }, "4k.mp4", 2);
+    const width = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width", "-of", "csv=p=0", out]).toString().trim();
+    expect(width).toBe("2160");
+  }, 300_000);
 
   it("renders a real still", async () => {
     const phrases: Phrase[] = [{ id: "ph-0", startMs: 100, endMs: 1900, lineBreaksAfter: [1], words }];

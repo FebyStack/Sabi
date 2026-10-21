@@ -67,69 +67,10 @@ describe("edit plan api", () => {
     expect((await request(a).post(`/api/projects/${project.id}/plan`).send({ languages: ["xx"] })).body.error).toBe("invalid_input");
   });
 
-  it("toggling a cut re-renders at full length", async () => {
-    const { a, project, renderer } = await planned();
-    const trailing = project.editPlan!.cuts.find((c) => c.endMs === 21000)!;
-    const calls = renderer.calls.length;
-    const res = await request(a).patch(`/api/projects/${project.id}/plan`).send({ cuts: [{ id: trailing.id, shouldTrim: false }] });
-    expect(res.status).toBe(202);
-    await vi.waitFor(async () => {
-      expect(renderer.calls.length).toBe(calls + 1);
-      expect((await request(a).get(`/api/projects/${project.id}`)).body.status).toBe("ready");
-    });
-    expect(renderer.calls.at(-1)!.durationMs).toBe(21000);
-    expect((await request(a).get(`/api/projects/${project.id}/plan`)).body.cuts.find((c: { id: string }) => c.id === trailing.id).shouldTrim).toBe(false);
-  });
-
-  it("changing only a shot kind saves without rendering", async () => {
-    const { a, project, renderer } = await planned();
-    const calls = renderer.calls.length;
-    const res = await request(a).patch(`/api/projects/${project.id}/plan`).send({ shots: [{ id: "shot-0", kind: "B-Roll" }] });
-    expect(res.status).toBe(200);
-    expect(res.body.shots[0].kind).toBe("B-Roll");
-    expect(renderer.calls.length).toBe(calls);
-  });
-
-  it("a shot-kind change re-renders when overlays exist", async () => {
-    const { deps, a, project, renderer } = await planned();
-    const shot = project.editPlan!.shots.find((s) => s.kind === "B-Roll")!;
-    await deps.projects.update(project.id, { overlays: [{
-      id: "ov-0", shotId: shot.id, assetId: "x", media: "image", source: "stock", startMs: shot.startMs + 300, endMs: shot.startMs + 2300,
-      placement: "full", transition: "fade", enabled: true, query: "q", prompt: "p", intent: "i",
-    }] });
-    const calls = renderer.calls.length;
-    const res = await request(a).patch(`/api/projects/${project.id}/plan`).send({ shots: [{ id: shot.id, kind: "Talking Head" }] });
-    expect(res.status).toBe(202);
-    await untilStatus(a, project.id, "ready");
-    expect(renderer.calls.length).toBe(calls + 1);
-  });
-
-  it("re-renders on any plan change after a failed render", async () => {
-    const renderer = new FakeRenderer();
-    let fail = false;
-    const deps = makeTestDeps({ renderer: { render: (r) => { if (fail) throw new Error("render_boom"); return renderer.render(r); }, renderStill: (r) => renderer.renderStill(r) } });
-    const { a, project } = await readyProject(deps);
-    fail = true;
-    await request(a).post(`/api/projects/${project.id}/plan`).send({});
-    await untilStatus(a, project.id, "failed");
-    fail = false;
-    const res = await request(a).patch(`/api/projects/${project.id}/plan`).send({ shots: [{ id: "shot-0", kind: "B-Roll" }] });
-    expect(res.status).toBe(202);
-    expect((await untilStatus(a, project.id, "ready")).editPlan!.shots[0].kind).toBe("B-Roll");
-  });
-
-  it("unknown ids and untranslated burn-in are rejected", async () => {
-    const { a, project } = await planned();
-    const patch = (body: object) => request(a).patch(`/api/projects/${project.id}/plan`).send(body);
-    expect((await patch({ cuts: [{ id: "nope", shouldTrim: false }] })).body).toEqual({ error: "unknown_id" });
-    expect((await patch({ shots: [{ id: "shot-0", kind: "B-Roll" }, { id: "nope", kind: "Hook" }] })).body).toEqual({ error: "unknown_id" });
-    expect((await patch({ burnInLanguage: "fr" })).body).toEqual({ error: "bad_burn_in" });
-    expect((await request(a).get(`/api/projects/${project.id}/plan`)).body).toEqual(project.editPlan);
-  });
-
-  it("template change keeps plan data; re-run clears it", async () => {
+  it("a template action keeps plan data; re-run clears it", async () => {
     const { a, project } = await planned({ languages: ["es"] });
-    expect((await request(a).put(`/api/projects/${project.id}/template`).send({ captionTemplateId: "bold" })).status).toBe(202);
+    const res = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: project.updatedAt, render: true, actions: [{ type: "setTemplate", captionTemplateId: "bold" }] });
+    expect(res.status).toBe(202);
     let p: Project | undefined;
     await vi.waitFor(async () => {
       p = (await request(a).get(`/api/projects/${project.id}`)).body;

@@ -1,13 +1,12 @@
 import { Router } from "express";
 import type { z } from "zod";
-import { PlanInput, UpdatePlanInput, api } from "../../../shared/contract";
+import { PlanInput, api } from "../../../shared/contract";
 import { detectCuts } from "../../../shared/editing/cuts";
 import type { JobState, Project, ProjectStatus, Translation } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
 import { projectLoader } from "../../shared/routes";
-import { renderOutputs, startCaptionJob } from "../pipeline/pipeline";
+import { renderOutputs } from "../pipeline/pipeline";
 import { TRANSLATE_BATCH, planEdit, translatePhrases } from "./planner";
-import { validatePlanEdit } from "./validate";
 
 // Job "plan": planning → plan → translate → (save) → rendering → ready. Nothing is saved until the LLM work succeeds,
 // so a failure (Ollama down, model missing) leaves the previous status and outputs; a render failure keeps the plan.
@@ -69,24 +68,6 @@ export function editPlanRouter(deps: AppDeps) {
     if (!project) return;
     if (!project.editPlan) return res.status(404).json({ error: "no_plan" });
     res.json(project.editPlan);
-  });
-
-  r.patch<{ id: string }>(api.projectPlan(":id"), async (req, res) => {
-    const parsed = UpdatePlanInput.safeParse(req.body ?? {});
-    if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
-    const project = await load(req, res);
-    if (!project) return;
-    if (!project.editPlan) return res.status(404).json({ error: "no_plan" });
-    const v = validatePlanEdit(project, parsed.data);
-    if ("error" in v) return res.status(400).json({ error: v.error });
-    if (deps.jobs.active(project.id)) return res.status(409).json({ error: "busy" });
-
-    const { editPlan, burnInChanged, cutsChanged, shotsChanged } = v;
-    const updated = await deps.projects.update(project.id, { editPlan, ...(burnInChanged ? { burnInLanguage: parsed.data.burnInLanguage } : {}) });
-    // B-roll overlays are drawn only over B-roll shots, so a shot-kind change re-renders when there are overlays.
-    const overlaysChanged = shotsChanged && project.overlays.length > 0;
-    if (!burnInChanged && !cutsChanged && !overlaysChanged && project.status !== "failed") return res.json(editPlan);
-    res.status(202).json({ jobId: startCaptionJob(deps, updated, { transcribe: false, resegment: false }).id });
   });
 
   return r;

@@ -7,6 +7,8 @@ export interface ProjectRepository {
   create(p: Project): Promise<Project>;
   update(id: string, patch: Partial<Project>, opts?: { ifVersion?: string }): Promise<Project>; // ifVersion: compare-and-swap on updatedAt, else StaleVersion
   failStuck(): Promise<number>; // on boot: no job survives a restart, so running statuses become failed
+  remove(id: string): Promise<void>;
+  staleIds(before: Date): Promise<string[]>; // last_access older than `before` (retention sweep)
 }
 
 const RUNNING = ["transcribing", "planning", "generating", "rendering"];
@@ -17,9 +19,17 @@ export class StaleVersion extends Error {
 
 export class MemoryProjectRepository implements ProjectRepository {
   private rows = new Map<string, Project>();
+  private lastAccess = new Map<string, Date>();
+  constructor(private now: () => Date = () => new Date()) {}
   async list() { return [...this.rows.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)); }
-  async get(id: string) { return this.rows.get(id) ?? null; }
-  async create(p: Project) { this.rows.set(p.id, p); return p; }
+  async get(id: string) {
+    const p = this.rows.get(id) ?? null;
+    if (p) this.lastAccess.set(id, this.now());
+    return p;
+  }
+  async create(p: Project) { this.rows.set(p.id, p); this.lastAccess.set(p.id, this.now()); return p; }
+  async remove(id: string) { this.rows.delete(id); this.lastAccess.delete(id); }
+  async staleIds(before: Date) { return [...this.lastAccess].filter(([, at]) => at < before).map(([id]) => id); }
   async failStuck() {
     let n = 0;
     for (const p of this.rows.values()) if (RUNNING.includes(p.status)) { p.status = "failed"; n++; }
@@ -81,6 +91,11 @@ export class PgProjectRepository implements ProjectRepository {
         JSON.stringify(p.overlays), p.creditsUsedCents, JSON.stringify(p.brand), JSON.stringify(p.motionGraphics), JSON.stringify(p.captionStyle), p.demo, p.createdAt, p.updatedAt],
     );
     return toProject(rows[0]);
+  }
+  async remove(id: string) { await this.pool.query("DELETE FROM projects WHERE id = $1", [id]); }
+  async staleIds(before: Date) {
+    const { rows } = await this.pool.query<{ id: string }>("SELECT id FROM projects WHERE last_access < $1", [before]);
+    return rows.map((r) => r.id);
   }
   async failStuck() {
     const { rowCount } = await this.pool.query("UPDATE projects SET status = 'failed', updated_at = now() WHERE status = ANY($1)", [RUNNING]);

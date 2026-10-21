@@ -54,19 +54,6 @@ describe("api", () => {
     expect(body).toMatchObject({ captionStyle: null, demo: false });
   });
 
-  it("patches mediaSource", async () => {
-    const a = app();
-    const { body: p } = await request(a).post("/api/projects").send({ title: "t" });
-    const res = await request(a).patch(`/api/projects/${p.id}`).send({ mediaSource: "stock" });
-    expect(res.status).toBe(200);
-    expect(res.body.mediaSource).toBe("stock");
-    expect((await request(a).get(`/api/projects/${p.id}`)).body.mediaSource).toBe("stock");
-    const bad = await request(a).patch(`/api/projects/${p.id}`).send({ mediaSource: "magic" });
-    expect(bad.status).toBe(400);
-    expect(bad.body.error).toBe("invalid_input");
-    expect((await request(a).patch("/api/projects/nope").send({ mediaSource: "stock" })).status).toBe(404);
-  });
-
   it("refuses writes from another site and only lets local pages read", async () => {
     const a = app();
     const evil = await request(a).post("/api/projects").set("origin", "https://evil.example").send({ title: "x" });

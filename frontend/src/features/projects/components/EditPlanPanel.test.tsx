@@ -19,9 +19,9 @@ describe("EditPlanPanel helpers", () => {
   it("planChanges returns only real differences", () => {
     expect(planChanges(project, { trim: { "cut-0": true }, kinds: {} })).toBeNull(); // same as saved
     expect(planChanges(project, { trim: { "cut-0": false }, kinds: { "shot-1": "B-Roll" } }))
-      .toEqual({ cuts: [{ id: "cut-0", shouldTrim: false }], shots: [{ id: "shot-1", kind: "B-Roll" }] });
+      .toEqual([{ type: "setCut", cutId: "cut-0", shouldTrim: false }, { type: "setShotKind", shotId: "shot-1", kind: "B-Roll" }]);
     expect(planChanges(project, { trim: {}, kinds: { "shot-0": "Hook" }, burnIn: null })).toBeNull();
-    expect(planChanges(project, { trim: {}, kinds: {}, burnIn: "es" })).toEqual({ cuts: [], shots: [], burnInLanguage: "es" });
+    expect(planChanges(project, { trim: {}, kinds: {}, burnIn: "es" })).toEqual([{ type: "setBurnIn", language: "es" }]);
   });
 });
 

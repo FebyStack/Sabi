@@ -8,7 +8,7 @@ import { captionVideoProps, subtitleTracks } from "../../../shared/editing/rende
 import type { Asset, JobState, Project, ProjectStatus } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
 
-export type RunOptions = { language?: string; transcribe: boolean; resegment: boolean };
+export type RunOptions = { language?: string; transcribe: boolean; resegment: boolean; scale?: 1 | 2 };
 
 // One job: extract-audio → transcribe → segment → render → subtitles. Status: transcribing → rendering → ready | failed.
 export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOptions): JobState {
@@ -46,7 +46,7 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
       // Motion graphics and the brand kit are the agent's own work and stay.
       const cleared = opts.transcribe ? { editPlan: null, translations: [], burnInLanguage: null, overlays: [] } : {};
       const current = await setStatus("rendering", { transcript, phrases, language: transcript?.language ?? project.language, warnings, ...cleared });
-      await setStatus("ready", { outputs: await renderOutputs(deps, current, source, report) });
+      await setStatus("ready", { outputs: await renderOutputs(deps, current, source, report, opts.scale) });
       report(100);
     } catch (err) {
       await setStatus("failed");
@@ -55,19 +55,21 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
   });
 }
 
-// Render the MP4 and every subtitle track (original + translations) on the cut timeline.
-export async function renderOutputs(deps: AppDeps, project: Project, source: Asset, report: (p: number, stage?: string) => void): Promise<Project["outputs"]> {
+// Render the MP4 and every subtitle track (original + translations) on the cut timeline; fresh outputs are never stale.
+// Without a scale, a job keeps the project's last export resolution.
+export async function renderOutputs(deps: AppDeps, project: Project, source: Asset, report: (p: number, stage?: string) => void,
+  scale: 1 | 2 = project.outputs.resolution === "4k" ? 2 : 1): Promise<Project["outputs"]> {
   report(70, "render");
   const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0, assetUrl: (id) => `${deps.apiBaseUrl}${api.assetFile(id)}` });
   const jobKey = `renders/${project.id}/${deps.id()}`;
   const outPath = deps.storage.localPath(`${jobKey}.mp4`);
   await mkdir(dirname(outPath), { recursive: true });
-  await deps.renderer.render({ compositionId: "CaptionVideo", inputProps: props, durationMs: props.durationMs, outPath });
-  const mp4 = await addAsset(deps, project.id, "render", `${jobKey}.mp4`, "video/mp4", { width: props.width, height: props.height, durationMs: props.durationMs });
+  await deps.renderer.render({ compositionId: "CaptionVideo", inputProps: props, durationMs: props.durationMs, outPath, scale });
+  const mp4 = await addAsset(deps, project.id, "render", `${jobKey}.mp4`, "video/mp4", { width: props.width * scale, height: props.height * scale, durationMs: props.durationMs });
 
   report(95, "subtitles");
   const translations: NonNullable<Project["outputs"]["translations"]> = [];
-  const outputs: Project["outputs"] = { mp4AssetId: mp4.id, translations };
+  const outputs: Project["outputs"] = { mp4AssetId: mp4.id, translations, resolution: scale === 2 ? "4k" : "1080p" };
   for (const { language, phrases } of subtitleTracks(project)) {
     const key = language ? `${jobKey}.${language}` : jobKey;
     await deps.storage.write(`${key}.srt`, Buffer.from(toSrt(phrases)));
