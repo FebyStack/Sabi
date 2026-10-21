@@ -32,10 +32,13 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=2:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", clip]);
     // Chromium needs an http(s) URL for the source video, same as the API serves in production.
     execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=400x600", "-frames:v", "1", join(dir, "red.png")]);
+    // A loud 440 Hz tone: a hard cut through it at an arbitrary phase is an audible click.
+    execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=3:r=30", "-f", "lavfi", "-i", "aevalsrc=0.8*sin(2*PI*440*t):s=48000:d=3",
+      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "320k", "-shortest", join(dir, "tone.mp4")]);
     server = createServer((req, res) => {
       const png = req.url === "/red.png";
       res.writeHead(200, { "content-type": png ? "image/png" : "video/mp4" });
-      createReadStream(png ? join(dir, "red.png") : clip).pipe(res);
+      createReadStream(png ? join(dir, "red.png") : req.url === "/tone.mp4" ? join(dir, "tone.mp4") : clip).pipe(res);
     }).listen(0);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     videoSrc = `${base}/clip.mp4`;
@@ -82,6 +85,19 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     const y = Math.round(1920 * 0.78 + 40);
     const row = (f: string) => [300, 370, 440, 510, 580, 650, 720, 790].map((x) => pixel(f, 0.5, x, y).join(","));
     expect(row(bebas)).not.toEqual(row(inter));
+  }, 300_000);
+
+  it("cuts do not click: the audio fades to silence and back at every cut", async () => {
+    // 1333 − 700 ms is not a whole number of 440 Hz cycles, so the tone's phase jumps at the join.
+    const out = await render({ videoSrc: `${base}/tone.mp4`, phrases: [], durationMs: 2367, segments: [{ startMs: 0, endMs: 700 }, { startMs: 1333, endMs: 3000 }] }, "cut-tone.mp4");
+    const pcm = execFileSync("ffmpeg", ["-v", "error", "-i", out, "-ac", "1", "-ar", "48000", "-f", "f32le", "-"], { maxBuffer: 64 * 1024 ** 2 });
+    const x = new Float32Array(pcm.buffer, pcm.byteOffset, pcm.length / 4);
+    const at = Math.round(0.7 * 48000); // the cut, in output samples
+    const win = (fromMs: number, toMs: number) => Array.from(x.subarray(at + (fromMs * 48), at + (toMs * 48)));
+    const jump = Math.max(...win(-10, 10).map((v, i, a) => (i ? Math.abs(v - a[i - 1]) : 0)));
+    expect(jump).toBeLessThan(0.07); // a clean 0.8 × 440 Hz tone moves at most 0.046 per sample
+    expect(Math.min(...win(-3, 3).map(Math.abs))).toBeLessThan(0.05); // faded to silence at the join
+    expect(Math.max(...win(30, 60).map(Math.abs))).toBeGreaterThan(0.7); // full level again 30 ms later
   }, 300_000);
 
   it("renders at scale 2", async () => {

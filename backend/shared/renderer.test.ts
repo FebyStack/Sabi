@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ownBundleDir, sharedBrowser } from "./renderer";
+import { CUT_FADE_MS, cutFadeFilter, outputCutTimesMs, ownBundleDir, sharedBrowser } from "./renderer";
 
 type B = { id: number; close: () => Promise<void> };
 const opener = () => {
@@ -57,5 +57,22 @@ describe("ownBundleDir", () => {
     mkdirSync(join(b, "open"));
     chmodSync(join(b, "open"), 0o777);
     await expect(ownBundleDir(join(b, "open"))).rejects.toThrow("unsafe_bundle_dir");
+  });
+});
+
+describe("audio fades at cuts", () => {
+  it("cut positions are the joins between kept segments, in output time", () => {
+    expect(outputCutTimesMs(undefined)).toEqual([]);
+    expect(outputCutTimesMs([{ startMs: 0, endMs: 21000 }])).toEqual([]);
+    expect(outputCutTimesMs([{ startMs: 0, endMs: 1000 }, { startMs: 3000, endMs: 5000 }, { startMs: 5500, endMs: 9000 }])).toEqual([1000, 3000]);
+  });
+
+  it("the gain is 0 at each cut and back to 1 within 15 ms on both sides", () => {
+    expect(CUT_FADE_MS).toBe(15);
+    expect(cutFadeFilter([1000, 3000])).toBe("aeval='val(ch)*min(1,if(lt(t,2.000),abs(t-1.000),abs(t-3.000))/0.015)':c=same");
+    // A binary search over the cuts: split halfway between neighbours.
+    expect(cutFadeFilter([1000, 2000, 4000])).toBe(
+      "aeval='val(ch)*min(1,if(lt(t,3.000),if(lt(t,1.500),abs(t-1.000),abs(t-2.000)),abs(t-4.000))/0.015)':c=same");
+    expect(cutFadeFilter([2500])).toBe("aeval='val(ch)*min(1,abs(t-2.500)/0.015)':c=same");
   });
 });

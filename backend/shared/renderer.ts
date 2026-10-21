@@ -1,13 +1,37 @@
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstat, mkdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { promisify } from "node:util";
+import type { Segment } from "../../shared/editing/cuts";
 
 // null = Remotion's own chrome-headless-shell (downloaded once into node_modules/.remotion). The installed Google
 // Chrome renders ~4× slower (it waits on its frame clock for every screenshot); REMOTION_BROWSER_EXECUTABLE overrides.
 export const defaultBrowserExecutable = () => process.env.REMOTION_BROWSER_EXECUTABLE ?? null;
 // In the temp folder (the npm scripts put TMPDIR on the Mac disk), one per checkout so parallel worktrees don't collide.
 export const defaultBundleDir = () => join(tmpdir(), `sabi-remotion-bundle-${createHash("sha1").update(process.cwd()).digest("hex").slice(0, 8)}`);
+
+// Audio fades at cuts (video-use style). Remotion applies volume per video frame (33 ms steps), which still clicks,
+// so the export fades per sample in ffmpeg: the gain falls to 0 over the last 15 ms before each join and rises over 15 ms after.
+export const CUT_FADE_MS = 15;
+export function outputCutTimesMs(segments: Segment[] | undefined): number[] {
+  const joins: number[] = [];
+  let at = 0;
+  for (const s of (segments ?? []).slice(0, -1)) { at += s.endMs - s.startMs; joins.push(at); }
+  return joins;
+}
+export function cutFadeFilter(cutsMs: number[]): string {
+  const sec = (ms: number) => (ms / 1000).toFixed(3);
+  // Distance to the nearest cut as a binary search over the sorted cuts (ffmpeg's if() is lazy): 80 cuts as min() of all added ~5 s per minute of audio.
+  const near = (lo: number, hi: number): string => {
+    if (lo === hi) return `abs(t-${sec(cutsMs[lo])})`;
+    const mid = (lo + hi) >> 1;
+    return `if(lt(t,${sec((cutsMs[mid] + cutsMs[mid + 1]) / 2)}),${near(lo, mid)},${near(mid + 1, hi)})`;
+  };
+  return `aeval='val(ch)*min(1,${near(0, cutsMs.length - 1)}/${sec(CUT_FADE_MS)})':c=same`;
+}
+const run = promisify(execFile);
 
 // The bundle is code the render browser runs: refuse a folder another user could have planted (symlink, foreign owner, writable by others).
 export async function ownBundleDir(dir: string): Promise<void> {
@@ -88,10 +112,22 @@ export class RemotionRenderer implements Renderer {
     const serveUrl = await this.bundleOnce();
     const inputProps = { ...req.inputProps, durationMs: req.durationMs };
     const browserExecutable = this.browserExecutable();
+    const cuts = outputCutTimesMs(req.inputProps.segments);
+    // With cuts: picture and audio come out separately and ffmpeg muxes them, fading at each join (one AAC encode).
+    const video = cuts.length ? `${req.outPath}.video.mp4` : req.outPath, audio = `${req.outPath}.audio.wav`;
     await this.withBrowser(async (puppeteerInstance) => {
       const composition = await selectComposition({ serveUrl, id: req.compositionId, inputProps, browserExecutable, puppeteerInstance });
-      await renderMedia({ serveUrl, composition, codec: "h264", crf: 18, inputProps, outputLocation: req.outPath, browserExecutable, puppeteerInstance, scale: req.scale });
+      await renderMedia({ serveUrl, composition, codec: "h264", crf: 18, inputProps, outputLocation: video, browserExecutable, puppeteerInstance, scale: req.scale,
+        ...(cuts.length ? { separateAudioTo: audio } : {}) });
     });
+    if (!cuts.length) return;
+    try {
+      await run("ffmpeg", ["-v", "error", "-y", "-protocol_whitelist", "file", "-i", video, "-i", audio, "-map", "0:v", "-map", "1:a",
+        "-c:v", "copy", "-af", cutFadeFilter(cuts), "-c:a", "aac", "-b:a", "320k", "-movflags", "+faststart", `${req.outPath}.muxed.mp4`]);
+      await rename(`${req.outPath}.muxed.mp4`, req.outPath);
+    } finally {
+      await Promise.all([rm(video, { force: true }), rm(audio, { force: true }), rm(`${req.outPath}.muxed.mp4`, { force: true })]);
+    }
   }
 
   async renderStill(req: StillRequest) {
