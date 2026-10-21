@@ -2,7 +2,6 @@ import type { PlayerRef } from "@remotion/player";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useParams } from "react-router";
-import { CAPTION_TEMPLATES } from "@shared/captions/templates";
 import { mapTime } from "@shared/editing/cuts";
 import { enabledCuts } from "@shared/editing/renderProps";
 import { FPS } from "@shared/remotion/CaptionVideo";
@@ -20,6 +19,7 @@ import { tabFromSearch } from "./layout/tabs";
 import { BrollPanel } from "./panels/BrollPanel";
 import { CaptionPreview } from "./panels/CaptionPreview";
 import { PlanPanel } from "./panels/PlanPanel";
+import { StylePanel } from "./panels/StylePanel";
 import { CaptionsPanel } from "./panels/CaptionsPanel";
 import { StageProgress } from "./panels/StageProgress";
 import { createEditorStore, useEditorStore } from "./store/editorStore";
@@ -107,12 +107,7 @@ export default function EditorPage() {
         <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} onAdd={(input) => broll.mutate(input)} commit={edit} onSeek={seek} />
       </div>
     ),
-    style: (
-      <select aria-label="Caption template" className="min-h-11 rounded-2 bg-surface-2 px-3" value={p.captionTemplateId} disabled={busy}
-        onChange={(e) => void commit([{ type: "setTemplate", captionTemplateId: e.target.value as Project["captionTemplateId"] }])}>
-        {CAPTION_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-      </select>
-    ),
+    style: <StylePanel project={p} commit={edit} busy={busy} />,
     export: (
       <div className="space-y-3">
         <div className="flex flex-wrap gap-2">
