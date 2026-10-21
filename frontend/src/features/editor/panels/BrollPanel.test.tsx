@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { BrollPanel, actionErrorNotice, overlayRows } from "./BrollPanel";
+import { BrollPanel, overlayRows } from "./BrollPanel";
 import type { Overlay, Project, Shot } from "@shared/types";
 
 const shots: Shot[] = [
@@ -15,8 +15,7 @@ const project = (patch: Partial<Project> = {}) => ({
   id: "p", mediaSource: "stock", warnings: [], creditsUsedCents: 0, motionGraphics: [], editPlan: { cuts: [], shots },
   overlays: [ov("ov-0", "shot-1", 4300, 9300), ov("ov-1", "shot-0", 300, 2300)], ...patch,
 }) as unknown as Project;
-const panel = (p: Project, notice: string | null = null) => renderToStaticMarkup(
-  <BrollPanel project={p} busy={false} notice={notice} onMediaSource={() => {}} onAdd={() => {}} onActions={() => {}} onSeek={() => {}} />);
+const panel = (p: Project) => renderToStaticMarkup(<BrollPanel project={p} busy={false} onAdd={() => {}} commit={async () => {}} onSeek={() => {}} />);
 
 describe("BrollPanel", () => {
   it("overlayRows labels overlays with their shot and flags stale ones", () => {
@@ -34,12 +33,6 @@ describe("BrollPanel", () => {
     expect(panel(project({ warnings: ["broll_not_found:beat-0", "broll_not_found:beat-2"] }))).toContain("No media found for 2 beat(s)");
   });
 
-  it("end-time buttons clamp to the shot", () => {
-    const html = panel(project({ overlays: [ov("ov-0", "shot-1", 4300, 12000)] }));
-    expect(html).toMatch(/<button[^>]*aria-label="End \+0\.5 s"[^>]*disabled=""/);
-    expect(html).not.toMatch(/<button[^>]*aria-label="End −0\.5 s"[^>]*disabled=""/);
-  });
-
   it("replace input only accepts images and mp4", () => {
     expect(panel(project())).toContain('accept="image/png,image/jpeg,image/webp,video/mp4"');
   });
@@ -52,16 +45,27 @@ describe("BrollPanel", () => {
   });
 
   it("shows attribution, credits and the media source", () => {
-    const html = panel(project({ creditsUsedCents: 26 }), "Project changed elsewhere — reloaded, try again");
+    const html = panel(project({ creditsUsedCents: 26 }));
     expect(html).toContain("Photo: Jane Doe / Pexels");
     expect(html).toContain("$0.26 used");
-    expect(html).toMatch(/aria-pressed="true"[^>]*>Stock only</);
     expect(html).toContain(">Refresh B-roll<");
-    expect(html).toContain("Project changed elsewhere — reloaded, try again");
   });
 
-  it("a stale action refetches and explains", () => {
-    expect(actionErrorNotice(new Error("stale"))).toBe("Project changed elsewhere — reloaded, try again");
-    expect(actionErrorNotice(new Error("bad_asset"))).toBeNull();
+  it("delete asks first", () => {
+    const html = panel(project());
+    expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*>Delete</);
+    expect(html).toMatch(/<dialog[^>]*>.*>Delete<\/button>.*>Cancel<\/button>/s); // one confirm sheet; its title names what is deleted when it opens
   });
+
+  it("media source is a radiogroup", () => {
+    const html = panel(project());
+    expect(html).toContain('role="radiogroup" aria-label="Media source"');
+    expect(html).toMatch(/role="radio" aria-checked="true"[^>]*>Stock only</);
+    expect(html).toMatch(/role="radio" aria-checked="false"[^>]*>Generate \(fal.ai\)</);
+  });
+
+  it("asks for a plan first", () => {
+    expect(panel(project({ editPlan: null, overlays: [] }))).toContain("Plan the edit first");
+  });
+
 });

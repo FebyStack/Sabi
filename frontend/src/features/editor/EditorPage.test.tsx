@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { editorProject } from "@shared/editing/fixtures";
 import type { Project } from "@shared/types";
 import EditorPage from "./EditorPage";
-import { EditPlanPanel } from "./panels/EditPlanPanel";
+import { PlanPanel } from "./panels/PlanPanel";
 import type { EditorState } from "./store/editorStore";
 
 // Keys never reach the markup, so record what every JSX call keys.
@@ -40,9 +40,9 @@ function page(p: Project, tab = "") {
 describe("EditorPage", () => {
   beforeEach(() => { keyed.length = 0; previewed.length = 0; initial.state = {}; vi.mocked(useMutation).mockReset(); });
 
-  it("keys the edit plan panel by project id, so its draft state resets on /p/A → /p/B", () => {
+  it("keys the plan panel by project id, so its draft state resets on /p/A → /p/B", () => {
     page(project, "broll");
-    expect(keyed).toContainEqual([EditPlanPanel, "A"]);
+    expect(keyed).toContainEqual([PlanPanel, "A"]);
   });
 
   it("shows a failed plan request in the Failed line", () => {

@@ -19,7 +19,7 @@ import { EditorLayout } from "./layout/EditorLayout";
 import { tabFromSearch } from "./layout/tabs";
 import { BrollPanel } from "./panels/BrollPanel";
 import { CaptionPreview } from "./panels/CaptionPreview";
-import { EditPlanPanel } from "./panels/EditPlanPanel";
+import { PlanPanel } from "./panels/PlanPanel";
 import { CaptionsPanel } from "./panels/CaptionsPanel";
 import { StageProgress } from "./panels/StageProgress";
 import { createEditorStore, useEditorStore } from "./store/editorStore";
@@ -103,9 +103,8 @@ export default function EditorPage() {
     captions: <CaptionsPanel project={p} store={store} commit={edit} busy={busy} onGenerate={() => run.mutate()} />,
     broll: (
       <div className="space-y-6">
-        {p.transcript && p.phrases.length > 0 && <EditPlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} onUpdate={edit} onSeek={seek} />}
-        {p.editPlan && <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} notice={null} onMediaSource={(m) => void commit([{ type: "setMediaSource", mediaSource: m }])}
-          onAdd={(input) => broll.mutate(input)} onActions={edit} onSeek={seek} />}
+        {p.transcript && p.phrases.length > 0 && <PlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} commit={edit} onSeek={seek} />}
+        <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} onAdd={(input) => broll.mutate(input)} commit={edit} onSeek={seek} />
       </div>
     ),
     style: (
