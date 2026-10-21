@@ -3,7 +3,7 @@ import { useMemo, type RefObject } from "react";
 import { CaptionVideo, FPS } from "@shared/remotion/CaptionVideo";
 import { captionVideoProps } from "@shared/editing/renderProps";
 import type { Project } from "@shared/types";
-import { assetFileUrl } from "../api/projects";
+import { assetFileUrl } from "@/features/projects/api/projects";
 
 // Same props as the server render (cuts, burn-in, emphasis, emoji), so preview = export.
 export function CaptionPreview({ project, videoSrc, durationMs, playerRef }: { project: Project; videoSrc: string; durationMs: number; playerRef: RefObject<PlayerRef | null> }) {

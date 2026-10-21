@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { staleOverlays } from "@shared/editing/overlays";
 import type { Action, BrollInput, MediaSource, Overlay, Project, Shot } from "@shared/types";
-import { assetFileUrl, uploadFile } from "../api/projects";
+import { assetFileUrl, uploadFile } from "@/features/projects/api/projects";
 
 const STEP_MS = 500;
 const REPLACE_TYPES = ["image/png", "image/jpeg", "image/webp", "video/mp4"];

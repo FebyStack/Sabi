@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { EditPlanPanel } from "./EditPlanPanel";
-import { ProjectPage } from "./ProjectPage";
+import { EditPlanPanel } from "./panels/EditPlanPanel";
+import EditorPage from "./EditorPage";
 import type { Project } from "@shared/types";
 
 // Keys never reach the markup, so record what every JSX call keys.
@@ -11,7 +11,7 @@ vi.mock("react/jsx-dev-runtime", async (orig) => {
   const o = await orig<{ jsxDEV: (...a: unknown[]) => unknown }>();
   return { ...o, jsxDEV: (type: unknown, props: unknown, key: string | undefined, ...rest: unknown[]) => { keyed.push([type, key ?? null]); return o.jsxDEV(type, props, key, ...rest); } };
 });
-vi.mock("./CaptionPreview", () => ({ CaptionPreview: () => null })); // Remotion's Player needs a DOM
+vi.mock("./panels/CaptionPreview", () => ({ CaptionPreview: () => null })); // Remotion's Player needs a DOM
 vi.mock("@tanstack/react-query", async (orig) => {
   const o = await orig<typeof import("@tanstack/react-query")>();
   return { ...o, useMutation: vi.fn(o.useMutation) };
@@ -30,12 +30,12 @@ function page(p: Project) {
   qc.setQueryData(["project", p.id], p);
   return renderToStaticMarkup(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/p/${p.id}`]}><Routes><Route path="/p/:id" element={<ProjectPage />} /></Routes></MemoryRouter>
+      <MemoryRouter initialEntries={[`/p/${p.id}`]}><Routes><Route path="/p/:id" element={<EditorPage />} /></Routes></MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-describe("ProjectPage", () => {
+describe("EditorPage", () => {
   beforeEach(() => { keyed.length = 0; vi.mocked(useMutation).mockReset(); });
 
   it("keys the edit plan panel by project id, so its draft state resets on /p/A → /p/B", () => {

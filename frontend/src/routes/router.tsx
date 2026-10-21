@@ -1,8 +1,8 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getHealth } from "@/services/http";
 import { ProjectList } from "@/features/projects/components/ProjectList";
-import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
 function Home() {
   const health = useQuery({ queryKey: ["health"], queryFn: getHealth, refetchInterval: 10_000 });
@@ -17,7 +17,10 @@ function Home() {
   );
 }
 
+// The editor (Player, timeline, panels) is its own chunk; the projects list loads without it.
+const EditorPage = lazy(() => import("@/features/editor/EditorPage"));
+
 export const router = createBrowserRouter([
   { path: "/", element: <Home /> },
-  { path: "/p/:id", element: <ProjectPage /> },
+  { path: "/p/:id", element: <Suspense fallback={<main className="p-4 text-ink-muted">Loading…</main>}><EditorPage /></Suspense> },
 ]);

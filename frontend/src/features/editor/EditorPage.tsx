@@ -7,18 +7,18 @@ import { mapTime } from "@shared/editing/cuts";
 import { enabledCuts } from "@shared/editing/renderProps";
 import { FPS } from "@shared/remotion/CaptionVideo";
 import type { Action, BrollInput, PlanInput, Project } from "@shared/types";
-import { addBroll, applyProjectActions, assetFileUrl, getProject, planProject, runProject, setSource } from "../api/projects";
-import { useProjectEvents } from "../hooks/useProjectEvents";
-import { BrollPanel, actionErrorNotice } from "./BrollPanel";
-import { CaptionPreview } from "./CaptionPreview";
-import { EditPlanPanel } from "./EditPlanPanel";
-import { PhraseEditor } from "./PhraseEditor";
-import { StageProgress } from "./StageProgress";
-import { UploadDropzone } from "./UploadDropzone";
+import { addBroll, applyProjectActions, assetFileUrl, getProject, planProject, runProject, setSource } from "@/features/projects/api/projects";
+import { useProjectEvents } from "@/features/projects/hooks/useProjectEvents";
+import { BrollPanel, actionErrorNotice } from "./panels/BrollPanel";
+import { CaptionPreview } from "./panels/CaptionPreview";
+import { EditPlanPanel } from "./panels/EditPlanPanel";
+import { PhraseEditor } from "./panels/PhraseEditor";
+import { StageProgress } from "./panels/StageProgress";
+import { UploadDropzone } from "@/features/projects/components/UploadDropzone";
 
 const RUNNING: Project["status"][] = ["transcribing", "planning", "generating", "rendering"];
 
-export function ProjectPage() {
+export default function EditorPage() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
   const project = useQuery({ queryKey: ["project", id], queryFn: () => getProject(id) });
