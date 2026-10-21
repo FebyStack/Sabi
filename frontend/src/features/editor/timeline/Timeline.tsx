@@ -1,7 +1,7 @@
 import { useRef, type PointerEvent, type WheelEvent } from "react";
 import { toSourceTime } from "@shared/editing/cuts";
 import { enabledCuts } from "@shared/editing/renderProps";
-import type { Action, Project } from "@shared/types";
+import type { Action, Cut, Project } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { previewOf } from "../actions/preview";
@@ -16,7 +16,10 @@ type Props = { project: Project; store: EditorStore; commit: (actions: Action[])
 
 // Touch-first, in source time (enabled cuts shaded); the Player runs output time. Pointer events feed the pure gesture reducer.
 export function Timeline({ project, store, commit, onPlay, onSeek, onGenerate }: Props) {
-  const s = useEditorStore(store, (x) => x);
+  const s = { // slices: the playhead has its own component, so playback does not re-render every block
+    drag: useEditorStore(store, (x) => x.drag), zoom: useEditorStore(store, (x) => x.zoom),
+    selection: useEditorStore(store, (x) => x.selection), changed: useEditorStore(store, (x) => x.changed),
+  };
   const scroller = useRef<HTMLDivElement>(null);
   const gesture = useRef<GestureState>({ pointers: [], mode: "idle" });
   const all = blocks(previewOf(project, s.drag));
@@ -34,7 +37,8 @@ export function Timeline({ project, store, commit, onPlay, onSeek, onGenerate }:
       if (e.type === "preview") store.set({ drag: { actions: e.actions } });
       else if (e.type === "clear") store.set({ drag: null });
       else if (e.type === "commit") void commit(e.actions);
-      else if (e.type === "select") store.set({ selection: e.selected });
+      else if (e.type === "select") store.set({ selection: e.selected, deleting: false });
+      else if (e.type === "delete") store.set({ selection: e.selected, deleting: true });
       else if (e.type === "seek") onSeek(e.ms);
       else if (e.type === "pan" && scroller.current) scroller.current.scrollLeft -= e.dx;
       else if (e.type === "zoom") {
@@ -83,7 +87,6 @@ export function Timeline({ project, store, commit, onPlay, onSeek, onGenerate }:
     if (effect === "play") onPlay();
     else run([effect]);
   };
-  const playheadPx = msToPx(toSourceTime(s.playheadMs, cuts), s.zoom);
   const changed = new Set(s.changed?.ids ?? []);
 
   return (
@@ -104,7 +107,7 @@ export function Timeline({ project, store, commit, onPlay, onSeek, onGenerate }:
               {all.filter((b) => b.track === t).map((b) => (
                 <div key={b.id} role="listitem" className="absolute inset-y-1" style={{ left: msToPx(b.startMs, s.zoom), width: blockWidthPx(b, s.zoom) }}>
                   <button type="button" data-id={b.id} aria-label={blockLabel(b)} aria-pressed={s.selection?.id === b.id}
-                    onKeyDown={(e) => onKeyDown(e, b)} onFocus={() => store.set({ selection: { kind: b.kind, id: b.id } })}
+                    onKeyDown={(e) => onKeyDown(e, b)} onFocus={() => store.get().selection?.id !== b.id && store.set({ selection: { kind: b.kind, id: b.id }, deleting: false })}
                     className={`relative size-full overflow-visible rounded-1 px-1 text-left text-[11px] leading-tight text-surface-0 ${b.tone} ${b.muted ? "opacity-40" : ""} ${s.selection?.id === b.id ? "ring-2 ring-ink" : ""} ${changed.has(b.id) ? "pulse" : ""}`}
                     style={{ width: blockWidthPx(b, s.zoom) }}>
                     <span className="block truncate">{b.label}</span>
@@ -118,7 +121,7 @@ export function Timeline({ project, store, commit, onPlay, onSeek, onGenerate }:
           {cuts.map((c) => (
             <span key={c.id} data-cut-band aria-hidden className="pointer-events-none absolute bottom-0 top-6 bg-cut/30" style={{ left: msToPx(c.startMs, s.zoom), width: msToPx(c.endMs - c.startMs, s.zoom) }} />
           ))}
-          <span data-playhead aria-hidden className="pointer-events-none absolute inset-y-0 w-0.5 bg-accent" style={{ left: playheadPx }} />
+          <Playhead store={store} cuts={cuts} zoom={s.zoom} />
         </div>
       </div>
       <div className="flex items-center justify-end gap-2 p-1 text-xs text-ink-muted">
@@ -128,4 +131,10 @@ export function Timeline({ project, store, commit, onPlay, onSeek, onGenerate }:
       </div>
     </div>
   );
+}
+
+// The Player runs output time; the playhead is drawn in source time.
+function Playhead({ store, cuts, zoom }: { store: EditorStore; cuts: Cut[]; zoom: number }) {
+  const ms = useEditorStore(store, (x) => x.playheadMs);
+  return <span data-playhead aria-hidden className="pointer-events-none absolute inset-y-0 w-0.5 bg-accent" style={{ left: msToPx(toSourceTime(ms, cuts), zoom) }} />;
 }

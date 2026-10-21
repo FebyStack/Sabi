@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Action, EmphasisKind, Phrase, Project } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -17,6 +17,12 @@ export function phraseEdits(phrases: Phrase[], texts: Record<string, string>): A
     return t && t !== textOf(p) ? [{ type: "editPhrase" as const, phraseId: p.id, text: t }] : [];
   });
 }
+// After a project change, a draft survives unless its phrase is gone or its saved text changed (an edit landed, here or from the agent).
+export function keepDrafts(prev: Phrase[], next: Phrase[], texts: Record<string, string>): Record<string, string> {
+  const before = new Map(prev.map((p) => [p.id, textOf(p)]));
+  const after = new Map(next.map((p) => [p.id, textOf(p)]));
+  return Object.fromEntries(Object.entries(texts).filter(([id]) => after.has(id) && after.get(id) === before.get(id)));
+}
 export const nextEmphasis = (e: EmphasisKind | undefined) => CYCLE[(CYCLE.indexOf(e ?? null) + 1) % CYCLE.length];
 
 type Props = { project: Project; store: EditorStore; commit: (actions: Action[]) => Promise<void>; busy: boolean; onGenerate: () => void };
@@ -24,7 +30,11 @@ type Props = { project: Project; store: EditorStore; commit: (actions: Action[])
 export function CaptionsPanel({ project, store, commit, busy, onGenerate }: Props) {
   const selected = useEditorStore(store, (s) => (s.selection?.kind === "phrase" ? s.selection.id : null));
   const [texts, setTexts] = useState<Record<string, string>>({});
-  useEffect(() => setTexts({}), [project.phrases]); // a saved edit (or the agent's) resets the drafts
+  const shown = useRef(project.phrases);
+  useEffect(() => { // a word-chip or emoji tap must not wipe a sentence being typed
+    setTexts((t) => keepDrafts(shown.current, project.phrases, t));
+    shown.current = project.phrases;
+  }, [project.phrases]);
   useEffect(() => { if (selected) document.getElementById(`phrase-${selected}`)?.scrollIntoView({ block: "nearest" }); }, [selected]);
   if (!project.phrases.length) return <Notice tone="info" action={{ label: "Generate captions", onClick: onGenerate }}>No captions yet.</Notice>;
   const edits = phraseEdits(project.phrases, texts);

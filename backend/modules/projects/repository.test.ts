@@ -1,4 +1,4 @@
-import { MemoryProjectRepository, StaleVersion } from "./repository";
+import { MemoryProjectRepository, StaleVersion, toProject } from "./repository";
 import type { Project } from "../../../shared/types";
 
 const base: Project = {
@@ -72,5 +72,20 @@ describe("MemoryProjectRepository brand and motion graphics", () => {
     };
     await repo.update("p1", { brand, motionGraphics: [mg] });
     expect(await repo.get("p1")).toMatchObject({ brand, motionGraphics: [mg] });
+  });
+});
+
+describe("PgProjectRepository rows", () => {
+  it("a stored font outside the bundled set reads back as Inter, so one old row never breaks the app", () => {
+    const row = {
+      id: "p1", title: "t", aspect_ratio: "9:16", media_source: "stock", status: "ready", source_asset_id: null, source_kind: null, language: null, caption_template_id: "clean",
+      transcript: null, phrases: [], outputs: {}, warnings: [], source_duration_ms: null, edit_plan: null, translations: [], burn_in_language: null, overlays: [], credits_used_cents: 0,
+      brand: { palette: { primary: "#111111", accent: "#222222", text: "#FFFFFF", background: "#000000" }, fontFamily: "Helvetica", logoAssetId: null, grade: 0.4 },
+      motion_graphics: [], caption_style: { fontFamily: "Comic Sans", sizePx: 80 }, demo: false, created_at: new Date(0), updated_at: new Date(0),
+    } as unknown as Parameters<typeof toProject>[0];
+    const p = toProject(row);
+    expect(p.brand!.fontFamily).toBe("Inter");
+    expect(p.captionStyle).toEqual({ sizePx: 80 });
+    expect(toProject({ ...row, brand: { ...row.brand!, fontFamily: "Poppins" }, caption_style: null }).brand!.fontFamily).toBe("Poppins");
   });
 });

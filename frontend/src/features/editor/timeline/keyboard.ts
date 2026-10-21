@@ -6,15 +6,13 @@ import { blocks, dragBounds, dragToActions } from "./layout";
 const STEP_MS = 100, BIG_STEP_MS = 1000;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-// ←/→ nudge the selection (Shift: 1 s): overlays/MGs and phrases move whole, a shot moves its end edge. Delete removes a layer.
+// ←/→ nudge the selection (Shift: 1 s): overlays/MGs and phrases move whole, a shot moves its end edge. Delete asks to remove a layer.
 export function keyToEffect(key: string, shift: boolean, selected: Selected | null, project: Project): Effect | "play" | null {
   if (key === " ") return "play";
   if (key === "Escape") return { type: "select", selected: null };
   if (!selected) return null;
   if (key === "Delete" || key === "Backspace") {
-    if (selected.kind === "overlay") return { type: "commit", actions: [{ type: "removeOverlay", overlayId: selected.id }] };
-    if (selected.kind === "mg") return { type: "commit", actions: [{ type: "removeMotionGraphic", mgId: selected.id }] };
-    return null;
+    return selected.kind === "overlay" || selected.kind === "mg" ? { type: "delete", selected } : null; // the selection bar asks first
   }
   if (key !== "ArrowLeft" && key !== "ArrowRight") return null;
   const block = blocks(project).find((b) => b.id === selected.id && b.kind === selected.kind);

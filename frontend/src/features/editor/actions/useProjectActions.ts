@@ -30,6 +30,7 @@ export function useProjectActions(projectId: string, store: EditorStore) {
   const [pending, setPending] = useState(0);
   const { data } = useQuery({ queryKey: key, queryFn: () => getProject(projectId) });
   const seen = useRef<Project | undefined>(undefined);
+  const queue = useRef<Promise<unknown> | null>(null); // the last batch still in flight
 
   useEffect(() => {
     if (!data) return;
@@ -40,8 +41,16 @@ export function useProjectActions(projectId: string, store: EditorStore) {
     return () => clearTimeout(t);
   }, [data, store]);
 
+  // One batch at a time: each reads the version the previous one produced (a double tap is never its own conflict).
+  // Nothing in flight → at once, so the optimistic patch lands this tick.
+  const send = (actions: Action[], undoable: boolean): Promise<boolean> => {
+    const next = queue.current ? queue.current.then(() => sendNow(actions, undoable)) : sendNow(actions, undoable);
+    const settled = next.catch(() => false).finally(() => { if (queue.current === settled) queue.current = null; });
+    queue.current = settled;
+    return next;
+  };
   // Sends one batch; true when the server took it.
-  const send = async (actions: Action[], undoable: boolean): Promise<boolean> => {
+  const sendNow = async (actions: Action[], undoable: boolean): Promise<boolean> => {
     const prev = qc.getQueryData<Project>(key);
     if (!prev) return false;
     if (actions.every(isLocalAction)) {

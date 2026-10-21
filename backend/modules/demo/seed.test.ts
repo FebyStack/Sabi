@@ -33,6 +33,17 @@ describe("demo seed", () => {
     expect(await deps.projects.list()).toHaveLength(1);
   });
 
+  it("creates the project before its assets (assets.project_id is a foreign key in Postgres)", async () => {
+    const deps = makeTestDeps();
+    const create = deps.assets.create.bind(deps.assets);
+    deps.assets.create = async (a) => {
+      if (a.projectId && !(await deps.projects.get(a.projectId))) throw new Error(`fk violation: project ${a.projectId} missing`);
+      return create(a);
+    };
+    expect(await seedDemo(deps, bundle())).toMatchObject({ id: "demo" });
+    expect(await deps.assets.get("demo-src")).toBeTruthy();
+  });
+
   it("does not seed when projects exist", async () => {
     const deps = makeTestDeps();
     await deps.projects.create(editorProject({ id: "mine" }));

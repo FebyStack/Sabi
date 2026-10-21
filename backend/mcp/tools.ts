@@ -198,7 +198,7 @@ const TOOLS = {
       overlayId: z.string().optional().describe("broll only: re-pick just this overlay (next stock result or a new generation)"),
       query: z.string().max(200).optional().describe("broll + overlayId only: new stock search words"),
       prompt: z.string().max(600).optional().describe("broll + overlayId only: new generation prompt"),
-      scale: z.union([z.literal(1), z.literal(2)]).optional().describe("render only: 2 = 4K, 1 = 1080p (default 1)"),
+      scale: z.union([z.literal(1), z.literal(2)]).optional().describe("render only: 2 = 4K, 1 = 1080p (default: the last export's resolution)"),
     },
     run: async (api: SabiApi, i: {
       projectId: string; kind: "captions" | "plan" | "render" | "broll"; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;

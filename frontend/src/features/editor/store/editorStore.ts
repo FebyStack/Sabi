@@ -10,11 +10,12 @@ export type EditorState = {
   selection: Selected | null; playheadMs: number; zoom: number; drag: DragPreview | null;
   undo: UndoEntry[]; redo: UndoEntry[]; conflict: Conflict | null;
   changed: { ids: string[]; at: number } | null; notice: string | null;
+  deleting: boolean; // the selection bar's "Delete?" confirm is open (Delete/Backspace on a focused layer)
 };
 export type EditorStore = ReturnType<typeof createEditorStore>;
 
 export const initialEditorState: EditorState = {
-  selection: null, playheadMs: 0, zoom: 1, drag: null, undo: [], redo: [], conflict: null, changed: null, notice: null,
+  selection: null, playheadMs: 0, zoom: 1, drag: null, undo: [], redo: [], conflict: null, changed: null, notice: null, deleting: false,
 };
 
 export function createEditorStore(initial: Partial<EditorState> = {}) {

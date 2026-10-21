@@ -6,7 +6,7 @@ import type { Selected } from "../store/editorStore";
 import { SelectionBar, nudgeEnd } from "./SelectionBar";
 
 const bar = (project: Project, selected: Selected) => renderToStaticMarkup(
-  <MemoryRouter><SelectionBar project={project} selected={selected} commit={async () => {}} onAdd={() => {}} /></MemoryRouter>);
+  <MemoryRouter><SelectionBar project={project} selected={selected} commit={async () => {}} onAdd={() => {}} confirming={false} onConfirming={() => {}} /></MemoryRouter>);
 const button = (html: string, label: string) => html.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 
 describe("SelectionBar", () => {

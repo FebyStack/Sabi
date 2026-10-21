@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "react-router";
 import { SHOT_KINDS } from "@shared/contract";
 import type { Action, BrollInput, Overlay, Project, ShotKind } from "@shared/types";
@@ -21,10 +20,12 @@ export function nudgeEnd(project: Project, selected: Selected, deltaMs: number):
   return b.kind === "overlay" ? [{ type: "setOverlay", overlayId: b.id, endMs }] : dragToActions(b, b.startMs, endMs);
 }
 
-type Props = { project: Project; selected: Selected; commit: (actions: Action[]) => Promise<void>; onAdd: (input: BrollInput) => void };
+type Props = {
+  project: Project; selected: Selected; commit: (actions: Action[]) => Promise<void>; onAdd: (input: BrollInput) => void;
+  confirming: boolean; onConfirming: (open: boolean) => void; // the "Delete?" sheet, also opened by Delete/Backspace on the timeline
+};
 
-export function SelectionBar({ project, selected, commit, onAdd }: Props) {
-  const [confirm, setConfirm] = useState(false);
+export function SelectionBar({ project, selected, commit, onAdd, confirming: confirm, onConfirming: setConfirm }: Props) {
   const b = blocks(project).find((x) => x.id === selected.id && x.kind === selected.kind);
   if (!b) return null;
   const nudges = (

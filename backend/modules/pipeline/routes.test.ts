@@ -18,6 +18,13 @@ describe("pipeline routes", () => {
     await vi.waitFor(() => expect(renderer.calls.length).toBeGreaterThan(2));
     expect((await untilStatus(a, project.id, "ready")).outputs.resolution).toBe("4k");
     expect(renderer.calls.at(-1)!.scale).toBe(2); // other jobs keep the project's resolution
+    await request(a).post(`/api/projects/${project.id}/render`).send({}); // no scale (MCP run_job render): keep the last export's 4K
+    await vi.waitFor(() => expect(renderer.calls.length).toBeGreaterThan(3));
+    expect((await untilStatus(a, project.id, "ready")).outputs.resolution).toBe("4k");
+    expect(renderer.calls.at(-1)!.scale).toBe(2);
+    await request(a).post(`/api/projects/${project.id}/render`).send({ scale: 1 });
+    await vi.waitFor(() => expect(renderer.calls.length).toBeGreaterThan(4));
+    expect((await untilStatus(a, project.id, "ready")).outputs.resolution).toBe("1080p");
     expect((await request(a).post(`/api/projects/${project.id}/render`).send({ scale: 3 })).body.error).toBe("invalid_input");
   });
 

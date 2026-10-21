@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
-import type { Project } from "../../../shared/types";
+import { BRAND_FONTS } from "../../../shared/contract";
+import type { BrandFont, Project } from "../../../shared/types";
 
 export interface ProjectRepository {
   list(): Promise<Project[]>;
@@ -53,13 +54,22 @@ type Row = {
   overlays: Project["overlays"]; credits_used_cents: number; brand: Project["brand"]; motion_graphics: Project["motionGraphics"];
   caption_style: Project["captionStyle"]; demo: boolean; created_at: Date; updated_at: Date;
 };
-const toProject = (r: Row): Project => ({
+// Rows written before the font enum (plan 4) may name any font; read them as a bundled one instead of failing every client's parse.
+const isBrandFont = (f: unknown): f is BrandFont => (BRAND_FONTS as readonly unknown[]).includes(f);
+const knownFonts = (brand: Project["brand"], style: Project["captionStyle"]) => {
+  const { fontFamily, ...rest } = style ?? {};
+  return {
+    brand: brand && (isBrandFont(brand.fontFamily) ? brand : { ...brand, fontFamily: "Inter" as const }),
+    captionStyle: style && (fontFamily === undefined || isBrandFont(fontFamily) ? style : rest),
+  };
+};
+export const toProject = (r: Row): Project => ({
   id: r.id, title: r.title, aspectRatio: r.aspect_ratio, mediaSource: r.media_source, status: r.status,
   sourceAssetId: r.source_asset_id, sourceKind: r.source_kind ?? null, language: r.language, captionTemplateId: r.caption_template_id,
   transcript: r.transcript, phrases: r.phrases ?? [], outputs: r.outputs ?? {}, warnings: r.warnings ?? [],
   sourceDurationMs: r.source_duration_ms ?? null, editPlan: r.edit_plan ?? null, translations: r.translations ?? [], burnInLanguage: r.burn_in_language ?? null,
-  overlays: r.overlays ?? [], creditsUsedCents: r.credits_used_cents ?? 0, brand: r.brand ?? null, motionGraphics: r.motion_graphics ?? [],
-  captionStyle: r.caption_style ?? null, demo: r.demo ?? false, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString(),
+  overlays: r.overlays ?? [], creditsUsedCents: r.credits_used_cents ?? 0, motionGraphics: r.motion_graphics ?? [],
+  ...knownFonts(r.brand ?? null, r.caption_style ?? null), demo: r.demo ?? false, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString(),
 });
 const COL: Record<keyof Omit<Project, "id" | "createdAt" | "updatedAt">, string> = {
   title: "title", aspectRatio: "aspect_ratio", mediaSource: "media_source", status: "status", sourceAssetId: "source_asset_id",

@@ -125,7 +125,7 @@ export const ProjectSchema = z.object({
 
 export const SetSourceInput = z.object({ assetId: z.string().min(1) });
 export const RunInput = z.object({ language: z.string().min(2).max(8).optional() });
-export const RenderInput = z.object({ scale: z.union([z.literal(1), z.literal(2)]).default(1) }); // 2 = 4K
+export const RenderInput = z.object({ scale: z.union([z.literal(1), z.literal(2)]).optional() }); // 2 = 4K; absent = the last export's resolution
 export const PlanInput = z
   .object({ languages: z.array(TranslationLanguage).max(3).default([]), burnInLanguage: TranslationLanguage.nullable().default(null) })
   .refine((v) => v.burnInLanguage === null || v.languages.includes(v.burnInLanguage), { message: "burn_in_not_translated", path: ["burnInLanguage"] });

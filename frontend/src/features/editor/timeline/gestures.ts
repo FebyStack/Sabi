@@ -12,7 +12,7 @@ export type GestureState = {
   pinch?: { startDist: number; startZoom: number; anchorMs: number }; pendingHit?: Hit;
 };
 export type Effect = { type: "preview"; actions: Action[] } | { type: "commit"; actions: Action[] } | { type: "select"; selected: Selected | null } | { type: "seek"; ms: number }
-  | { type: "zoom"; zoom: number; anchorMs: number } | { type: "pan"; dx: number } | { type: "clear" };
+  | { type: "zoom"; zoom: number; anchorMs: number } | { type: "pan"; dx: number } | { type: "clear" } | { type: "delete"; selected: Selected };
 export type GestureCtx = { zoom: number; bounds: (b: Block, h: Handle) => { minMs: number; maxMs: number }; snap: (ms: number) => number };
 export const SLOP_PX = 6;
 

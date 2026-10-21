@@ -13,9 +13,10 @@ export async function seedDemo(deps: AppDeps, dir = resolve("database/seed/demo"
   if ((await deps.projects.list()).length) return null;
   const { project, assets } = Manifest.parse(JSON.parse(await readFile(join(dir, "manifest.json"), "utf8")));
   const now = deps.now().toISOString();
+  const created = await deps.projects.create({ ...project, demo: true, createdAt: now, updatedAt: now }); // first: assets.project_id references it
   for (const a of assets) {
     await deps.storage.write(`demo/${a.key}`, createReadStream(join(dir, a.key)));
     await deps.assets.create({ ...a, key: `demo/${a.key}`, createdAt: now });
   }
-  return deps.projects.create({ ...project, demo: true, createdAt: now, updatedAt: now });
+  return created;
 }

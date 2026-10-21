@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { editorProject } from "@shared/editing/fixtures";
 import type { Project } from "@shared/types";
 import { createEditorStore, type Selected } from "../store/editorStore";
-import { CaptionsPanel, nextEmphasis, phraseEdits } from "./CaptionsPanel";
+import { CaptionsPanel, keepDrafts, nextEmphasis, phraseEdits } from "./CaptionsPanel";
 
 const panel = (project: Project, selection: Selected | null = null) =>
   renderToStaticMarkup(<CaptionsPanel project={project} store={createEditorStore({ selection })} commit={async () => {}} busy={false} onGenerate={() => {}} />);
@@ -13,6 +13,16 @@ describe("CaptionsPanel", () => {
     expect(phraseEdits(p.phrases, { "ph-0": "Morning routines", "ph-1": "  that   sticks ", "ph-2": "   " }))
       .toEqual([{ type: "editPhrase", phraseId: "ph-1", text: "that sticks" }]);
     expect(phraseEdits(p.phrases, {})).toEqual([]);
+  });
+
+  it("a highlight or emoji change keeps unsaved text drafts; a saved text change drops only its own", () => {
+    const prev = editorProject().phrases;
+    const drafts = { "ph-0": "Evening routines", "ph-1": "that sticks" };
+    const emphasised = prev.map((p, i) => (i ? p : { ...p, words: [{ ...p.words[0], emphasis: "noun" as const }, p.words[1]], emoji: "🛏️" }));
+    expect(keepDrafts(prev, emphasised, drafts)).toEqual(drafts);
+    const edited = prev.map((p, i) => (i === 1 ? { ...p, words: [{ ...p.words[0], text: "this" }, p.words[1]] } : p));
+    expect(keepDrafts(prev, edited, drafts)).toEqual({ "ph-0": "Evening routines" });
+    expect(keepDrafts(prev, prev.slice(1), drafts)).toEqual({ "ph-1": "that sticks" });
   });
 
   it("word chips expose the emphasis state", () => {

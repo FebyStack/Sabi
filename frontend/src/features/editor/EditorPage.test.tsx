@@ -5,7 +5,7 @@ import { editorProject } from "@shared/editing/fixtures";
 import type { Project } from "@shared/types";
 import EditorPage from "./EditorPage";
 import { PlanPanel } from "./panels/PlanPanel";
-import type { EditorState } from "./store/editorStore";
+import { initialEditorState, type EditorState } from "./store/editorStore";
 
 // Keys never reach the markup, so record what every JSX call keys.
 const keyed: [unknown, string | null][] = [];
@@ -19,10 +19,13 @@ vi.mock("@tanstack/react-query", async (orig) => {
   const o = await orig<typeof import("@tanstack/react-query")>();
   return { ...o, useMutation: vi.fn(o.useMutation) };
 });
-const initial = vi.hoisted(() => ({ state: {} as Partial<EditorState> }));
+const initial = vi.hoisted(() => ({ state: {} as Partial<EditorState>, selectors: [] as ((s: EditorState) => unknown)[] }));
 vi.mock("./store/editorStore", async (orig) => {
   const o = await orig<typeof import("./store/editorStore")>();
-  return { ...o, createEditorStore: () => o.createEditorStore(initial.state) };
+  return {
+    ...o, createEditorStore: () => o.createEditorStore(initial.state),
+    useEditorStore: (store: Parameters<typeof o.useEditorStore>[0], select: (s: EditorState) => unknown) => { initial.selectors.push(select); return o.useEditorStore(store, select); },
+  };
 });
 
 const project = editorProject({ id: "A", transcript: { language: "en", words: editorProject().phrases.flatMap((p) => p.words) } });
@@ -38,7 +41,7 @@ function page(p: Project, tab = "") {
 }
 
 describe("EditorPage", () => {
-  beforeEach(() => { keyed.length = 0; previewed.length = 0; initial.state = {}; vi.mocked(useMutation).mockReset(); });
+  beforeEach(() => { keyed.length = 0; previewed.length = 0; initial.state = {}; initial.selectors.length = 0; vi.mocked(useMutation).mockReset(); });
 
   it("keys the plan panel by project id, so its draft state resets on /p/A → /p/B", () => {
     page(project, "broll");
@@ -75,5 +78,13 @@ describe("EditorPage", () => {
   it("a selection shows the selection bar", () => {
     initial.state = { selection: { kind: "shot", id: "shot-1" } };
     expect(page(project)).toContain('aria-label="Shot kind"');
+  });
+
+  it("playback re-renders only what draws the playhead", () => {
+    page(project);
+    const a = { ...initialEditorState, selection: { kind: "shot" as const, id: "shot-1" }, undo: [], drag: null };
+    const b = { ...a, playheadMs: 4321 };
+    expect(initial.selectors.length).toBeGreaterThan(3);
+    for (const select of initial.selectors) expect(Object.is(select(a), select(b)) || select(b) === 4321).toBe(true);
   });
 });

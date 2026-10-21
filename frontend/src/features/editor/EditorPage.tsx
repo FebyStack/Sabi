@@ -25,7 +25,7 @@ import { CaptionsPanel } from "./panels/CaptionsPanel";
 import { ExportPanel } from "./panels/ExportPanel";
 import { stageView } from "./panels/progressModel";
 import { StageProgress } from "./panels/StageProgress";
-import { createEditorStore, useEditorStore } from "./store/editorStore";
+import { createEditorStore, useEditorStore, type EditorStore } from "./store/editorStore";
 import { SelectionBar } from "./timeline/SelectionBar";
 import { Timeline } from "./timeline/Timeline";
 import { mss } from "./timeline/layout";
@@ -38,7 +38,11 @@ export default function EditorPage() {
   const desktop = useMediaQuery("(min-width: 1024px)");
   const qc = useQueryClient();
   const store = useMemo(() => createEditorStore(), [id]); // a fresh editor state per project
-  const s = useEditorStore(store, (x) => x);
+  // Slices, not the whole store: the playhead changes 30×/s while playing and only the Clock and the Timeline's Playhead draw it.
+  const s = {
+    selection: useEditorStore(store, (x) => x.selection), drag: useEditorStore(store, (x) => x.drag), conflict: useEditorStore(store, (x) => x.conflict),
+    notice: useEditorStore(store, (x) => x.notice), deleting: useEditorStore(store, (x) => x.deleting), canUndo: useEditorStore(store, (x) => x.undo.length > 0), canRedo: useEditorStore(store, (x) => x.redo.length > 0),
+  };
   const project = useQuery({ queryKey: ["project", id], queryFn: () => getProject(id) });
   const exporting = useRef(false); // the next finished captions-kind job is the export render, not a captions run
   const events = useProjectEvents(id, (job) => {
@@ -91,10 +95,10 @@ export default function EditorPage() {
     <div className="flex flex-wrap items-center gap-2 py-2">
       <Link to="/" aria-label="All projects" className="grid min-h-11 min-w-11 place-items-center text-ink-muted">←</Link>
       <Button size="sm" aria-label="Play or pause" onClick={() => playerRef.current?.toggle()}>⏯</Button>
-      <span className="text-sm tabular-nums text-ink-muted">{mss(s.playheadMs)} / {mss(mapTime(durationMs, cuts))}</span>
+      <span className="text-sm tabular-nums text-ink-muted"><Clock store={store} /> / {mss(mapTime(durationMs, cuts))}</span>
       <span className="ml-auto flex gap-1">
-        <Button size="sm" aria-label="Undo" disabled={!s.undo.length || busy} onClick={() => void undo()}>↶</Button>
-        <Button size="sm" aria-label="Redo" disabled={!s.redo.length || busy} onClick={() => void redo()}>↷</Button>
+        <Button size="sm" aria-label="Undo" disabled={!s.canUndo || busy} onClick={() => void undo()}>↶</Button>
+        <Button size="sm" aria-label="Redo" disabled={!s.canRedo || busy} onClick={() => void redo()}>↷</Button>
       </span>
       {progress && <div className="basis-full"><StageProgress view={progress} /></div>}
     </div>
@@ -109,7 +113,8 @@ export default function EditorPage() {
         {failure && <Notice tone="error">Failed: {failure}</Notice>}
       </div>
       {p.warnings.includes("no_speech") && <Notice tone="warn">No speech detected in this clip.</Notice>}
-      {s.selection && <SelectionBar project={p} selected={s.selection} commit={edit} onAdd={(input) => broll.mutate(input)} />}
+      {s.selection && <SelectionBar project={p} selected={s.selection} commit={edit} onAdd={(input) => broll.mutate(input)}
+        confirming={s.deleting} onConfirming={(deleting) => store.set({ deleting })} />}
     </div>
   );
   const panels: Record<typeof panelTab, React.ReactNode> = {
@@ -129,6 +134,10 @@ export default function EditorPage() {
     <EditorLayout tab={panelTab} onTab={() => {}} preview={preview} transport={transport} banner={banner} panel={panels[panelTab]}
       timeline={<Timeline project={p} store={store} commit={edit} onPlay={() => playerRef.current?.toggle()} onSeek={seek} onGenerate={() => run.mutate()} />} />
   );
+}
+
+function Clock({ store }: { store: EditorStore }) {
+  return <>{mss(useEditorStore(store, (x) => x.playheadMs))}</>;
 }
 
 function Header({ p }: { p: Project }) {

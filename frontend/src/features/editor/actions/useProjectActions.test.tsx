@@ -76,6 +76,21 @@ describe("useProjectActions", () => {
     expect(store.get()).toMatchObject({ undo: [{ inverse: [{ type: "setTitle", title: "Morning" }] }], redo: [] });
   });
 
+  it("quick successive commits go out one at a time, each on the version the previous one produced", async () => {
+    const { store, api, cached } = setup();
+    const first = deferred<ReturnType<typeof saved>>();
+    post.mockReturnValueOnce(first.promise as never).mockResolvedValueOnce(saved(editorProject(), "v3") as never);
+    const c1 = api.commit([{ type: "setOverlay", overlayId: "ov-0", endMs: 8500 }]);
+    const c2 = api.commit([{ type: "setOverlay", overlayId: "ov-0", endMs: 8000 }]); // a double tap, before the first answer
+    await Promise.resolve();
+    expect(post).toHaveBeenCalledTimes(1);
+    first.resolve(saved({ ...cached(), overlays: [{ ...cached().overlays[0], endMs: 8500 }] }, "v2"));
+    await Promise.all([c1, c2]);
+    expect(post.mock.calls.map(([, body]) => body.baseVersion)).toEqual(["v1", "v2"]);
+    expect(store.get().conflict).toBeNull();
+    expect(cached().updatedAt).toBe("v3");
+  });
+
   it("refused and busy edits restore the cache and explain", async () => {
     const { store, api, cached } = setup();
     post.mockRejectedValueOnce(new Error("busy"));
