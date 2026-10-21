@@ -1,4 +1,7 @@
-import { sharedBrowser } from "./renderer";
+import { chmodSync, mkdirSync, mkdtempSync, statSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ownBundleDir, sharedBrowser } from "./renderer";
 
 type B = { id: number; close: () => Promise<void> };
 const opener = () => {
@@ -33,5 +36,26 @@ describe("sharedBrowser", () => {
     const b = sharedBrowser(open);
     await expect(b.get()).rejects.toThrow("no chrome");
     expect((await b.get()).id).toBe(7);
+  });
+});
+
+describe("ownBundleDir", () => {
+  const base = () => mkdtempSync(join(tmpdir(), "bundle-dir-"));
+
+  it("creates the bundle folder private to this user", async () => {
+    const dir = join(base(), "b");
+    await ownBundleDir(dir);
+    expect(statSync(dir).mode & 0o777).toBe(0o700);
+    await ownBundleDir(dir); // an existing private folder is fine
+  });
+
+  it("refuses a planted symlink or a folder others can write", async () => {
+    const b = base();
+    mkdirSync(join(b, "real"));
+    symlinkSync(join(b, "real"), join(b, "link"));
+    await expect(ownBundleDir(join(b, "link"))).rejects.toThrow("unsafe_bundle_dir");
+    mkdirSync(join(b, "open"));
+    chmodSync(join(b, "open"), 0o777);
+    await expect(ownBundleDir(join(b, "open"))).rejects.toThrow("unsafe_bundle_dir");
   });
 });

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { lstat, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -8,6 +8,14 @@ import { join, resolve } from "node:path";
 export const defaultBrowserExecutable = () => process.env.REMOTION_BROWSER_EXECUTABLE ?? null;
 // In the temp folder (the npm scripts put TMPDIR on the Mac disk), one per checkout so parallel worktrees don't collide.
 export const defaultBundleDir = () => join(tmpdir(), `sabi-remotion-bundle-${createHash("sha1").update(process.cwd()).digest("hex").slice(0, 8)}`);
+
+// The bundle is code the render browser runs: refuse a folder another user could have planted (symlink, foreign owner, writable by others).
+export async function ownBundleDir(dir: string): Promise<void> {
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const st = await lstat(dir);
+  const foreign = typeof process.getuid === "function" && st.uid !== process.getuid();
+  if (st.isSymbolicLink() || !st.isDirectory() || foreign || (st.mode & 0o022) !== 0) throw new Error(`unsafe_bundle_dir: ${dir}`);
+}
 
 // One browser per process, opened on first use and shared by every render and still (a launch costs ~0.5–1.5 s).
 // After a failed render the browser is closed and the next call opens a fresh one; a failed launch is not cached.
@@ -59,8 +67,8 @@ export class RemotionRenderer implements Renderer {
   constructor(private opts: { entry: string; bundleDir?: string; browserExecutable?: string | null }) {}
 
   private bundleOnce() {
-    this.serveUrl ??= import("@remotion/bundler").then(({ bundle }) =>
-      bundle({ entryPoint: resolve(this.opts.entry), outDir: resolve(this.opts.bundleDir ?? defaultBundleDir()) }))
+    const outDir = resolve(this.opts.bundleDir ?? defaultBundleDir());
+    this.serveUrl ??= ownBundleDir(outDir).then(() => import("@remotion/bundler")).then(({ bundle }) => bundle({ entryPoint: resolve(this.opts.entry), outDir }))
       .catch((err) => { this.serveUrl = null; throw err; });
     return this.serveUrl;
   }
