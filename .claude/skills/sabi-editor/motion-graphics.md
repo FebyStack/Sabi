@@ -13,7 +13,7 @@ A motion graphic (MG) is a small Remotion component you write. Sabi draws it ins
 - In scope, and nothing else: `React, AbsoluteFill, Img, Easing, interpolate, interpolateColors, random, spring, useCurrentFrame, useVideoConfig`.
 - Your component receives `{ item }`:
   - `item.props` — your declared props as `{ key: value }` (image props arrive as URLs);
-  - `item.brand` — `{ primary, accent, text, background, fontFamily, logoUrl, grade }`, the kit or the caption template's colours when there is none;
+  - `item.brand` — `{ primary, accent, text, background, fontFamily, logoUrl, grade }`, the kit or the caption template's colours when there is none; `fontFamily` is the loaded CSS family of a bundled font (e.g. `Montserrat Variable`), so use it as `` `${b.fontFamily}, system-ui, sans-serif` ``;
   - `item.width`, `item.height` — the box in pixels; `item.durationInFrames` — the MG's own length (30 fps).
   `useCurrentFrame()` counts from the MG's start.
 - Skeleton:

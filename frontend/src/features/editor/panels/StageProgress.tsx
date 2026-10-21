@@ -7,7 +7,7 @@ export function StageProgress({ view }: { view: { stage: Stage; pct: number } })
       <ol className="flex gap-1 text-[11px]">
         {STAGES.map((s, i) => (
           <li key={s} aria-current={i === current ? "step" : undefined}
-            className={`flex-1 truncate rounded-1 px-1 py-1.5 text-center ${i < current ? "bg-surface-2 text-ink" : i === current ? "bg-accent text-accent-ink" : "bg-surface-1 text-ink-muted"}`}>
+            className={`min-w-0 flex-1 truncate rounded-1 px-1 py-1.5 text-center ${i < current ? "bg-surface-2 text-ink" : i === current ? "bg-accent text-accent-ink" : "bg-surface-1 text-ink-muted"}`}>
             {STAGE_LABELS[s]}
           </li>
         ))}

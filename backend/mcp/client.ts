@@ -4,7 +4,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream } from "node:stream/web";
 import { api } from "../../shared/contract";
-import type { ApplyActionsInput, ApplyActionsResult, Asset, BrollInput, JobState, PlanInput, Project } from "../../shared/types";
+import type { ApplyActionsInput, ApplyActionsResult, Asset, BrollInput, JobState, PlanInput, Project, RenderInput } from "../../shared/types";
 
 export class SabiUnreachable extends Error {
   constructor(readonly baseUrl: string) { super(`Sabi API not reachable at ${baseUrl}`); }
@@ -45,7 +45,7 @@ export class SabiApi {
   applyActions(id: string, input: ApplyActionsInput) { return this.json<ApplyActionsResult>(api.projectActions(id), "POST", input); }
   run(id: string) { return this.json<{ jobId: string }>(api.projectRun(id), "POST", {}); }
   plan(id: string, input: PlanInput) { return this.json<{ jobId: string }>(api.projectPlan(id), "POST", input); }
-  render(id: string) { return this.json<{ jobId: string }>(api.projectRender(id), "POST"); }
+  render(id: string, input: RenderInput = {}) { return this.json<{ jobId: string }>(api.projectRender(id), "POST", input); }
   broll(id: string, input: BrollInput) { return this.json<{ jobId: string }>(api.projectBroll(id), "POST", input); }
 
   // The API clamps t and w; the header carries the time actually drawn.

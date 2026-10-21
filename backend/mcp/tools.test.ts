@@ -7,6 +7,7 @@ import { createApp } from "../app/app";
 import { readyProject } from "../shared/apiTestHelpers";
 import type { AppDeps } from "../shared/deps";
 import { FakeLlm } from "../shared/llm";
+import { FakeRenderer } from "../shared/renderer";
 import { makeTestDeps } from "../shared/testing";
 import type { Project } from "../../shared/types";
 import { SabiApi } from "./client";
@@ -233,8 +234,35 @@ describe("sabi mcp tools", () => {
     expect(summary.text).toContain("brand #1E90FF Inter grade 0.4");
   });
 
+  it("summary flags stale outputs", async () => {
+    const edit = await callTool(api, "apply_actions", { projectId: project.id, baseVersion: project.updatedAt, actions: [{ type: "editPhrase", phraseId: project.phrases[0].id, text: "New words" }] });
+    expect(edit.text).toMatch(/; outputs now stale — run_job render before export_outputs$/);
+    expect((await callTool(api, "inspect_project", { projectId: project.id })).text).toMatch(/^outputs: mp4 \S+ · srt · vtt \(stale\)$/m);
+    const refused = await callTool(api, "export_outputs", { projectId: project.id, outDir: home });
+    expect(refused).toMatchObject({ isError: true, text: "outputs are stale; run_job render first" });
+    await callTool(api, "run_job", { projectId: project.id, kind: "render" });
+    expect((await callTool(api, "wait_job", { projectId: project.id })).isError).toBeFalsy();
+    expect((await callTool(api, "inspect_project", { projectId: project.id })).text).not.toContain("(stale)");
+    expect((await callTool(api, "export_outputs", { projectId: project.id, outDir: home })).isError).toBeFalsy();
+    const title = await callTool(api, "apply_actions", { projectId: project.id, baseVersion: (await api.getProject(project.id)).updatedAt, actions: [{ type: "setTitle", title: "x" }] });
+    expect(title.text).not.toContain("stale");
+  });
+
+  it("run_job render takes a scale", async () => {
+    await callTool(api, "run_job", { projectId: project.id, kind: "render", scale: 2 });
+    await callTool(api, "wait_job", { projectId: project.id });
+    expect((deps.renderer as FakeRenderer).calls.at(-1)!.scale).toBe(2);
+    expect((await api.getProject(project.id)).outputs.resolution).toBe("4k");
+  });
+
+  it("summary shows the caption style", async () => {
+    const set = await callTool(api, "apply_actions", { projectId: project.id, baseVersion: project.updatedAt, actions: [{ type: "setCaptionStyle", style: { sizePx: 72, fontFamily: "Bebas Neue" } }] });
+    expect(set.isError, set.text).toBeFalsy();
+    expect((await callTool(api, "inspect_project", { projectId: project.id })).text).toContain('caption style {"fontFamily":"Bebas Neue","sizePx":72}');
+  });
+
   it("apply_actions lists every action type", () => {
-    for (const t of ["setMediaSource", "setOverlay", "removeOverlay", "replaceOverlay", "setBrand", "addMotionGraphic", "updateMotionGraphic", "removeMotionGraphic"]) {
+    for (const t of ["setMediaSource", "setShotBounds", "retimePhraseRange", "setWordEmphasis", "setPhraseEmoji", "setCaptionStyle", "setOverlay", "removeOverlay", "replaceOverlay", "setBrand", "addMotionGraphic", "updateMotionGraphic", "removeMotionGraphic"]) {
       expect(toolSpec("apply_actions").description).toContain(t);
     }
   });

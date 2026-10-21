@@ -55,6 +55,8 @@ describe("EditorPage", () => {
     const html = page(project);
     expect(html).toContain("Project changed elsewhere — reloaded");
     expect(html).toContain(">Retry</button>");
+    // on a phone the notice floats above the tab bar, so a conflict is never below the fold
+    expect(html).toMatch(/<div data-toasts="" class="fixed [^"]*lg:static[^"]*">.*Project changed elsewhere/s);
   });
 
   it("drag preview patches the preview project", () => {

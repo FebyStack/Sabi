@@ -102,9 +102,12 @@ export default function EditorPage() {
   const banner = (
     <div className="space-y-2">
       <Header p={p} />
-      {s.conflict && <Notice tone="warn" action={{ label: "Retry", onClick: () => void retry() }}>{s.conflict.message} <button type="button" className="ml-2 underline" onClick={dismissConflict}>Dismiss</button></Notice>}
-      {s.notice && <Notice tone="info">{s.notice}</Notice>}
-      {failure && <Notice tone="error">Failed: {failure}</Notice>}
+      {/* Transient notices float above the tab bar on phones (the banner sits below the timeline there), inline on desktop. */}
+      <div data-toasts="" className="fixed inset-x-2 bottom-[calc(64px+env(safe-area-inset-bottom))] z-20 space-y-2 lg:static lg:inset-auto lg:z-auto">
+        {s.conflict && <Notice tone="warn" action={{ label: "Retry", onClick: () => void retry() }}>{s.conflict.message} <button type="button" className="ml-2 min-h-11 underline" onClick={dismissConflict}>Dismiss</button></Notice>}
+        {s.notice && <Notice tone="info">{s.notice}</Notice>}
+        {failure && <Notice tone="error">Failed: {failure}</Notice>}
+      </div>
       {p.warnings.includes("no_speech") && <Notice tone="warn">No speech detected in this clip.</Notice>}
       {s.selection && <SelectionBar project={p} selected={s.selection} commit={edit} onAdd={(input) => broll.mutate(input)} />}
     </div>

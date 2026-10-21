@@ -50,9 +50,10 @@ function summary(p: Project) {
       "shots:", ...capped(p.editPlan.shots.map((s) => `  ${s.id} ${s.kind} ${mmss(s.startMs)}–${mmss(s.endMs)}`), 'section: "plan"'),
       "enabled cuts:", ...capped(on.map((c) => `  ${c.id} ${c.reason} ${mmssd(c.startMs)}–${mmssd(c.endMs)} (on)`), 'section: "plan"'),
     ] : ["no edit plan yet (run_job plan)"]),
-    `outputs: ${o.mp4AssetId ? `mp4 ${o.mp4AssetId}` : "none"}${o.srtAssetId ? " · srt · vtt" : ""}${o.translations?.length ? ` · ${o.translations.map((t) => t.language).join(",")}` : ""}`,
+    `outputs: ${o.mp4AssetId ? `mp4 ${o.mp4AssetId}` : "none"}${o.srtAssetId ? " · srt · vtt" : ""}${o.translations?.length ? ` · ${o.translations.map((t) => t.language).join(",")}` : ""}${o.stale ? " (stale)" : ""}`,
     `overlays ${p.overlays.length} (${p.overlays.filter((o) => o.enabled).length} on${stale.length ? `, ${stale.length} stale` : ""})` +
       ` · motion graphics ${p.motionGraphics.length} · brand ${p.brand ? `${p.brand.palette.primary} ${p.brand.fontFamily} grade ${p.brand.grade}` : "none"}`,
+    ...(p.captionStyle ? [`caption style ${JSON.stringify(p.captionStyle)}`] : []),
     `media source ${p.mediaSource}${p.creditsUsedCents ? ` · ${credits(p)}` : ""}`,
     ...(p.warnings.length ? [`warnings: ${p.warnings.join(", ")}`] : []),
     "times are source time; render_frame takes output time (shown as \"out\" when cuts are on)",
@@ -165,7 +166,8 @@ const TOOLS = {
   },
   apply_actions: {
     description: "Apply typed edits atomically (all or nothing): setTitle, editPhrase, setCut, setShotKind, setTemplate, setBurnIn, " +
-      "setMediaSource, setOverlay, removeOverlay, replaceOverlay, setBrand, addMotionGraphic, updateMotionGraphic, removeMotionGraphic (see the sabi-editor skill). " +
+      "setMediaSource, setOverlay, removeOverlay, replaceOverlay, setBrand, addMotionGraphic, updateMotionGraphic, removeMotionGraphic, " +
+      "setShotBounds, retimePhraseRange, setWordEmphasis, setPhraseEmoji, setCaptionStyle (see the sabi-editor skill). " +
       "Pass the baseVersion from your last inspect_project; render:true also starts a re-render (otherwise verify with render_frame first).",
     inputSchema: {
       projectId,
@@ -176,7 +178,8 @@ const TOOLS = {
     run: async (api: SabiApi, i: { projectId: string; baseVersion: string; actions: z.infer<typeof ActionSchema>[]; render: boolean }) => {
       try {
         const r = await api.applyActions(i.projectId, { baseVersion: i.baseVersion, actions: i.actions, render: i.render });
-        return { text: `applied ${r.applied} action(s); baseVersion now ${r.project.updatedAt}${r.jobId ? `; render job ${r.jobId} started (wait_job)` : ""}` };
+        const stale = r.project.outputs.stale ? "; outputs now stale — run_job render before export_outputs" : "";
+        return { text: `applied ${r.applied} action(s); baseVersion now ${r.project.updatedAt}${r.jobId ? `; render job ${r.jobId} started (wait_job)` : ""}${stale}` };
       } catch (e) {
         if (e instanceof SabiHttpError && e.body.error === "stale") return fail(`project changed since baseVersion ${i.baseVersion} (now ${e.body.currentVersion}); re-run inspect_project`);
         throw e;
@@ -195,15 +198,16 @@ const TOOLS = {
       overlayId: z.string().optional().describe("broll only: re-pick just this overlay (next stock result or a new generation)"),
       query: z.string().max(200).optional().describe("broll + overlayId only: new stock search words"),
       prompt: z.string().max(600).optional().describe("broll + overlayId only: new generation prompt"),
+      scale: z.union([z.literal(1), z.literal(2)]).optional().describe("render only: 2 = 4K, 1 = 1080p (default 1)"),
     },
     run: async (api: SabiApi, i: {
       projectId: string; kind: "captions" | "plan" | "render" | "broll"; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;
-      regenerate?: boolean; overlayId?: string; query?: string; prompt?: string;
+      regenerate?: boolean; overlayId?: string; query?: string; prompt?: string; scale?: 1 | 2;
     }) => {
       const { jobId } = i.kind === "captions" ? await api.run(i.projectId)
         : i.kind === "plan" ? await api.plan(i.projectId, { languages: i.languages ?? [], burnInLanguage: i.burnInLanguage ?? null })
           : i.kind === "broll" ? await api.broll(i.projectId, { regenerate: i.regenerate ?? false, overlayId: i.overlayId, query: i.query, prompt: i.prompt })
-            : await api.render(i.projectId);
+            : await api.render(i.projectId, i.scale === undefined ? {} : { scale: i.scale });
       return { text: `job ${jobId} (${i.kind}) started; next: wait_job` };
     },
   },
@@ -267,6 +271,7 @@ const TOOLS = {
       const p = await api.getProject(i.projectId);
       const o = p.outputs;
       if (!o.mp4AssetId) return fail("no outputs yet; run_job captions (or render) first");
+      if (o.stale) return fail("outputs are stale; run_job render first");
       const title = p.title.replace(/[^\p{L}\p{N} _-]+/gu, "").trim() || p.id;
       const files = (base: string): [string | undefined, string][] => [
         [o.mp4AssetId, `${base}.mp4`], [o.srtAssetId, `${base}.srt`], [o.vttAssetId, `${base}.vtt`],

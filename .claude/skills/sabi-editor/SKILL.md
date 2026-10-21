@@ -7,6 +7,8 @@ description: Edit a Sabi video project through the sabi MCP tools — inspect, a
 
 The `sabi` MCP server is a thin client of the running Sabi API. No model runs inside it: you are the editor, on the user's Claude subscription.
 
+The web editor is open beside you more often than not: the user sees your edits live (changed blocks pulse, "Edited by the agent") and may be dragging on the timeline at the same time. Both of you write through the same actions path with a `baseVersion`; a `stale` answer means they edited first — re-inspect, never retry blindly. The web app no longer renders on edit: after `apply_actions`, the outputs are **stale** until `run_job {kind: "render", scale?: 2}`, and `export_outputs` refuses stale outputs.
+
 ## The loop
 
 1. `list_projects` → pick the id (or `create_project {title, path}` → `run_job captions` → `wait_job`).
@@ -15,10 +17,17 @@ The `sabi` MCP server is a thin client of the running Sabi API. No model runs in
    Once a plan exists, `run_job {kind: "broll"}` → `wait_job` fills every `B-Roll` / `Talking Head & B-Roll` shot with stock (Pexels) or generated (fal.ai) media, by the project's media source. It needs `PEXELS_KEY` or `FAL_KEY` on the API.
 4. `apply_actions {projectId, baseVersion, actions: [...]}` — batch every edit of the turn into one call, `render: false` while iterating. Each result gives the new `baseVersion`; use it next time.
 5. `render_frame {projectId, timestampMs}` at the edited moment to check it. Frames are **output** time: when cuts are on, use the `→ out` / `(out …)` time inspect prints, not the source time.
-6. Happy → `run_job {kind: "render"}` once (or `apply_actions` with `render: true`) → `wait_job`.
+6. Happy → `run_job {kind: "render"}` once (`scale: 2` = 4K; or `apply_actions` with `render: true`) → `wait_job`. Until then the summary's `outputs:` line ends with `(stale)`.
 7. `export_outputs {projectId, outDir}` (an existing folder under the user's home).
 
-Actions: `setTitle {title}`, `editPhrase {phraseId, text}` (timings kept; a different word count is spread over the phrase), `setCut {cutId, shouldTrim}`, `setShotKind {shotId, kind}`, `setTemplate {captionTemplateId: clean|bold|karaoke}`, `setBurnIn {language|null}` (only a language already translated). Max 50 per call; one bad id rejects the whole batch.
+Actions: `setTitle {title}`, `editPhrase {phraseId, text}` (timings kept; a different word count is spread over the phrase), `setCut {cutId, shouldTrim}`, `setShotKind {shotId, kind}`, `setTemplate {captionTemplateId: clean|bold|karaoke}`, `setBurnIn {language|null}` (only a language already translated). Max 50 per call; one bad id rejects the whole batch; actions apply in order, each seeing the ones before it.
+
+Timing and caption detail (source ms):
+- `setShotBounds {shotId, startMs?, endMs?}` — shots stay contiguous: moving an edge moves the neighbour's matching edge; every shot keeps ≥ 500 ms; the first start and the last end never move (`400 out_of_range`).
+- `retimePhraseRange {phraseId, startMs, endMs}` — the phrase's words are scaled into the new span; ≥ 200 ms, and it may not overlap its neighbours (`400 overlap`).
+- `setWordEmphasis {phraseId, wordId, emphasis: noun|keyword|pictorial|null}` · `setPhraseEmoji {phraseId, emoji|null}` (≤ 16 chars).
+- `setCaptionStyle {style: {fontFamily?, sizePx? 40–120, y? 0.5–0.9, uppercase?, weight? 400|700|900, background?, animation? karaoke|none} | null}` — the whole style on top of the template and brand kit; absent keys keep the template's value; the summary prints it as `caption style {…}`.
+- Fonts (`setCaptionStyle.fontFamily`, `setBrand.fontFamily`) are the bundled set only: `Inter`, `Montserrat`, `Poppins`, `Bebas Neue`, `Playfair Display`, `Space Grotesk` — the Player and the render load the same files.
 
 Layer actions (source time, like everything inspect prints):
 - `setMediaSource {mediaSource: generate|stock}` — where the next `run_job broll` gets media (stock = Pexels only, never fal).
@@ -36,7 +45,7 @@ Layer actions (source time, like everything inspect prints):
 
 ## Brand kit
 
-- `setBrand` colours the captions (text, accent = active word + keywords, primary = nouns and pictorial words), every motion graphic (`item.brand`) and grades the footage and B-roll (`grade` 0–1, default 0.4; 0 = none). Hex colours `#RRGGBB`; `fontFamily` must be a font installed on this Mac (render and preview both use it).
+- `setBrand` colours the captions (text, accent = active word + keywords, primary = nouns and pictorial words), every motion graphic (`item.brand`) and grades the footage and B-roll (`grade` 0–1, default 0.4; 0 = none). Hex colours `#RRGGBB`; `fontFamily` is one of the bundled fonts above. Keep caption text readable on the background (≥ 3:1 contrast; the Style panel warns below that).
 - A logo: `upload_asset` the PNG → `setBrand {brand: {…, logoAssetId}}`; motion graphics read it as `item.brand.logoUrl`.
 - Check with one `render_frame` on a caption and one on B-roll before `run_job render`.
 
@@ -53,11 +62,12 @@ Agent-written Remotion components drawn between the B-roll and the captions. Rea
 
 ## When something fails
 
-- `project changed since baseVersion … re-run inspect_project` — the user (web UI) or another session edited. Re-inspect, re-apply on the new state; never retry blindly.
+- `project changed since baseVersion … re-run inspect_project` — the user (web UI, maybe mid-drag) or another session edited first. Re-inspect, re-apply on the new state; never retry blindly.
+- `outputs are stale; run_job render first` (export_outputs) — an edit landed after the last render; `run_job {kind: "render"}` → `wait_job`, then export.
 - `busy: <kind> job …` — a job is running. `wait_job`, then re-inspect.
 - `Sabi API not reachable …` — tell the user to start the API: `FAKE_AI=1 npm run dev:lite` (launch config `api-lite-fake`) or `npm run dev:lite`.
 - `400 no_captions` — `run_job captions` first. `400 unknown_id` — the id came from a stale view; re-inspect.
-- `400 bad_code {detail}` — the motion-graphic code broke a rule in `motion-graphics.md`; fix what `detail` names. `400 bad_asset` — the asset is missing or the wrong kind (logos and image props need an image). `400 out_of_range` — an MG must end inside the source.
+- `400 bad_code {detail}` — the motion-graphic code broke a rule in `motion-graphics.md`; fix what `detail` names. `400 bad_asset` — the asset is missing or the wrong kind (logos and image props need an image). `400 out_of_range` — an MG must end inside the source, a shot edge broke the 500 ms / fixed-ends rule, or a phrase got shorter than 200 ms. `400 overlap` — a phrase range ran into its neighbour.
 - `wait_job` → `broll FAILED: stock_unavailable` / `generator_unavailable` — the key for the project's media source is not set on the API; switch with `setMediaSource` or ask the user to set it. Warnings `broll_not_found:beat-n` / `no_broll_shots` mean a beat got no media / there is no B-roll shot.
 
 ## Examples
