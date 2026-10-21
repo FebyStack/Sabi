@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { EditPlanPanel } from "./panels/EditPlanPanel";
-import EditorPage from "./EditorPage";
+import { editorProject } from "@shared/editing/fixtures";
 import type { Project } from "@shared/types";
+import EditorPage from "./EditorPage";
+import { EditPlanPanel } from "./panels/EditPlanPanel";
+import type { EditorState } from "./store/editorStore";
 
 // Keys never reach the markup, so record what every JSX call keys.
 const keyed: [unknown, string | null][] = [];
@@ -11,35 +13,35 @@ vi.mock("react/jsx-dev-runtime", async (orig) => {
   const o = await orig<{ jsxDEV: (...a: unknown[]) => unknown }>();
   return { ...o, jsxDEV: (type: unknown, props: unknown, key: string | undefined, ...rest: unknown[]) => { keyed.push([type, key ?? null]); return o.jsxDEV(type, props, key, ...rest); } };
 });
-vi.mock("./panels/CaptionPreview", () => ({ CaptionPreview: () => null })); // Remotion's Player needs a DOM
+const previewed: Project[] = [];
+vi.mock("./panels/CaptionPreview", () => ({ CaptionPreview: ({ project }: { project: Project }) => { previewed.push(project); return null; } })); // the Player needs a DOM
 vi.mock("@tanstack/react-query", async (orig) => {
   const o = await orig<typeof import("@tanstack/react-query")>();
   return { ...o, useMutation: vi.fn(o.useMutation) };
 });
+const initial = vi.hoisted(() => ({ state: {} as Partial<EditorState> }));
+vi.mock("./store/editorStore", async (orig) => {
+  const o = await orig<typeof import("./store/editorStore")>();
+  return { ...o, createEditorStore: () => o.createEditorStore(initial.state) };
+});
 
-const word = { id: "w", text: "Hi", startMs: 0, endMs: 500 };
-const project = {
-  id: "A", title: "t", status: "ready", sourceAssetId: "src", sourceDurationMs: 1000, captionTemplateId: "clean", language: "en",
-  transcript: { language: "en", words: [word] }, phrases: [{ id: "p", startMs: 0, endMs: 500, words: [word], lineBreaksAfter: [] }],
-  outputs: {}, warnings: [], editPlan: { cuts: [], shots: [{ id: "shot-0", kind: "Hook", startMs: 0, endMs: 1000 }] }, translations: [], burnInLanguage: null,
-  mediaSource: "generate", overlays: [], motionGraphics: [], creditsUsedCents: 0, brand: null, updatedAt: "v1",
-} as unknown as Project;
+const project = editorProject({ id: "A", transcript: { language: "en", words: editorProject().phrases.flatMap((p) => p.words) } });
 
-function page(p: Project) {
+function page(p: Project, tab = "") {
   const qc = new QueryClient();
   qc.setQueryData(["project", p.id], p);
   return renderToStaticMarkup(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/p/${p.id}`]}><Routes><Route path="/p/:id" element={<EditorPage />} /></Routes></MemoryRouter>
+      <MemoryRouter initialEntries={[`/p/${p.id}${tab && `?tab=${tab}`}`]}><Routes><Route path="/p/:id" element={<EditorPage />} /></Routes></MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
 describe("EditorPage", () => {
-  beforeEach(() => { keyed.length = 0; vi.mocked(useMutation).mockReset(); });
+  beforeEach(() => { keyed.length = 0; previewed.length = 0; initial.state = {}; vi.mocked(useMutation).mockReset(); });
 
   it("keys the edit plan panel by project id, so its draft state resets on /p/A → /p/B", () => {
-    page(project);
+    page(project, "broll");
     expect(keyed).toContainEqual([EditPlanPanel, "A"]);
   });
 
@@ -48,18 +50,28 @@ describe("EditorPage", () => {
     expect(page(project)).toContain("Failed: busy");
   });
 
-  it("a stale action refetches and explains", async () => {
-    const { QueryClient } = await import("@tanstack/react-query");
-    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
-    page(project);
-    const opts = vi.mocked(useMutation).mock.calls.map(([o]) => o as { onError?: (e: Error) => void }).find((o) => o.onError);
-    expect(opts).toBeTruthy();
-    opts!.onError!(new Error("stale"));
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["project", "A"] });
-    invalidate.mockRestore();
+  it("a conflict shows a retry notice", () => {
+    initial.state = { conflict: { actions: [{ type: "setTitle", title: "x" }], message: "Project changed elsewhere — reloaded" } };
+    const html = page(project);
+    expect(html).toContain("Project changed elsewhere — reloaded");
+    expect(html).toContain(">Retry</button>");
   });
 
-  it("renders the b-roll panel once a plan exists", () => {
-    expect(page(project)).toContain("Add B-roll");
+  it("drag preview patches the preview project", () => {
+    initial.state = { drag: { actions: [{ type: "setOverlay", overlayId: "ov-0", endMs: 11000 }] } };
+    page(project);
+    expect(previewed.at(-1)!.overlays[0].endMs).toBe(11000);
+  });
+
+  it("renders the timeline, tabs and the b-roll panel once a plan exists", () => {
+    const html = page(project, "broll");
+    expect(html).toContain("Refresh B-roll");
+    expect(html).toContain('aria-label="Timeline"');
+    expect(html).toContain('aria-label="Editor sections"');
+  });
+
+  it("a selection shows the selection bar", () => {
+    initial.state = { selection: { kind: "shot", id: "shot-1" } };
+    expect(page(project)).toContain('aria-label="Shot kind"');
   });
 });
