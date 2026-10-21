@@ -20,7 +20,7 @@ import { tabFromSearch } from "./layout/tabs";
 import { BrollPanel } from "./panels/BrollPanel";
 import { CaptionPreview } from "./panels/CaptionPreview";
 import { EditPlanPanel } from "./panels/EditPlanPanel";
-import { PhraseEditor } from "./panels/PhraseEditor";
+import { CaptionsPanel } from "./panels/CaptionsPanel";
 import { StageProgress } from "./panels/StageProgress";
 import { createEditorStore, useEditorStore } from "./store/editorStore";
 import { SelectionBar } from "./timeline/SelectionBar";
@@ -100,9 +100,7 @@ export default function EditorPage() {
   const download = "grid min-h-11 place-items-center rounded-2 bg-surface-2 px-4";
   const panels: Record<typeof panelTab, React.ReactNode> = {
     timeline: !s.selection && <p className="text-sm text-ink-muted">Tap a block to edit it; drag its edges to trim; pinch to zoom.</p>,
-    captions: p.phrases.length > 0
-      ? <PhraseEditor phrases={p.phrases} busy={busy} onApply={(next) => void commit(textEdits(p.phrases, next))} />
-      : <Notice tone="info" action={{ label: "Generate captions", onClick: () => run.mutate() }}>No captions yet.</Notice>,
+    captions: <CaptionsPanel project={p} store={store} commit={edit} busy={busy} onGenerate={() => run.mutate()} />,
     broll: (
       <div className="space-y-6">
         {p.transcript && p.phrases.length > 0 && <EditPlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} onUpdate={edit} onSeek={seek} />}
@@ -153,11 +151,6 @@ function Header({ p }: { p: Project }) {
     </header>
   );
 }
-
-// Interim (until Task 8): the phrase editor's result as editPhrase actions; emptied phrases are not deleted.
-const textOf = (ph: Project["phrases"][number]) => ph.words.map((w) => w.text).join(" ");
-const textEdits = (before: Project["phrases"], after: Project["phrases"]): Action[] =>
-  after.flatMap((ph) => (before.some((b) => b.id === ph.id && textOf(b) !== textOf(ph)) ? [{ type: "editPhrase" as const, phraseId: ph.id, text: textOf(ph) }] : []));
 
 // Fallback for projects saved before sourceDurationMs existed: derive it from the last transcript word or phrase.
 function sourceDuration(p: Project) {
