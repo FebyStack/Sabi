@@ -11,7 +11,7 @@ const es = [ph("p0", [w("a", "Hola", 200, 800), w("b", "amigos", 1200, 1500)]), 
 const project = (patch: Partial<Project> = {}): Project => ({
   id: "p", title: "t", aspectRatio: "9:16", mediaSource: "generate", status: "ready", sourceAssetId: "a", sourceKind: "video", language: "en",
   captionTemplateId: "clean", transcript: null, phrases, outputs: {}, warnings: [], sourceDurationMs: 21000,
-  editPlan: null, translations: [{ language: "es", phrases: es }], burnInLanguage: null, overlays: [], creditsUsedCents: 0, brand: null, motionGraphics: [], createdAt: "", updatedAt: "", ...patch,
+  editPlan: null, translations: [{ language: "es", phrases: es }], burnInLanguage: null, overlays: [], creditsUsedCents: 0, brand: null, motionGraphics: [], captionStyle: null, demo: false, createdAt: "", updatedAt: "", ...patch,
 });
 const opts = { videoSrc: "http://x/v.mp4", sourceDurationMs: 21000, assetUrl: (id: string) => `http://x/a/${id}` };
 const plan = (cuts: Cut[]) => ({ editPlan: { cuts, shots: [] } });
@@ -43,7 +43,7 @@ describe("captionVideoProps", () => {
 describe("captionVideoProps layers", () => {
   it("captionVideoProps carries brand, overlays and motion graphics", () => {
     const shots = [{ id: "shot-0", kind: "B-Roll" as const, startMs: 0, endMs: 21000 }];
-    const brand = { palette: { primary: "#1E90FF", accent: "#FFD60A", text: "#FAFAFA", background: "#0B0B0B" }, fontFamily: "Inter", logoAssetId: null, grade: 0.4 };
+    const brand = { palette: { primary: "#1E90FF", accent: "#FFD60A", text: "#FAFAFA", background: "#0B0B0B" }, fontFamily: "Inter" as const, logoAssetId: null, grade: 0.4 };
     const props = captionVideoProps(project({
       editPlan: { cuts: [], shots }, brand,
       overlays: [{ id: "ov-0", shotId: "shot-0", assetId: "img", media: "image", source: "stock", startMs: 300, endMs: 5300, placement: "top", transition: "fade", enabled: true, query: "", prompt: "", intent: "" }],
@@ -54,6 +54,13 @@ describe("captionVideoProps layers", () => {
     expect(props.brand).toMatchObject({ primary: "#1E90FF", grade: 0.4, logoUrl: null });
     expect(props.template.colors.text).toBe("#FAFAFA");
     expect(captionVideoProps(project(), opts)).toMatchObject({ overlays: [], motionGraphics: [], brand: { grade: 0 } });
+  });
+});
+
+describe("captionVideoProps style", () => {
+  it("captionVideoProps uses the caption style", () => {
+    const props = captionVideoProps(project({ captionStyle: { sizePx: 100, uppercase: true, y: 0.5 } }), opts);
+    expect(props.template).toMatchObject({ font: { sizePx: 100 }, uppercase: true, position: { y: 0.5 } });
   });
 });
 

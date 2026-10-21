@@ -1,7 +1,6 @@
-import { getCaptionTemplate } from "../captions/templates";
 import type { CaptionVideoProps } from "../remotion/CaptionVideo";
 import type { Cut, Phrase, Project, TranslationLanguage } from "../types";
-import { brandLook, brandedTemplate } from "./brand";
+import { brandLook, effectiveTemplate } from "./brand";
 import { applyCuts, keptSegments } from "./cuts";
 import { motionGraphicTimeline, overlayTimeline } from "./overlays";
 
@@ -17,7 +16,7 @@ export function captionVideoProps(project: Project, opts: { videoSrc: string; so
     videoSrc: opts.videoSrc,
     sourceKind: project.sourceKind ?? "video",
     phrases: applyCuts(burnIn?.phrases ?? project.phrases, cuts, !burnIn), // translated words don't line up with source fillers
-    template: brandedTemplate(getCaptionTemplate(project.captionTemplateId), project.brand),
+    template: effectiveTemplate(project),
     brand: brandLook(project, opts.assetUrl),
     overlays: overlayTimeline(project.overlays, project.editPlan?.shots ?? [], cuts, opts.assetUrl),
     motionGraphics: motionGraphicTimeline(project.motionGraphics, cuts, opts.assetUrl),

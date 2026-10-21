@@ -11,7 +11,10 @@ export const templateLook = (t: CaptionTemplate): BrandLook => ({
 
 export function brandLook(project: Project, assetUrl: (id: string) => string): BrandLook {
   const b = project.brand;
-  if (!b) return templateLook(getCaptionTemplate(project.captionTemplateId));
+  if (!b) {
+    const look = templateLook(getCaptionTemplate(project.captionTemplateId));
+    return project.captionStyle?.fontFamily ? { ...look, fontFamily: project.captionStyle.fontFamily } : look;
+  }
   return { ...b.palette, fontFamily: b.fontFamily, logoUrl: b.logoAssetId ? assetUrl(b.logoAssetId) : null, grade: b.grade };
 }
 
@@ -23,6 +26,23 @@ export function brandedTemplate(t: CaptionTemplate, brand: BrandKit | null): Cap
     ...t,
     font: { ...t.font, family: brand.fontFamily },
     colors: { ...t.colors, text, activeWord: accent, emphasis: { keyword: accent, noun: primary, pictorial: primary } },
+  };
+}
+
+// What the captions are drawn with: preset → brand kit → the project's caption style (absent keys keep the layer below).
+export function effectiveTemplate(project: Project): CaptionTemplate {
+  const t = brandedTemplate(getCaptionTemplate(project.captionTemplateId), project.brand);
+  const s = project.captionStyle;
+  if (!s) return t;
+  const { background: box, ...colors } = t.colors;
+  const background = s.background === false ? undefined : s.background ? box ?? "rgba(0,0,0,.55)" : box;
+  return {
+    ...t,
+    font: { family: s.fontFamily ?? t.font.family, weight: s.weight ?? t.font.weight, sizePx: s.sizePx ?? t.font.sizePx },
+    position: { y: s.y ?? t.position.y },
+    uppercase: s.uppercase ?? t.uppercase,
+    animation: s.animation ?? t.animation,
+    colors: background ? { ...colors, background } : colors,
   };
 }
 

@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type {
-  ActionSchema, ApplyActionsInput, ApplyActionsResult, AspectRatio, AssetSchema, BeatSchema, BoxSchema, BrandKitSchema, MotionGraphicInput, MotionGraphicPatch, MotionGraphicPropSchema, MotionGraphicSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
+  ActionSchema, ApplyActionsInput, BrandFont, CaptionStyleSchema, RenderInput, ApplyActionsResult, AspectRatio, AssetSchema, BeatSchema, BoxSchema, BrandKitSchema, MotionGraphicInput, MotionGraphicPatch, MotionGraphicPropSchema, MotionGraphicSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
   ProjectEventSchema, ProjectSchema, ProjectStatus, ShotKind, ShotSchema, TranscriptSchema, TranslationLanguage, TranslationSchema, UpdatePlanInput, WordSchema,
 } from "./contract";
 
@@ -46,6 +46,9 @@ export type OverlayMedia = z.infer<typeof OverlayMedia>;
 export type Overlay = z.infer<typeof OverlaySchema>;
 export type BrollInput = z.input<typeof BrollInput>;
 export type BrandKit = z.infer<typeof BrandKitSchema>;
+export type BrandFont = z.infer<typeof BrandFont>;
+export type CaptionStyle = z.infer<typeof CaptionStyleSchema>;
+export type RenderInput = z.input<typeof RenderInput>;
 export type MotionGraphic = z.infer<typeof MotionGraphicSchema>;
 export type MotionGraphicProp = z.infer<typeof MotionGraphicPropSchema>;
 export type MotionGraphicInput = z.input<typeof MotionGraphicInput>;

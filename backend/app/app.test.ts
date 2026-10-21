@@ -49,6 +49,11 @@ describe("api", () => {
     expect(body.motionGraphics).toEqual([]);
   });
 
+  it("creates a project with no caption style and not demo", async () => {
+    const { body } = await request(app()).post("/api/projects").send({ title: "t" });
+    expect(body).toMatchObject({ captionStyle: null, demo: false });
+  });
+
   it("patches mediaSource", async () => {
     const a = app();
     const { body: p } = await request(a).post("/api/projects").send({ title: "t" });
