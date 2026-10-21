@@ -8,6 +8,7 @@
     "dev:server": "mkdir -p .tmp && TMPDIR=$PWD/.tmp tsx watch backend/server/index.ts",
     "dev:lite": "mkdir -p .tmp && TMPDIR=$PWD/.tmp tsx watch backend/server/index-lite.ts",
     "mcp": "tsx backend/mcp/index.ts",
+    "demo:pack": "tsx infrastructure/dev/pack-demo.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:server": "tsc -p backend/tsconfig.json --noEmit",
     "test": "vitest run",

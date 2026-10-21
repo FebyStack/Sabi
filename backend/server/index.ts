@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createApp, parseAllowedOrigins } from "../app/app";
 import { PgAssetRepository } from "../modules/assets/repository";
 import { PgProjectRepository } from "../modules/projects/repository";
+import { seedDemo } from "../modules/demo/seed";
 import { startRetention } from "../modules/retention/sweep";
 import type { AppDeps } from "../shared/deps";
 import { MemoryEventBus } from "../shared/events";
@@ -45,5 +46,7 @@ const deps: AppDeps = {
   now: () => new Date(),
   id: randomUUID,
 };
+const demo = await seedDemo(deps).catch((err) => { console.error("demo seed failed", err); return null; }); // only into an empty database
+if (demo) console.log(`seeded demo project ${demo.id}`);
 createApp(deps).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));
 startRetention(deps);
