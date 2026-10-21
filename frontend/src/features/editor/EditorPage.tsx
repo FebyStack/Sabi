@@ -8,6 +8,7 @@ import { FPS } from "@shared/remotion/CaptionVideo";
 import type { Action, BrollInput, PlanInput, Project, RenderInput } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
+import { track } from "@/features/consent/analytics";
 import { addBroll, assetFileUrl, getProject, planProject, renderProject, runProject, setSource } from "@/features/projects/api/projects";
 import { UploadDropzone } from "@/features/projects/components/UploadDropzone";
 import { useProjectEvents } from "@/features/projects/hooks/useProjectEvents";
@@ -39,14 +40,20 @@ export default function EditorPage() {
   const store = useMemo(() => createEditorStore(), [id]); // a fresh editor state per project
   const s = useEditorStore(store, (x) => x);
   const project = useQuery({ queryKey: ["project", id], queryFn: () => getProject(id) });
-  const events = useProjectEvents(id);
+  const exporting = useRef(false); // the next finished captions-kind job is the export render, not a captions run
+  const events = useProjectEvents(id, (job) => {
+    if (job.kind === "plan") track("plan_done");
+    else if (job.kind === "broll") track("broll_done");
+    else if (job.kind === "captions") track(exporting.current ? "render_done" : "captions_done");
+    if (job.kind === "captions") exporting.current = false;
+  });
   const { commit, undo, redo, retry, dismissConflict, pending } = useProjectActions(id, store);
   const refresh = () => qc.invalidateQueries({ queryKey: ["project", id] });
   const source = useMutation({ mutationFn: (assetId: string) => setSource(id, assetId), onSuccess: refresh });
   const run = useMutation({ mutationFn: () => runProject(id), onSuccess: refresh });
   const plan = useMutation({ mutationFn: (input: PlanInput) => planProject(id, input), onSuccess: refresh });
   const broll = useMutation({ mutationFn: (input: BrollInput) => addBroll(id, input), onSuccess: refresh });
-  const render = useMutation({ mutationFn: (input: RenderInput) => renderProject(id, input), onSuccess: refresh });
+  const render = useMutation({ mutationFn: (input: RenderInput) => renderProject(id, input), onSuccess: () => { exporting.current = true; void refresh(); } });
   const [uploadPct, setUploadPct] = useState<number | null>(null);
   const playerRef = useRef<PlayerRef>(null);
   const p = project.data;
@@ -112,7 +119,7 @@ export default function EditorPage() {
       </div>
     ),
     style: <StylePanel project={p} commit={edit} busy={busy} />,
-    export: <ExportPanel project={p} busy={busy} onRender={(input) => render.mutate(input)} onDownload={() => {}} />,
+    export: <ExportPanel project={p} busy={busy} onRender={(input) => render.mutate(input)} onDownload={(kind) => track("export_downloaded", { kind })} />,
   };
 
   return (

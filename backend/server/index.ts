@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { createApp, parseAllowedOrigins } from "../app/app";
 import { PgAssetRepository } from "../modules/assets/repository";
 import { PgProjectRepository } from "../modules/projects/repository";
+import { startRetention } from "../modules/retention/sweep";
+import type { AppDeps } from "../shared/deps";
 import { MemoryEventBus } from "../shared/events";
 import { MemoryJobRunner } from "../shared/jobs";
 import { OllamaLlm } from "../shared/llm";
@@ -25,7 +27,7 @@ const stuck = await projects.failStuck(); // jobs are in-process; nothing surviv
 if (stuck) console.warn(`marked ${stuck} interrupted project(s) as failed`);
 const bus = new MemoryEventBus();
 
-createApp({
+const deps: AppDeps = {
   projects,
   assets: new PgAssetRepository(pool),
   storage: new FsStorage(dataDir),
@@ -42,4 +44,6 @@ createApp({
   allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
   now: () => new Date(),
   id: randomUUID,
-}).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));
+};
+createApp(deps).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));
+startRetention(deps);

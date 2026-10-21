@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { track } from "@/features/consent/analytics";
 import { STAGE_LABELS, stageView } from "@/features/editor/panels/progressModel";
 import { createProject, listProjects } from "@/services/http";
 
@@ -10,7 +11,7 @@ export function ProjectList() {
   const projects = useQuery({ queryKey: ["projects"], queryFn: listProjects });
   const create = useMutation({
     mutationFn: createProject,
-    onSuccess: (p) => { qc.invalidateQueries({ queryKey: ["projects"] }); navigate(`/p/${p.id}`); },
+    onSuccess: (p) => { track("project_created"); qc.invalidateQueries({ queryKey: ["projects"] }); navigate(`/p/${p.id}`); },
   });
   const [title, setTitle] = useState("");
 
