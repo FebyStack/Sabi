@@ -39,3 +39,10 @@ export async function createJobRunner(redisUrl: string | undefined, bus: EventBu
   }
   return new BullJobRunner(url, bus);
 }
+
+// Remotion's browser registers a SIGTERM listener (to kill Chrome), and any listener stops Node's default exit: without this the
+// API ignores SIGTERM (docker stop waits 10 s for SIGKILL). Close the shared browser, then exit; a job in flight resumes from the queue.
+export const shutdownHandler = (renderer: { close?(): Promise<void> }, exit: (code: number) => void = (code) => process.exit(code)) => async () => {
+  await renderer.close?.().catch(() => {});
+  exit(0);
+};

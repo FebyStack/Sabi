@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { FsStorage } from "../shared/storage";
 import { MemoryEventBus } from "../shared/events";
 import { MemoryJobRunner } from "../shared/jobs";
-import { createJobRunner, createStorage } from "./boot";
+import { createJobRunner, createStorage, shutdownHandler } from "./boot";
 
 describe("createStorage", () => {
   it("uses files under DATA_DIR without S3_ENDPOINT (or with an empty one)", async () => {
@@ -30,5 +30,20 @@ describe("createJobRunner", () => {
     const err = await createJobRunner("redis://127.0.0.1:1", new MemoryEventBus()).catch((e) => e);
     expect(err.message).toMatch(/^Redis at redis:\/\/127\.0\.0\.1:1 not reachable — run `make db` or unset REDIS_URL/);
   }, 15_000);
+});
+
+describe("shutdownHandler", () => {
+  it("closes the render browser, then exits 0", async () => {
+    const order: string[] = [];
+    const stop = shutdownHandler({ close: async () => { order.push("close"); } }, (code) => order.push(`exit ${code}`));
+    await stop();
+    expect(order).toEqual(["close", "exit 0"]);
+  });
+
+  it("still exits when closing the browser fails", async () => {
+    const exits: number[] = [];
+    await shutdownHandler({ close: async () => { throw new Error("gone"); } }, (code) => exits.push(code))();
+    expect(exits).toEqual([0]);
+  });
 });
 

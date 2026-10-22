@@ -79,6 +79,7 @@ export interface Renderer {
   render(req: RenderRequest): Promise<void>;
   renderStill(req: StillRequest): Promise<void>;
   warm?(): Promise<void>; // bundle + open the browser ahead of the first render
+  close?(): Promise<void>; // shut the shared browser (process exit)
 }
 
 // Bundles shared/remotion once per process and renders in one shared headless browser.
@@ -106,6 +107,8 @@ export class RemotionRenderer implements Renderer {
   }
 
   async warm() { await Promise.all([this.bundleOnce(), this.browsers.get()]); }
+
+  async close() { await this.browsers.reset(); }
 
   async render(req: RenderRequest) {
     const { renderMedia, selectComposition } = await import("@remotion/renderer");

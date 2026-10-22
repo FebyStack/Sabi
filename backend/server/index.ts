@@ -15,7 +15,7 @@ import { applySchema, createPool, ensureStorageMatches } from "../shared/pg";
 import { RemotionRenderer } from "../shared/renderer";
 import { PexelsStock } from "../shared/stock";
 import { WhisperXTranscriber } from "../shared/transcriber";
-import { createJobRunner, createStorage } from "./boot";
+import { createJobRunner, createStorage, shutdownHandler } from "./boot";
 
 const port = Number(process.env.PORT ?? 3001);
 const url = process.env.DATABASE_URL;
@@ -62,3 +62,6 @@ await jobs.start?.(); // after createApp registered the handlers
 startRetention(deps);
 const warmStart = Date.now(); // bundle + browser now, so the first render or frame does not pay for them
 deps.renderer.warm?.().then(() => console.log(`renderer warm in ${((Date.now() - warmStart) / 1000).toFixed(1)}s`), (err) => console.error("renderer warm-up failed", err));
+const stop = shutdownHandler(deps.renderer);
+process.once("SIGTERM", stop);
+process.once("SIGINT", stop);
