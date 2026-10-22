@@ -7,7 +7,7 @@ export function editorCsp({ dev, scriptHashes, posthogHost }: { dev: boolean; sc
     ["script-src 'self'", ...scriptHashes].join(" "), // dev: the React refresh preamble, by hash
     "style-src 'self' 'unsafe-inline'", // Vite's dev CSS and the Player's style tags
     "img-src 'self' blob: data:",
-    "media-src 'self' blob:",
+    "media-src 'self' blob: data:", // data: the Player's silent clip that unlocks audio
     "font-src 'self' data:",
     `connect-src ${connect.join(" ")}`,
     "frame-src 'self'", // MG sandboxes load only /mg-sandbox.html here, and can't navigate to another host

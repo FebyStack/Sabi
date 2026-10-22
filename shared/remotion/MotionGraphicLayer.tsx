@@ -93,8 +93,11 @@ function MgSandbox({ mg, item, box, fps, width, height, active, local }:
   };
 
   if (dead) return active ? <div style={{ position: "absolute", ...box }}><MgPlaceholder id={mg.id} /></div> : null;
+  // Opaque origin either way: renders sandbox the frame by attribute (Remotion's bundle server sends no headers); the
+  // editor's servers send `Content-Security-Policy: sandbox allow-scripts` with the page, and the Claude desktop browser
+  // pane refuses frames that carry the attribute. The page itself runs nothing unless its origin is opaque.
   return (
-    <iframe ref={ref} src={staticFile("mg-sandbox.html")} sandbox="allow-scripts" title={mg.id} aria-hidden tabIndex={-1} onLoad={onLoad}
+    <iframe ref={ref} src={staticFile("mg-sandbox.html")} sandbox={rendering ? "allow-scripts" : undefined} title={mg.id} aria-hidden tabIndex={-1} onLoad={onLoad}
       style={{ position: "absolute", ...box, border: 0, pointerEvents: "none", colorScheme: "normal", visibility: active ? "visible" : "hidden" }} />
   );
 }

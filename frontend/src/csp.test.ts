@@ -5,7 +5,7 @@ const directive = (policy: string, name: string) => policy.split("; ").find((d) 
 describe("editor CSP (spec row 27)", () => {
   it("the build policy", () => {
     expect(editorCsp({ dev: false, scriptHashes: [] })).toBe(
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob: data:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'",
     );
   });
 
