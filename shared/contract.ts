@@ -14,7 +14,7 @@ export const ShotKind = z.enum(SHOT_KINDS);
 
 export const WordSchema = z.object({ id: z.string(), text: z.string(), startMs: z.number(), endMs: z.number(), confidence: z.number().optional(), emphasis: EmphasisKind.optional() });
 export const PhraseSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), words: z.array(WordSchema).min(1), lineBreaksAfter: z.array(z.number()), emoji: z.string().max(16).optional() });
-// estimatedWords: how many words got spread timings because whisperX could not align them (absent when none).
+// estimatedWords: words of segments whisperX could not align at all, so their timings were spread (absent when none).
 export const TranscriptSchema = z.object({ language: z.string(), words: z.array(WordSchema), estimatedWords: z.number().int().nonnegative().optional() });
 
 export const CutSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), reason: z.enum(["pause", "filler"]), text: z.string(), shouldTrim: z.boolean() });

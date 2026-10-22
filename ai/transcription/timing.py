@@ -17,17 +17,16 @@ def words_from_segments(segments: list[dict]) -> tuple[list[dict], int]:
     """whisperX segments (aligned or not) -> sidecar words, never dropping one. Returns (words, estimated count).
 
     A run of words without timing is spread between its timed neighbours (the segment's start/end at the edges).
-    A segment with no words (no aligner, or alignment failed and whisperX returned "words": []) is one such run."""
+    A segment with no words (no aligner, or alignment failed and whisperX returned "words": []) is one such run.
+    Only words of a segment with no aligned word at all count as estimated: a number pinned between aligned
+    neighbours lands close enough that warning about it would be noise."""
     words, estimated = [], 0
     for seg in segments:
         items = seg.get("words") or [{"word": t} for t in seg.get("text", "").split()]
-        pending, at = [], float(seg["start"])
+        pending, at, first, timed = [], float(seg["start"]), len(words), False
 
         def flush(until: float):
-            nonlocal estimated
-            spread = spread_words(" ".join(pending), at, max(until, at))
-            words.extend(spread)
-            estimated += len(spread)
+            words.extend(spread_words(" ".join(pending), at, max(until, at)))
             pending.clear()
 
         for w in items:
@@ -38,9 +37,11 @@ def words_from_segments(segments: list[dict]) -> tuple[list[dict], int]:
                 if pending:
                     flush(float(w["start"]))
                 words.append({"text": text, "start": float(w["start"]), "end": float(w["end"]), "score": float(w.get("score", 0))})
-                at = float(w["end"])
+                at, timed = float(w["end"]), True
             else:
                 pending.append(text)
         if pending:
             flush(float(seg["end"]))
+        if not timed:
+            estimated += len(words) - first
     return words, estimated

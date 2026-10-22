@@ -18,11 +18,16 @@ def test_untimed_run_is_spread_between_timed_neighbours():
     words, estimated = words_from_segments([seg])
     assert [w["text"] for w in words] == ["Ako", "ay", "si", "Ben"]
     assert (words[1], words[2]) == ({"text": "ay", "start": 0.3, "end": 0.8}, {"text": "si", "start": 0.8, "end": 1.3})
-    assert estimated == 2
+    assert estimated == 0  # pinned between aligned neighbours (a number, a symbol): close enough not to warn about
 
 def test_segment_without_words_is_spread():
     words, estimated = words_from_segments([{"text": "Oo nga", "start": 2.0, "end": 3.0}])
     assert words == [{"text": "Oo", "start": 2.0, "end": 2.4}, {"text": "nga", "start": 2.4, "end": 3.0}]
+    assert estimated == 2
+
+def test_segment_with_no_timed_word_counts():
+    words, estimated = words_from_segments([{"text": "Oo nga", "start": 2.0, "end": 3.0, "words": [{"word": "Oo"}, {"word": "nga"}]}])
+    assert [w["text"] for w in words] == ["Oo", "nga"]
     assert estimated == 2
 
 # whisperX 3.8.6 returns a segment it failed to align with "words": [] (no clean chars, past the audio, backtrack failure).
