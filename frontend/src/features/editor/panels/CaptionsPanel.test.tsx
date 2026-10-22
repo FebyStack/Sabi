@@ -45,6 +45,20 @@ describe("CaptionsPanel", () => {
     expect(html).not.toMatch(/id="phrase-ph-0"[^>]*aria-current/);
   });
 
+  it("offers the spoken language with the project's language selected", () => {
+    const html = panel(editorProject());
+    expect(html).toContain('aria-label="Spoken language"');
+    expect(html).toContain('<option value="tl">Tagalog</option>');
+    expect(html).toMatch(/<option value="en" selected="">English<\/option>/);
+    expect(html).toContain("Re-transcribe");
+  });
+
+  it("empty state picks the spoken language before generating", () => {
+    const html = panel(editorProject({ phrases: [], language: null }));
+    expect(html).toMatch(/<option value="" selected="">Auto-detect<\/option>/);
+    expect(html).toContain("Generate captions");
+  });
+
   it("empty state offers to generate captions", () => {
     expect(panel(editorProject({ phrases: [] }))).toContain("Generate captions");
   });

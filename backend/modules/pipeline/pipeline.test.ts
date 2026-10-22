@@ -63,6 +63,28 @@ describe("caption pipeline", () => {
     expect(failed.status).toBe("failed");
   });
 
+  it("new source resets the detected language", async () => {
+    const deps = makeTestDeps();
+    const { a, project, asset } = await projectWithSource(deps);
+    await request(a).post(`/api/projects/${project.id}/run`).send({});
+    expect((await untilStatus(a, project.id, "ready")).language).toBe("en");
+    const src = await request(a).post(`/api/projects/${project.id}/source`).send({ assetId: asset.id });
+    expect(src.body.language).toBeNull();
+  });
+
+  it("run honours an explicit language over the project's", async () => {
+    const fake = new FakeTranscriber({ language: "tl", words: sample.words });
+    const { a, project } = await projectWithSource(makeTestDeps({ transcriber: fake }));
+    const runWith = async (body: object) => {
+      await request(a).post(`/api/projects/${project.id}/run`).send(body);
+      await untilStatus(a, project.id, "ready");
+      return fake.languages.at(-1);
+    };
+    expect(await runWith({})).toBeUndefined();
+    expect(await runWith({ language: "en" })).toBe("en");
+    expect(await runWith({})).toBe("tl"); // the stored transcript's language
+  });
+
   it("pipeline warns timing_estimated", async () => {
     const deps = makeTestDeps({ transcriber: new FakeTranscriber({ language: "tl", words: sample.words.slice(0, 5), estimatedWords: 2 }) });
     const { a, project } = await projectWithSource(deps);

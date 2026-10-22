@@ -41,6 +41,11 @@ export class WhisperXTranscriber implements Transcriber {
 
 export class FakeTranscriber implements Transcriber {
   calls = 0;
+  languages: (string | undefined)[] = []; // the language each call asked for
   constructor(private transcript: Transcript) {}
-  async transcribe() { this.calls++; return structuredClone(this.transcript); }
+  async transcribe(_wav: string, opts: { language?: string } = {}) {
+    this.calls++;
+    this.languages.push(opts.language);
+    return structuredClone(this.transcript);
+  }
 }

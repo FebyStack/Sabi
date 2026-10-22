@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { LANGUAGE_NAMES } from "@shared/contract";
 import type { Action, EmphasisKind, Phrase, Project } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -25,7 +26,7 @@ export function keepDrafts(prev: Phrase[], next: Phrase[], texts: Record<string,
 }
 export const nextEmphasis = (e: EmphasisKind | undefined) => CYCLE[(CYCLE.indexOf(e ?? null) + 1) % CYCLE.length];
 
-type Props = { project: Project; store: EditorStore; commit: (actions: Action[]) => Promise<void>; busy: boolean; onGenerate: () => void };
+type Props = { project: Project; store: EditorStore; commit: (actions: Action[]) => Promise<void>; busy: boolean; onGenerate: (language?: string) => void };
 
 export function CaptionsPanel({ project, store, commit, busy, onGenerate }: Props) {
   const selected = useEditorStore(store, (s) => (s.selection?.kind === "phrase" ? s.selection.id : null));
@@ -36,8 +37,31 @@ export function CaptionsPanel({ project, store, commit, busy, onGenerate }: Prop
     shown.current = project.phrases;
   }, [project.phrases]);
   useEffect(() => { if (selected) document.getElementById(`phrase-${selected}`)?.scrollIntoView({ block: "nearest" }); }, [selected]);
-  if (!project.phrases.length) return <Notice tone="info" action={{ label: "Generate captions", onClick: onGenerate }}>No captions yet.</Notice>;
+  const [language, setLanguage] = useState(project.language ?? "");
+  useEffect(() => setLanguage(project.language ?? ""), [project.language]); // a run's detection shows up here
+  const spoken = (
+    <label className="flex items-center gap-2 text-sm text-ink-muted">
+      Spoken language
+      <select aria-label="Spoken language" value={language} disabled={busy} onChange={(e) => setLanguage(e.target.value)}
+        className="min-h-11 rounded-2 bg-surface-2 px-3 text-base text-ink">
+        <option value="">Auto-detect</option>
+        {Object.entries(LANGUAGE_NAMES).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+      </select>
+    </label>
+  );
+  if (!project.phrases.length) {
+    return (
+      <section className="space-y-3">
+        {spoken}
+        <Notice tone="info" action={{ label: "Generate captions", onClick: () => onGenerate(language || undefined) }}>No captions yet.</Notice>
+      </section>
+    );
+  }
   const edits = phraseEdits(project.phrases, texts);
+  // Re-transcribing replaces the captions, the edit plan and the B-roll, so it asks first.
+  const retranscribe = () => {
+    if (window.confirm("Re-transcribe? This replaces the captions, the edit plan and the B-roll.")) onGenerate(language || undefined);
+  };
 
   return (
     <section className="space-y-3">
@@ -73,6 +97,11 @@ export function CaptionsPanel({ project, store, commit, busy, onGenerate }: Prop
       </ul>
       <p className="text-xs text-ink-muted">Tap a word to cycle its highlight: keyword → noun → pictorial → none.</p>
       <Button variant="primary" disabled={!edits.length || busy} onClick={() => void commit(edits)}>Apply text edits</Button>
+      <div className="flex flex-wrap items-center gap-2 border-t border-surface-2 pt-3">
+        {spoken}
+        <Button size="sm" disabled={busy} onClick={retranscribe}>Re-transcribe</Button>
+      </div>
+      <p className="text-xs text-ink-muted">Taglish detected as English? Pick Tagalog and re-transcribe.</p>
     </section>
   );
 }
