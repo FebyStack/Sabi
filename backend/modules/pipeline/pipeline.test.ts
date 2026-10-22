@@ -83,6 +83,7 @@ describe("caption pipeline", () => {
     expect(await runWith({})).toBeUndefined();
     expect(await runWith({ language: "en" })).toBe("en");
     expect(await runWith({})).toBe("tl"); // the stored transcript's language
+    expect(await runWith({ language: null })).toBeUndefined(); // Auto-detect: detect again
   });
 
   it("tl line breaks keep ng with its noun", async () => {

@@ -8,7 +8,7 @@ import { captionVideoProps, subtitleTracks } from "../../../shared/editing/rende
 import type { Asset, JobState, Project, ProjectStatus } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
 
-export type RunOptions = { language?: string; transcribe: boolean; resegment: boolean; scale?: 1 | 2 };
+export type RunOptions = { language?: string | null; transcribe: boolean; resegment: boolean; scale?: 1 | 2 };
 
 // One job: extract-audio → transcribe → segment → render → subtitles. Status: transcribing → rendering → ready | failed.
 export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOptions): JobState {
@@ -32,7 +32,8 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
         await mkdir(dirname(wav), { recursive: true });
         await deps.media.extractAudio(deps.storage.localPath(source.key), wav);
         report(40, "transcribe");
-        transcript = await deps.transcriber.transcribe(wav, { language: opts.language ?? project.language ?? undefined });
+        const language = opts.language === null ? undefined : opts.language ?? project.language ?? undefined; // null = detect again
+        transcript = await deps.transcriber.transcribe(wav, { language });
       }
       if (opts.transcribe || opts.resegment) {
         report(60, "segment");

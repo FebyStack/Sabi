@@ -26,7 +26,7 @@ export function keepDrafts(prev: Phrase[], next: Phrase[], texts: Record<string,
 }
 export const nextEmphasis = (e: EmphasisKind | undefined) => CYCLE[(CYCLE.indexOf(e ?? null) + 1) % CYCLE.length];
 
-type Props = { project: Project; store: EditorStore; commit: (actions: Action[]) => Promise<void>; busy: boolean; onGenerate: (language?: string) => void };
+type Props = { project: Project; store: EditorStore; commit: (actions: Action[]) => Promise<void>; busy: boolean; onGenerate: (language: string | null) => void };
 
 export function CaptionsPanel({ project, store, commit, busy, onGenerate }: Props) {
   const selected = useEditorStore(store, (s) => (s.selection?.kind === "phrase" ? s.selection.id : null));
@@ -53,14 +53,14 @@ export function CaptionsPanel({ project, store, commit, busy, onGenerate }: Prop
     return (
       <section className="space-y-3">
         {spoken}
-        <Notice tone="info" action={{ label: "Generate captions", onClick: () => onGenerate(language || undefined) }}>No captions yet.</Notice>
+        <Notice tone="info" action={{ label: "Generate captions", onClick: () => onGenerate(language || null) }}>No captions yet.</Notice>
       </section>
     );
   }
   const edits = phraseEdits(project.phrases, texts);
   // Re-transcribing replaces the captions, the edit plan and the B-roll, so it asks first.
   const retranscribe = () => {
-    if (window.confirm("Re-transcribe? This replaces the captions, the edit plan and the B-roll.")) onGenerate(language || undefined);
+    if (confirm("Re-transcribe? This replaces the captions, the edit plan and the B-roll.")) onGenerate(language || null);
   };
 
   return (

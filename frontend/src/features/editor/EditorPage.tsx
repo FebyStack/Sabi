@@ -54,7 +54,7 @@ export default function EditorPage() {
   const { commit, undo, redo, retry, dismissConflict, pending } = useProjectActions(id, store);
   const refresh = () => qc.invalidateQueries({ queryKey: ["project", id] });
   const source = useMutation({ mutationFn: (assetId: string) => setSource(id, assetId), onSuccess: refresh });
-  const run = useMutation({ mutationFn: (language?: string) => runProject(id, language), onSuccess: refresh });
+  const run = useMutation({ mutationFn: (language?: string | null) => runProject(id, language), onSuccess: refresh });
   const plan = useMutation({ mutationFn: (input: PlanInput) => planProject(id, input), onSuccess: refresh });
   const broll = useMutation({ mutationFn: (input: BrollInput) => addBroll(id, input), onSuccess: refresh });
   const render = useMutation({ mutationFn: (input: RenderInput) => renderProject(id, input), onSuccess: () => { exporting.current = true; void refresh(); } });

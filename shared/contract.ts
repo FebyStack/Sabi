@@ -125,7 +125,8 @@ export const ProjectSchema = z.object({
 });
 
 export const SetSourceInput = z.object({ assetId: z.string().min(1) });
-export const RunInput = z.object({ language: z.string().min(2).max(8).optional() });
+// language: force the spoken language; null = auto-detect again; absent = the project's last language.
+export const RunInput = z.object({ language: z.string().min(2).max(8).nullable().optional() });
 export const RenderInput = z.object({ scale: z.union([z.literal(1), z.literal(2)]).optional() }); // 2 = 4K; absent = the last export's resolution
 export const PlanInput = z
   .object({ languages: z.array(TranslationLanguage).max(3).default([]), burnInLanguage: TranslationLanguage.nullable().default(null) })
