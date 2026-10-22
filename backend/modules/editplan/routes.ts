@@ -25,7 +25,7 @@ export function startPlanJob(deps: AppDeps, project: Project, input: z.infer<typ
       await setStatus("planning");
       report(10, "plan");
       const { shots, phrases } = await planEdit(deps.llm, project.phrases, durationMs);
-      const cuts = detectCuts(project.transcript!.words, durationMs); // ASR words, not edited phrases
+      const cuts = detectCuts(project.transcript!.words, durationMs, project.language); // ASR words, not edited phrases
 
       const targets = input.languages.filter((l) => l !== project.language);
       const total = targets.length * Math.ceil(phrases.length / TRANSLATE_BATCH);

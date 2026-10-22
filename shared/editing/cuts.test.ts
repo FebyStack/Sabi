@@ -33,6 +33,46 @@ describe("detectCuts", () => {
     ]);
   });
 
+  describe("tagalog hesitation fillers", () => {
+    const cutsOf = (words: ReturnType<typeof w>[], language: string | null = "tl") => detectCuts(words, words.at(-1)!.endMs, language);
+    const spans = (words: ReturnType<typeof w>[]) => cutsOf(words).map((c) => [c.reason, c.startMs, c.endMs, c.text]);
+    const isolatedAno = [w("a", "Tapos", 0, 400), w("b", "ano,", 900, 1200), w("c", "pumunta", 1700, 2100)];
+
+    it("cuts an isolated ano", () => {
+      expect(cutsOf(isolatedAno)).toEqual([{ id: "cut-0", startMs: 900, endMs: 1200, reason: "filler", text: "ano,", shouldTrim: true }]);
+    });
+
+    it("tagalog fillers are off for other languages", () => {
+      expect(cutsOf(isolatedAno, "en")).toEqual([]);
+    });
+
+    it("ano as a content word is kept", () => {
+      expect(cutsOf([w("a", "Ano", 0, 300), w("b", "ang", 350, 500), w("c", "pangalan", 520, 900), w("d", "mo?", 920, 1100)])).toEqual([]);
+    });
+
+    it("a question is never a filler", () => {
+      expect(cutsOf([w("a", "Bakit", 0, 300), w("b", "Ano?", 800, 1100), w("c", "Hindi", 1600, 1900)])).toEqual([]);
+    });
+
+    it("kasi mid-sentence is kept", () => {
+      expect(cutsOf([w("a", "Hindi", 0, 300), w("b", "ako", 320, 500), w("c", "pumunta", 520, 900), w("d", "kasi", 920, 1150), w("e", "may", 1170, 1300), w("f", "lagnat", 1320, 1700)])).toEqual([]);
+    });
+
+    it("cuts a whole hesitation run", () => {
+      expect(spans([w("a", "Okay", 0, 300), w("b", "kasi", 800, 1000), w("c", "parang", 1050, 1300), w("d", "ano...", 1350, 1600), w("e", "hindi", 2100, 2400)]))
+        .toEqual([["filler", 800, 1000, "kasi"], ["filler", 1050, 1300, "parang"], ["filler", 1350, 1600, "ano..."]]);
+    });
+
+    it("um is cut even when ano beside it is not", () => {
+      expect(spans([w("a", "So", 0, 200), w("b", "um", 220, 400), w("c", "ano", 420, 600), w("d", "ang", 620, 700), w("e", "tanong", 720, 1000)]))
+        .toEqual([["filler", 220, 400, "um"]]);
+    });
+
+    it("trailing comma counts as a boundary", () => {
+      expect(spans([w("a", "Tapos", 0, 400), w("b", "ano,", 900, 1200), w("c", "pumunta", 1300, 1700)])).toEqual([["filler", 900, 1200, "ano,"]]);
+    });
+  });
+
   it("no words or only fillers, no cuts", () => {
     expect(detectCuts([], 10_000)).toEqual([]);
     expect(detectCuts([w("a", "Um", 1000, 1500)], 3000)).toEqual([]); // leading + filler + trailing would remove everything

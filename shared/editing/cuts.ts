@@ -1,22 +1,46 @@
+import { TL_HESITATION, isTagalog, normWord } from "../lang/tagalog";
 import type { Cut, Phrase, Word } from "../types";
 
 export const PAUSE_MIN_MS = 600;
 export const PAUSE_PAD_MS = 150;
+export const FILLER_GAP_MS = 250;
 export type Segment = { startMs: number; endMs: number };
 
 const FILLERS = new Set(["um", "uh", "umm", "uhm", "erm", "er", "ah", "hmm", "mm"]);
-const isFiller = (w: Word) => FILLERS.has(w.text.toLowerCase().replace(/[^\p{L}]/gu, ""));
+const isFiller = (w: Word) => FILLERS.has(normWord(w.text));
+
+// Which words are filler cuts. FILLERS always are; in Tagalog a run of hesitation words (ano, kasi, parang…) is one only as an
+// island: an ASR gap ≥ 250 ms before it, and one after it or a trailing , . … on its last word — never a question.
+function fillerWords(words: Word[], language?: string | null): boolean[] {
+  const tl = isTagalog(language);
+  const hesitant = (w: Word) => isFiller(w) || (tl && TL_HESITATION.has(normWord(w.text)));
+  const filler = words.map(isFiller);
+  for (let i = 0; i < words.length; ) {
+    if (!hesitant(words[i])) { i++; continue; }
+    let j = i;
+    while (j + 1 < words.length && hesitant(words[j + 1])) j++;
+    const before = i > 0 ? words[i].startMs - words[i - 1].endMs : Infinity;
+    const after = j + 1 < words.length ? words[j + 1].startMs - words[j].endMs : Infinity;
+    const last = words[j].text;
+    if (!/[?!]["')]?$/.test(last) && before >= FILLER_GAP_MS && (after >= FILLER_GAP_MS || /[,.…]["')]?$/.test(last))) {
+      for (let k = i; k <= j; k++) filler[k] = true;
+    }
+    i = j + 1;
+  }
+  return filler;
+}
 
 // Heuristic, never the LLM: ASR gaps > 600 ms (padded 150 ms next to speech) and filler words, all enabled by default.
-export function detectCuts(words: Word[], durationMs: number): Cut[] {
-  if (!words.some((w) => !isFiller(w))) return []; // never cut the whole clip
+export function detectCuts(words: Word[], durationMs: number, language?: string | null): Cut[] {
+  const filler = fillerWords(words, language);
+  if (filler.every(Boolean)) return []; // never cut the whole clip
   const found: Omit<Cut, "id">[] = [];
   const pause = (from: number, to: number, padStart: number, padEnd: number) => {
     if (to - from > PAUSE_MIN_MS) found.push({ startMs: from + padStart, endMs: to - padEnd, reason: "pause", text: "", shouldTrim: true });
   };
   pause(0, words[0].startMs, 0, PAUSE_PAD_MS);
   words.forEach((w, i) => {
-    if (isFiller(w)) found.push({ startMs: w.startMs, endMs: w.endMs, reason: "filler", text: w.text, shouldTrim: true });
+    if (filler[i]) found.push({ startMs: w.startMs, endMs: w.endMs, reason: "filler", text: w.text, shouldTrim: true });
     const next = words[i + 1];
     if (next) pause(w.endMs, next.startMs, PAUSE_PAD_MS, PAUSE_PAD_MS);
     else pause(w.endMs, durationMs, PAUSE_PAD_MS, 0);
