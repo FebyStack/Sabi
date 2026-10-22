@@ -204,6 +204,7 @@ const TOOLS = {
     inputSchema: {
       projectId,
       kind: z.enum(["captions", "plan", "render", "broll"]),
+      language: TranslationLanguage.optional().describe('captions only: the spoken language, e.g. "tl" for Tagalog/Taglish, instead of auto-detect'),
       languages: z.array(TranslationLanguage).max(3).optional().describe("plan only: translated subtitle tracks"),
       burnInLanguage: TranslationLanguage.nullable().optional().describe("plan only: burn this translation into the MP4"),
       regenerate: z.boolean().optional().describe("broll only: replace every overlay instead of keeping matching ones"),
@@ -213,10 +214,10 @@ const TOOLS = {
       scale: z.union([z.literal(1), z.literal(2)]).optional().describe("render only: 2 = 4K, 1 = 1080p (default: the last export's resolution)"),
     },
     run: async (api: SabiApi, i: {
-      projectId: string; kind: "captions" | "plan" | "render" | "broll"; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;
+      projectId: string; kind: "captions" | "plan" | "render" | "broll"; language?: z.infer<typeof TranslationLanguage>; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;
       regenerate?: boolean; overlayId?: string; query?: string; prompt?: string; scale?: 1 | 2;
     }) => {
-      const { jobId } = i.kind === "captions" ? await api.run(i.projectId)
+      const { jobId } = i.kind === "captions" ? await api.run(i.projectId, i.language ? { language: i.language } : {})
         : i.kind === "plan" ? await api.plan(i.projectId, { languages: i.languages ?? [], burnInLanguage: i.burnInLanguage ?? null })
           : i.kind === "broll" ? await api.broll(i.projectId, { regenerate: i.regenerate ?? false, overlayId: i.overlayId, query: i.query, prompt: i.prompt })
             : await api.render(i.projectId, i.scale === undefined ? {} : { scale: i.scale });

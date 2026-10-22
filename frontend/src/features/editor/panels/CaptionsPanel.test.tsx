@@ -4,8 +4,15 @@ import type { Project } from "@shared/types";
 import { createEditorStore, type Selected } from "../store/editorStore";
 import { CaptionsPanel, keepDrafts, nextEmphasis, phraseEdits } from "./CaptionsPanel";
 
-const panel = (project: Project, selection: Selected | null = null) =>
-  renderToStaticMarkup(<CaptionsPanel project={project} store={createEditorStore({ selection })} commit={async () => {}} busy={false} onGenerate={() => {}} />);
+// Record every element's props, so handlers can be called without a DOM.
+const elements: { props: Record<string, unknown> }[] = [];
+vi.mock("react/jsx-dev-runtime", async (orig) => {
+  const o = await orig<{ jsxDEV: (...a: unknown[]) => unknown }>();
+  return { ...o, jsxDEV: (type: unknown, props: Record<string, unknown>, ...rest: unknown[]) => { elements.push({ props }); return o.jsxDEV(type, props, ...rest); } };
+});
+const panel = (project: Project, selection: Selected | null = null, onGenerate: (language: string | null) => void = () => {}) =>
+  renderToStaticMarkup(<CaptionsPanel project={project} store={createEditorStore({ selection })} commit={async () => {}} busy={false} onGenerate={onGenerate} />);
+const withProps = (pred: (p: Record<string, unknown>) => boolean) => elements.find((e) => pred(e.props))!.props;
 
 describe("CaptionsPanel", () => {
   it("phraseEdits emits one editPhrase per changed phrase and ignores emptied text", () => {
@@ -43,6 +50,39 @@ describe("CaptionsPanel", () => {
     const html = panel(editorProject(), { kind: "phrase", id: "ph-1" });
     expect(html).toMatch(/<li[^>]*id="phrase-ph-1"[^>]*aria-current="true"/);
     expect(html).not.toMatch(/id="phrase-ph-0"[^>]*aria-current/);
+  });
+
+  it("offers the spoken language with the project's language selected", () => {
+    const html = panel(editorProject());
+    expect(html).toContain('aria-label="Spoken language"');
+    expect(html).toContain('<option value="tl">Tagalog</option>');
+    expect(html).toMatch(/<option value="en" selected="">English<\/option>/);
+    expect(html).toContain("Re-transcribe");
+  });
+
+  it("empty state picks the spoken language before generating", () => {
+    const html = panel(editorProject({ phrases: [], language: null }));
+    expect(html).toMatch(/<option value="" selected="">Auto-detect<\/option>/);
+    expect(html).toContain("Generate captions");
+  });
+
+  it("Auto-detect asks for detection, not the project's last language", () => {
+    const onGenerate = vi.fn();
+    elements.length = 0;
+    panel(editorProject({ phrases: [], language: null }), null, onGenerate);
+    (withProps((x) => (x.action as { label?: string } | undefined)?.label === "Generate captions").action as { onClick: () => void }).onClick();
+    expect(onGenerate).toHaveBeenCalledWith(null);
+  });
+
+  it("re-transcribe asks first, then runs in the chosen language", () => {
+    const onGenerate = vi.fn();
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    elements.length = 0;
+    panel(editorProject(), null, onGenerate);
+    (withProps((x) => x.children === "Re-transcribe").onClick as () => void)();
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("replaces the captions"));
+    expect(onGenerate).toHaveBeenCalledWith("en");
+    vi.unstubAllGlobals();
   });
 
   it("empty state offers to generate captions", () => {

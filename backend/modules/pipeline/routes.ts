@@ -26,9 +26,9 @@ export function pipelineRouter(deps: AppDeps) {
     const asset = await deps.assets.get(parsed.data.assetId);
     if (!asset || (asset.kind !== "video" && asset.kind !== "audio")) return res.status(400).json({ error: "bad_asset" });
     const aspectRatio = asset.width && asset.height && asset.width > asset.height ? "16:9" : "9:16";
-    // A plan belongs to one source.
+    // A plan and the detected language belong to one source.
     res.json(await deps.projects.update(project.id, {
-      sourceAssetId: asset.id, sourceKind: asset.kind, aspectRatio, status: "draft", sourceDurationMs: asset.durationMs ?? null,
+      sourceAssetId: asset.id, sourceKind: asset.kind, aspectRatio, status: "draft", sourceDurationMs: asset.durationMs ?? null, language: null,
       editPlan: null, translations: [], burnInLanguage: null,
     }));
   });

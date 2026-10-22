@@ -10,6 +10,7 @@ import type { AppDeps } from "../shared/deps";
 import { FakeLlm } from "../shared/llm";
 import { FakeRenderer } from "../shared/renderer";
 import { makeTestDeps } from "../shared/testing";
+import { FakeTranscriber } from "../shared/transcriber";
 import type { Project } from "../../shared/types";
 import { SabiApi } from "./client";
 import { TOOL_NAMES, callTool, syncedToICloud, toolSpec } from "./tools";
@@ -104,6 +105,12 @@ describe("sabi mcp tools", () => {
     const waited = await callTool(api, "wait_job", { projectId: project.id });
     expect(waited.isError).toBeFalsy();
     expect(waited.text).toMatch(/^status ready after \d+s/);
+  });
+
+  it("run_job captions forwards the spoken language", async () => {
+    await callTool(api, "run_job", { projectId: project.id, kind: "captions", language: "tl" });
+    expect((await callTool(api, "wait_job", { projectId: project.id })).text).toMatch(/^status ready/);
+    expect((deps.transcriber as FakeTranscriber).languages.at(-1)).toBe("tl");
   });
 
   it("wait_job reports a failed plan job with its error", async () => {

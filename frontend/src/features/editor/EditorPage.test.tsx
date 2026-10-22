@@ -62,6 +62,10 @@ describe("EditorPage", () => {
     expect(html).toMatch(/<div data-toasts="" class="fixed [^"]*lg:static[^"]*">.*Project changed elsewhere/s);
   });
 
+  it("shows the approximate-timing warning", () => {
+    expect(page({ ...project, warnings: ["timing_estimated"] })).toContain("approximate");
+  });
+
   it("drag preview patches the preview project", () => {
     initial.state = { drag: { actions: [{ type: "setOverlay", overlayId: "ov-0", endMs: 11000 }] } };
     page(project);

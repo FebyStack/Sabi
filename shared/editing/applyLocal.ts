@@ -37,7 +37,7 @@ export function applyLocalAction(project: Project, a: Action): LocalResult | Loc
     case "setTemplate": {
       if (a.captionTemplateId === p.captionTemplateId || !p.phrases.length) return done({ captionTemplateId: a.captionTemplateId });
       // The new layout re-flows the words now, so a still frame shows it before any render.
-      const phrases = carryEmoji(p.phrases, segmentCaptions(p.phrases.flatMap((x) => x.words), getCaptionTemplate(a.captionTemplateId).layout));
+      const phrases = carryEmoji(p.phrases, segmentCaptions(p.phrases.flatMap((x) => x.words), getCaptionTemplate(a.captionTemplateId).layout, p.language));
       return done({ captionTemplateId: a.captionTemplateId, phrases });
     }
     case "setBurnIn":

@@ -6,6 +6,7 @@ import { makeTestDeps } from "../../shared/testing";
 import { FakeTranscriber } from "../../shared/transcriber";
 import { projectWithSource, untilStatus } from "../../shared/apiTestHelpers";
 import type { Project } from "../../../shared/types";
+import sample from "../../shared/fixtures/transcript-sample.json";
 
 describe("caption pipeline", () => {
   it("runs upload → ready with three outputs", async () => {
@@ -60,6 +61,46 @@ describe("caption pipeline", () => {
     await request(a).post(`/api/projects/${project.id}/run`).send({});
     const failed = await untilStatus(a, project.id, "failed");
     expect(failed.status).toBe("failed");
+  });
+
+  it("new source resets the detected language", async () => {
+    const deps = makeTestDeps();
+    const { a, project, asset } = await projectWithSource(deps);
+    await request(a).post(`/api/projects/${project.id}/run`).send({});
+    expect((await untilStatus(a, project.id, "ready")).language).toBe("en");
+    const src = await request(a).post(`/api/projects/${project.id}/source`).send({ assetId: asset.id });
+    expect(src.body.language).toBeNull();
+  });
+
+  it("run honours an explicit language over the project's", async () => {
+    const fake = new FakeTranscriber({ language: "tl", words: sample.words });
+    const { a, project } = await projectWithSource(makeTestDeps({ transcriber: fake }));
+    const runWith = async (body: object) => {
+      await request(a).post(`/api/projects/${project.id}/run`).send(body);
+      await untilStatus(a, project.id, "ready");
+      return fake.languages.at(-1);
+    };
+    expect(await runWith({})).toBeUndefined();
+    expect(await runWith({ language: "en" })).toBe("en");
+    expect(await runWith({})).toBe("tl"); // the stored transcript's language
+    expect(await runWith({ language: null })).toBeUndefined(); // Auto-detect: detect again
+  });
+
+  it("tl line breaks keep ng with its noun", async () => {
+    const words = "Bumili ako kahapon ng isda".split(" ").map((text, i) => ({ id: `w-${i}`, text, startMs: i * 300, endMs: i * 300 + 250 }));
+    const { a, project } = await projectWithSource(makeTestDeps({ transcriber: new FakeTranscriber({ language: "tl", words }) }));
+    expect(project.captionTemplateId).toBe("clean");
+    await request(a).post(`/api/projects/${project.id}/run`).send({});
+    const done = await untilStatus(a, project.id, "ready");
+    expect(done.phrases[0].lineBreaksAfter).toEqual([2]);
+  });
+
+  it("pipeline warns timing_estimated", async () => {
+    const deps = makeTestDeps({ transcriber: new FakeTranscriber({ language: "tl", words: sample.words.slice(0, 5), estimatedWords: 2 }) });
+    const { a, project } = await projectWithSource(deps);
+    await request(a).post(`/api/projects/${project.id}/run`).send({});
+    const done = await untilStatus(a, project.id, "ready");
+    expect(done.warnings).toEqual(["timing_estimated"]);
   });
 
   it("pipeline marks no_speech", async () => {
