@@ -18,6 +18,7 @@
     "verify": "npm run typecheck && npm run typecheck:server && npm run test && npm run test:py",
     "prepare": "git config core.hooksPath .githooks || true",
     "deps": "sh infrastructure/dev/deps.sh",
+    "transcribe:sample": "RUN_TRANSCRIBE=1 vitest run tests/integration/transcribe.test.ts",
     "render:sample": "mkdir -p $HOME/Developer/.sabi-tmp && RUN_RENDER=1 TMPDIR=$HOME/Developer/.sabi-tmp vitest run tests/integration/render.test.ts",
     "ai:whisperx": "UV_CACHE_DIR=${UV_CACHE_DIR:-$PWD/.cache/uv} HF_HOME=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/hf uv run --directory ai/transcription uvicorn server:app --host 127.0.0.1 --port 8010",
     "ai:ollama": "OLLAMA_MODELS=${DATA_DIR:-/Volumes/PortableSSD/Bong/captions-clone-data}/ollama ollama serve"
