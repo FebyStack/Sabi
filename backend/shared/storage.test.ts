@@ -1,8 +1,8 @@
-import { existsSync, mkdtempSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DeleteBucketCommand, DeleteObjectsCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { S3Storage } from "./s3Storage";
@@ -17,6 +17,20 @@ describe("FsStorage", () => {
     const s = new FsStorage(root);
     expect(s.describe()).toBe(`fs:${root}`);
     expect(s.workPath("audio/p1.wav")).toBe(join(root, "work", "audio", "p1.wav")); // same disk as the store: put is a rename
+  });
+
+  it("a stale scratch file it can't delete doesn't stop the sweep (or the boot)", async () => {
+    const s = new FsStorage(mkdtempSync(join(tmpdir(), "fs-store-")));
+    const hoursAgo = new Date(Date.now() - 2 * 3_600_000);
+    const locked = s.workPath("locked/old.bin"), other = s.workPath("other.bin");
+    for (const f of [locked, other]) { writeFileSync(f, "x"); utimesSync(f, hoursAgo, hoursAgo); }
+    chmodSync(dirname(locked), 0o555); // its folder is read-only: unlinking fails (EACCES) unless we run as root
+    try {
+      await expect(s.sweepWork()).resolves.toBeUndefined();
+    } finally {
+      chmodSync(dirname(locked), 0o755);
+    }
+    expect(existsSync(other)).toBe(false);
   });
 });
 

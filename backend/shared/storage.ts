@@ -30,13 +30,13 @@ const SCRATCH_TTL_MS = 3_600_000;
 // A crash leaves scratch behind (uploads in flight, partial renders, stills, S3 downloads). At boot, remove the files nothing has
 // touched for an hour and the folders that were stale and end up empty; the root stays. Fresh files stay: another API on the
 // same folder (a second worktree, a dev server that then finds its port taken) may be mid-job, and no job leaves a file that long.
-// Links are removed, never followed.
+// Links are removed, never followed. Best effort: what can't be removed stays, and the boot goes on.
 export async function sweepScratch(root: string, now = Date.now()): Promise<void> {
   const stale = (p: string) => lstat(p).then((s) => now - s.mtimeMs > SCRATCH_TTL_MS, () => false);
   for (const e of await readdir(root, { withFileTypes: true }).catch(() => [])) {
     const p = join(root, e.name);
     if (!e.isDirectory()) {
-      if (await stale(p)) await rm(p, { force: true });
+      if (await stale(p)) await rm(p, { force: true }).catch(() => {});
       continue;
     }
     const old = await stale(p); // before sweeping inside changes its mtime
