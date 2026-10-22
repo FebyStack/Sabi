@@ -1,3 +1,4 @@
+import { existsSync, writeFileSync } from "node:fs";
 import request from "supertest";
 import { createApp } from "../../app/app";
 import { FakeMedia } from "../../shared/media";
@@ -128,4 +129,19 @@ describe("caption pipeline", () => {
     expect(renderer.calls.at(-1)?.inputProps.sourceKind).toBe("audio");
   });
 
+
+  it("the extracted WAV is deleted after transcription", async () => {
+    let wavPath = "";
+    class WritingMedia extends FakeMedia {
+      async extractAudio(_input: string, outWav: string) { writeFileSync(outWav, "RIFF"); }
+    }
+    const transcriber = { transcribe: async (path: string) => { wavPath = path; expect(existsSync(path)).toBe(true); return { language: "en", words: sample.words }; } };
+    const deps = makeTestDeps({ media: new WritingMedia({ durationMs: 21000, width: 1080, height: 1920 }), transcriber });
+    const { a, project } = await projectWithSource(deps);
+    await request(a).post(`/api/projects/${project.id}/run`).send({});
+    await untilStatus(a, project.id, "ready");
+    expect(wavPath).not.toBe("");
+    expect(existsSync(wavPath)).toBe(false); // ExFAT DATA_DIR: work files must not pile up
+  });
 });
+

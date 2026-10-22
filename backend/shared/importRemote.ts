@@ -1,4 +1,7 @@
+import { createWriteStream } from "node:fs";
+import { rm } from "node:fs/promises";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { ReadableStream as WebStream } from "node:stream/web";
 import type { Asset, AssetMeta, OverlayMedia } from "../../shared/types";
 import type { AppDeps } from "./deps";
@@ -13,7 +16,7 @@ const TYPES: Record<OverlayMedia, Record<string, string>> = {
 
 const isHttps = (url: string) => { try { return new URL(url).protocol === "https:"; } catch { return false; } };
 
-// Stock/generated media is untrusted: https only, capped, typed, probed. It is copied under DATA_DIR so renders never fetch third-party hosts.
+// Stock/generated media is untrusted: https only, capped, typed, probed. It is copied into storage so renders never fetch third-party hosts.
 export async function importRemote(
   deps: Pick<AppDeps, "storage" | "media" | "id" | "fetch">, url: string, opts: { expect: OverlayMedia; maxBytes?: number },
 ): Promise<{ key: string; mimeType: string; info: MediaInfo }> {
@@ -27,17 +30,20 @@ export async function importRemote(
     await res.body?.cancel().catch(() => {});
     throw bad();
   }
-  const key = `broll/${deps.id()}${ext}`;
+  const name = `${deps.id()}${ext}`;
+  const key = `broll/${name}`;
+  const work = deps.storage.workPath(`imports/${name}`); // checked locally, stored only once it passes
   try {
     const src = Readable.fromWeb(res.body as WebStream<Uint8Array>);
     const limited = limitBytes(max);
     src.on("error", (err) => limited.destroy(err)); // .pipe() does not forward a dropped connection
-    await deps.storage.write(key, src.pipe(limited));
-    const info = await deps.media.probe(deps.storage.localPath(key), opts.expect === "image" ? "image" : "av");
+    await pipeline(src.pipe(limited), createWriteStream(work));
+    const info = await deps.media.probe(work, opts.expect === "image" ? "image" : "av");
     if (!info.width || !info.height || (opts.expect === "image" && Math.max(info.width, info.height) > MAX_IMAGE_PX)) throw bad();
+    await deps.storage.put(key, work);
     return { key, mimeType, info };
   } catch {
-    await deps.storage.remove(key);
+    await rm(work, { force: true });
     throw bad();
   }
 }

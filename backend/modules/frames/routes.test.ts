@@ -1,4 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
+import { dirname } from "node:path";
 import request from "supertest";
 import { holdJob, projectWithSource, readyProject } from "../../shared/apiTestHelpers";
 import { FakeRenderer } from "../../shared/renderer";
@@ -27,7 +28,7 @@ describe("still frames", () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);
     await Promise.all([1000, 1000, 2000].map((t) => request(a).get(`/api/projects/${project.id}/frame?t=${t}`).expect(200)));
-    const dir = deps.storage.localPath(`frames/${project.id}`);
+    const dir = dirname(deps.storage.workPath(`frames/${project.id}/probe`));
     expect(existsSync(dir) ? readdirSync(dir) : []).toEqual([]);
   });
 

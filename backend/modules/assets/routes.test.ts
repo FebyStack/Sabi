@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import request from "supertest";
 import { createApp } from "../../app/app";
@@ -95,12 +96,14 @@ describe("assets", () => {
     const ac = new AbortController();
     const put = fetch(`${base}/api/assets/uploads/${uploadId}`, { method: "PUT", headers: { "content-type": "video/mp4" }, body, duplex: "half", signal: ac.signal } as RequestInit).catch(() => null);
     push(new TextEncoder().encode("hello"));
-    await vi.waitFor(async () => expect(await deps.storage.stat(`uploads/${uploadId}.mp4`)).not.toBeNull());
+    const work = deps.storage.workPath(`uploads/${uploadId}.mp4`); // bytes stream to a scratch file until done() accepts them
+    await vi.waitFor(() => expect(existsSync(work)).toBe(true));
     expect((await fetch(`${base}/api/assets/uploads/${uploadId}/done`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status).toBe(409);
     expect((await fetch(`${base}/api/assets/uploads/${uploadId}`, { method: "PUT", headers: { "content-type": "video/mp4" }, body: "x" })).status).toBe(409);
     ac.abort();
     await put;
-    await vi.waitFor(async () => expect(await deps.storage.stat(`uploads/${uploadId}.mp4`)).toBeNull());
+    await vi.waitFor(() => expect(existsSync(work)).toBe(false));
+    expect(await deps.storage.stat(`uploads/${uploadId}.mp4`)).toBeNull();
     server.close();
   });
 
@@ -116,4 +119,34 @@ describe("assets", () => {
     await deps.storage.remove(asset.key);
     expect((await request(a).get(`/api/assets/${asset.id}/file`)).status).toBe(404);
   });
+
+  it("serves byte ranges like a static file server", async () => {
+    const deps = makeTestDeps();
+    const a = createApp(deps);
+    const bytes = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 251));
+    const { body: { uploadId } } = await request(a).post("/api/assets/uploads/start").send({ fileName: "c.mp4", mimeType: "video/mp4", sizeBytes: 1000 });
+    await request(a).put(`/api/assets/uploads/${uploadId}`).set("content-type", "video/mp4").send(bytes);
+    const { body: asset } = await request(a).post(`/api/assets/uploads/${uploadId}/done`).send({});
+    const get = (range?: string) => {
+      const r = request(a).get(`/api/assets/${asset.id}/file`).buffer(true).parse((res, cb) => { const c: Buffer[] = []; res.on("data", (d: Buffer) => c.push(d)); res.on("end", () => cb(null, Buffer.concat(c))); });
+      return range ? r.set("range", range) : r;
+    };
+    const whole = await get();
+    expect(whole.status).toBe(200);
+    expect(whole.headers).toMatchObject({ "accept-ranges": "bytes", "content-length": "1000", "content-type": "video/mp4", "x-content-type-options": "nosniff" });
+    expect(whole.body).toEqual(bytes);
+    const from0 = await get("bytes=0-");
+    expect([from0.status, from0.headers["content-range"], from0.body.length]).toEqual([206, "bytes 0-999/1000", 1000]);
+    const mid = await get("bytes=100-199");
+    expect([mid.status, mid.headers["content-range"], mid.headers["content-length"]]).toEqual([206, "bytes 100-199/1000", "100"]);
+    expect(mid.body).toEqual(bytes.subarray(100, 200));
+    const tail = await get("bytes=-500");
+    expect([tail.status, tail.headers["content-range"]]).toEqual([206, "bytes 500-999/1000"]);
+    expect(tail.body).toEqual(bytes.subarray(500));
+    const past = await get("bytes=2000-");
+    expect([past.status, past.headers["content-range"]]).toEqual([416, "bytes */1000"]);
+    await deps.storage.remove(asset.key);
+    expect((await get()).status).toBe(404);
+  });
 });
+

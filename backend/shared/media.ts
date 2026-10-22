@@ -45,5 +45,5 @@ export class FfmpegMedia implements Media {
 export class FakeMedia implements Media {
   constructor(private info: MediaInfo) {}
   async probe() { return this.info; }
-  async extractAudio() {}
+  async extractAudio(_input: string, _outWav: string) {}
 }

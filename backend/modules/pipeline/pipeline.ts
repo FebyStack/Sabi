@@ -1,5 +1,4 @@
-import { mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { rm } from "node:fs/promises";
 import { carryEmoji, segmentCaptions } from "../../../shared/captions/segment";
 import { toSrt, toVtt } from "../../../shared/captions/subtitles";
 import { getCaptionTemplate } from "../../../shared/captions/templates";
@@ -35,12 +34,15 @@ export const captionJob = (deps: AppDeps): JobHandler => async ({ projectId, dat
     if (opts.transcribe) {
       await setStatus("transcribing");
       report(10, "extract-audio");
-      const wav = deps.storage.localPath(`work/${project.id}/audio.wav`);
-      await mkdir(dirname(wav), { recursive: true });
-      await deps.media.extractAudio(deps.storage.localPath(source.key), wav);
-      report(40, "transcribe");
-      const language = opts.language === null ? undefined : opts.language ?? project.language ?? undefined; // null = detect again
-      transcript = await deps.transcriber.transcribe(wav, { language });
+      const wav = deps.storage.workPath(`audio/${project.id}.wav`);
+      try {
+        await deps.storage.withLocalFile(source.key, (path) => deps.media.extractAudio(path, wav));
+        report(40, "transcribe");
+        const language = opts.language === null ? undefined : opts.language ?? project.language ?? undefined; // null = detect again
+        transcript = await deps.transcriber.transcribe(wav, { language });
+      } finally {
+        await rm(wav, { force: true }); // only transcription needs it
+      }
     }
     if (opts.transcribe || opts.resegment) {
       report(60, "segment");
@@ -72,9 +74,13 @@ export async function renderOutputs(deps: AppDeps, project: Project, source: Ass
   report(70, "render");
   const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0, assetUrl: (id) => `${deps.apiBaseUrl}${api.assetFile(id)}` });
   const jobKey = `renders/${project.id}/${deps.id()}`;
-  const outPath = deps.storage.localPath(`${jobKey}.mp4`);
-  await mkdir(dirname(outPath), { recursive: true });
-  await deps.renderer.render({ compositionId: "CaptionVideo", inputProps: props, durationMs: props.durationMs, outPath, scale });
+  const outPath = deps.storage.workPath(`${jobKey}.mp4`);
+  try {
+    await deps.renderer.render({ compositionId: "CaptionVideo", inputProps: props, durationMs: props.durationMs, outPath, scale });
+    await deps.storage.put(`${jobKey}.mp4`, outPath);
+  } finally {
+    await rm(outPath, { force: true }); // a failed render's partial file
+  }
   const mp4 = await addAsset(deps, project.id, "render", `${jobKey}.mp4`, "video/mp4", { width: props.width * scale, height: props.height * scale, durationMs: props.durationMs });
 
   report(95, "subtitles");

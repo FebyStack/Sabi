@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { mkdir, readFile, rm } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readFile, rm } from "node:fs/promises";
 import { api } from "../../../shared/contract";
 import { captionVideoProps } from "../../../shared/editing/renderProps";
 import type { AppDeps } from "../../shared/deps";
@@ -25,9 +24,8 @@ export function framesRouter(deps: AppDeps) {
     const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0, assetUrl: (id) => `${deps.apiBaseUrl}${api.assetFile(id)}` });
     const t = Math.round(clamp(Number(req.query.t) || 0, 0, props.durationMs));
     const w = Math.round(clamp(Number(req.query.w) || 540, 160, 1080));
-    // One file per request, deleted once read: DATA_DIR is ExFAT with 1 MiB blocks, so stills must never accumulate.
-    const outPath = deps.storage.localPath(`frames/${project.id}/${deps.id()}.png`);
-    await mkdir(dirname(outPath), { recursive: true });
+    // One scratch file per request, deleted once read: on the ExFAT DATA_DIR every file costs 1 MiB, so stills must never accumulate.
+    const outPath = deps.storage.workPath(`frames/${project.id}/${deps.id()}.png`);
     let png: Buffer;
     try {
       await deps.renderer.renderStill({ compositionId: "CaptionVideo", inputProps: props, timestampMs: t, width: w, outPath });
