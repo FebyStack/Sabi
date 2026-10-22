@@ -27,6 +27,60 @@ export function parseFromSandbox(data: unknown): FromSandbox | null {
   return null;
 }
 
+// One MG's sandbox as the page sees it. Draws wait for "ready"; a sandbox that never starts, or leaves a frame
+// unanswered, dies (the page then draws ⚠) so a render never hangs on it.
+export class MgChannel {
+  readonly ready: Promise<void>;
+  private settleReady!: () => void;
+  private isDead = false;
+  private seq = 0;
+  private pending = new Map<number, { done: () => void; timer: ReturnType<typeof setTimeout> }>();
+  private startTimer: ReturnType<typeof setTimeout>;
+
+  constructor(private post: (m: ToSandbox) => void, private onSilent: (detail: string) => void) {
+    this.ready = new Promise((r) => { this.settleReady = r; });
+    this.startTimer = setTimeout(() => this.die(`did not start in ${MG_START_MS / 1000} s`), MG_START_MS);
+  }
+
+  get dead() { return this.isDead; }
+
+  receive(m: FromSandbox): void {
+    if (m.t === "ready") {
+      clearTimeout(this.startTimer);
+      this.settleReady();
+    } else if (m.t === "drawn") this.settle(m.seq);
+  }
+
+  async draw(frame: number | null, item: MgItem): Promise<void> {
+    await this.ready;
+    if (this.isDead) return;
+    const seq = ++this.seq;
+    return new Promise((done) => {
+      this.pending.set(seq, { done, timer: setTimeout(() => this.die(`no answer for ${MG_FRAME_MS / 1000} s`), MG_FRAME_MS) });
+      this.post({ t: "draw", seq, frame, item });
+    });
+  }
+
+  kill(): void { this.die(null); }
+
+  private settle(seq: number) {
+    const p = this.pending.get(seq);
+    if (!p) return;
+    clearTimeout(p.timer);
+    this.pending.delete(seq);
+    p.done();
+  }
+
+  private die(detail: string | null) {
+    if (this.isDead) return;
+    this.isDead = true;
+    clearTimeout(this.startTimer);
+    for (const seq of [...this.pending.keys()]) this.settle(seq);
+    this.settleReady();
+    if (detail) this.onSilent(detail);
+  }
+}
+
 export const mgLogLine = (p: MgProblem) => MG_LOG_PREFIX + JSON.stringify(p);
 
 export function parseMgLog(text: string): MgProblem | null {
