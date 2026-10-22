@@ -24,10 +24,11 @@ services:
     volumes: ["${DATA_DIR}/minio:/data"]
     healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 2s, timeout: 3s, retries: 30 }
 
-  # BullMQ jobs (spec row 22). noeviction: a queue must never lose keys under memory pressure.
+  # BullMQ jobs (spec row 22). noeviction: a queue must never lose keys under memory pressure. The AOF alone persists: no RDB
+  # snapshots (--save ""), since a dump.rdb would keep a deleted project's prompts until its next save.
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    command: ["redis-server", "--appendonly", "yes", "--save", "", "--maxmemory-policy", "noeviction"]
     ports: ["127.0.0.1:6379:6379"] # no password: localhost-only, like the API itself
     volumes: ["${HOME}/SabiDev/docker/redis:/data"] # APFS image, like Postgres: the entrypoint's chown fails on ExFAT's ._ files
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 2s, timeout: 3s, retries: 30 }

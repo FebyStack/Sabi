@@ -127,6 +127,13 @@ describe.skipIf(!url)("BullJobRunner", { timeout: 30_000 }, () => {
     admin.disconnect();
   });
 
+  it("Redis keeps no RDB snapshots (compose: --save \"\"), so the AOF rewrite after a delete is the only copy to clean", async () => {
+    const admin = new Redis(url!);
+    expect(await admin.config("GET", "save")).toEqual(["save", ""]); // a dump.rdb would keep a deleted project's prompts until the next save
+    expect((await admin.info("persistence")).includes("aof_enabled:1")).toBe(true); // AOF alone persists the queue
+    admin.disconnect();
+  });
+
   it("a rewrite already running at forget took its snapshot before the delete: forget waits for it and rewrites again", async () => {
     const admin = new Redis(url!);
     const rewrites = async () => Number((await admin.info("persistence")).match(/aof_rewrites:(\d+)/)?.[1] ?? 0); // counted when one starts
