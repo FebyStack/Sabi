@@ -8,12 +8,13 @@ import type { JobHandler } from "../../shared/jobs";
 import { importAsAsset } from "../../shared/importRemote";
 import { nextId } from "../actions/apply";
 import { renderOutputs } from "../pipeline/pipeline";
+import { OverCap, chargeGeneration } from "../usage/spend";
 import { labelBeats } from "./labeler";
 
 type Spec = { media: OverlayMedia; query: string; prompt: string; intent: string };
 type Resolved = Pick<Overlay, "assetId" | "media" | "source" | "attribution" | "generationInfo" | "durationMs">;
 const MAX_TRIES = 3;
-const isBrollWarning = (w: string) => w === "no_broll_shots" || w.startsWith("broll_not_found:");
+const isBrollWarning = (w: string) => w === "no_broll_shots" || w === "over_cap" || w.startsWith("broll_not_found:");
 
 // Job "broll": beats → labels → media per beat (fal or Pexels, copied into storage) → save → render.
 // A missing provider fails before anything is written; a beat with no media is skipped with a warning.
@@ -63,12 +64,15 @@ export const brollJob = (deps: AppDeps): JobHandler => async ({ projectId, data,
     const resolve = async (spec: Spec, opts: { page?: number; skipUrl?: string } = {}): Promise<Resolved | null> => {
       if (generate) {
         try {
-          const g = await deps.generator!.generate({ prompt: spec.prompt, media: spec.media, ...DIMS[project.aspectRatio] });
+          const g = await chargeGeneration(deps, { projectId: project.id, prompt: spec.prompt, media: spec.media, ...DIMS[project.aspectRatio], jobKind: "broll", actor: data.actor });
           credits += g.costCents; // spent at fal even if the file turns out unusable
           const generationInfo = { provider: "fal" as const, model: g.model, prompt: spec.prompt, costCents: g.costCents };
           const asset = await importAsset(g.url, g.media, { source: "generated", generationInfo, prompt: spec.prompt });
           return { ...fromAsset(asset), source: "generated", generationInfo };
-        } catch { /* fal failed for this beat: Pexels, never the reverse */ }
+        } catch (err) {
+          // fal failed, or the month's cap is reached, for this beat: Pexels, never the reverse.
+          if (err instanceof OverCap && !warnings.includes("over_cap")) warnings.push("over_cap");
+        }
       }
       return fromStock(spec, opts);
     };

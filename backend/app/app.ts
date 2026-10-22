@@ -9,6 +9,7 @@ import { eventsRouter } from "../modules/events/routes";
 import { framesRouter } from "../modules/frames/routes";
 import { pipelineRouter } from "../modules/pipeline/routes";
 import { projectsRouter } from "../modules/projects/routes";
+import { usageRouter } from "../modules/usage/routes";
 import type { AppDeps } from "../shared/deps";
 import { registerJobHandlers } from "./jobs";
 
@@ -50,6 +51,7 @@ export function createApp(deps: AppDeps) {
   app.use(framesRouter(deps));
   app.use(actionsRouter(deps));
   app.use(brollRouter(deps));
+  app.use(usageRouter(deps));
 
   app.use("/api", (_req, res) => res.status(404).json({ error: "not_found" }));
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -222,6 +222,21 @@ export const JobStateSchema = z.object({
   result: JobResultSchema.optional(),
 });
 
+// Paid-generation spend (spec rows 19–20). Months are UTC calendar months; a deleted project's rows keep their id and lose their title.
+const Cents = z.number().int().nonnegative();
+export const CatalogSchema = z.object({
+  models: z.array(z.object({ id: z.string(), provider: z.enum(["fal", "pexels"]), media: OverlayMedia, costCents: Cents, available: z.boolean() })),
+  spend: z.object({ monthCents: Cents, capCents: Cents }), // capCents 0 = no cap
+});
+export const UsageRowSchema = z.object({
+  id: z.string(), createdAt: z.string(), model: z.string(), media: OverlayMedia, costCents: Cents, jobKind: z.enum(["broll", "generate"]), actor: Actor,
+  projectId: z.string().nullable(), projectTitle: z.string().nullable(),
+});
+export const UsageSchema = z.object({
+  capCents: Cents, monthCents: Cents,
+  months: z.array(z.object({ month: z.string(), totalCents: Cents, rows: z.array(UsageRowSchema) })), // newest first
+});
+
 export const ProjectEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("job"), job: JobStateSchema }),
   z.object({ type: z.literal("project"), status: ProjectStatus }),
@@ -244,4 +259,6 @@ export const api = {
   upload: (uploadId: string) => `/api/assets/uploads/${uploadId}`,
   uploadDone: (uploadId: string) => `/api/assets/uploads/${uploadId}/done`,
   assetFile: (id: string) => `/api/assets/${id}/file`,
+  catalog: "/api/catalog",
+  usage: "/api/usage",
 } as const;

@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { createApp, parseAllowedOrigins } from "../app/app";
 import { PgAssetRepository } from "../modules/assets/repository";
 import { PgProjectRepository } from "../modules/projects/repository";
+import { PgCreditLedger } from "../modules/usage/ledger";
+import { parseSpendCap } from "../modules/usage/spend";
 import { seedDemo } from "../modules/demo/seed";
 import { startRetention } from "../modules/retention/sweep";
 import type { AppDeps } from "../shared/deps";
@@ -41,6 +43,8 @@ const deps: AppDeps = {
   fetch: globalThis.fetch,
   stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
   generator: process.env.FAL_KEY ? new FalGenerator(process.env.FAL_KEY, globalThis.fetch) : null,
+  ledger: new PgCreditLedger(pool),
+  spendCapCents: parseSpendCap(process.env.SPEND_CAP_CENTS),
   apiBaseUrl: process.env.API_BASE_URL ?? `http://127.0.0.1:${port}`,
   allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
   now: () => new Date(),

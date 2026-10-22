@@ -180,4 +180,34 @@ describe("b-roll api", () => {
     expect((await request(a).post(`/api/projects/${project.id}/broll`).send({})).status).toBe(409);
     expect((await request(a).post("/api/projects/nope/broll").send({})).status).toBe(404);
   });
+
+  it("a generate-mode B-roll run writes one ledger row per fal call, as the web", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await plannedProject(deps, "generate");
+    await broll(a, project.id);
+    const rows = await deps.ledger.since(new Date(0));
+    expect(rows.map((r) => [r.media, r.costCents, r.jobKind, r.actor, r.projectId]).sort()).toEqual([
+      ["image", 1, "broll", "web", project.id], ["video", 25, "broll", "web", project.id],
+    ]);
+  });
+
+  it("over the cap a B-roll beat falls back to Pexels without calling fal", async () => {
+    const deps = makeTestDeps({ spendCapCents: 1 });
+    const { a, project } = await plannedProject(deps, "generate");
+    await deps.ledger.record({ id: "earlier", projectId: "other", provider: "fal", model: "fal-ai/flux/schnell", media: "image", costCents: 1, jobKind: "generate", actor: "agent", createdAt: "2026-01-01T00:00:00.000Z" });
+    const done = await broll(a, project.id);
+    expect((deps.generator as FakeGenerator).calls).toEqual([]);
+    expect(done.overlays.map((o) => o.source)).toEqual(["stock", "stock"]);
+    expect(done.warnings.filter((w) => w === "over_cap")).toHaveLength(1);
+    expect(await deps.ledger.since(new Date(0))).toHaveLength(1); // only the earlier row
+  });
+
+  it("x-sabi-actor: agent marks the rows as agent", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await plannedProject(deps, "generate");
+    expect((await request(a).post(`/api/projects/${project.id}/broll`).set("x-sabi-actor", "agent").send({})).status).toBe(202);
+    await untilJob(a, project.id, "COMPLETE");
+    expect((await deps.ledger.since(new Date(0))).map((r) => r.actor)).toEqual(["agent", "agent"]);
+  });
 });
+
