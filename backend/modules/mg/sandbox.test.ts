@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { SANDBOX_CSP, buildMgSandboxHtml } from "../../../infrastructure/dev/build-mg-sandbox";
 
 const committed = () => readFileSync("frontend/public/mg-sandbox.html", "utf8");
@@ -18,5 +19,12 @@ describe("MG sandbox page", () => {
     expect(html.match(/<\/script/g)).toHaveLength(1);
     expect(html).toContain("<body><script>");
     expect(html).not.toContain("<!--");
+  });
+
+  // Opened at Sabi's own origin (another site framing it without `sandbox`, or a plain visit), MG code it was sent
+  // would run as the editor; the script stops before any code, React or Remotion runs.
+  it("the page refuses to run unless the browser sandboxed it (opaque origin)", () => {
+    const js = /<script>([\s\S]*)<\/script>/.exec(committed())![1];
+    expect(() => runInNewContext(js, { self: { origin: "http://localhost:5173" } })).toThrow("mg-sandbox: open it only in a sandboxed frame");
   });
 });
