@@ -81,6 +81,10 @@ describe("detectCuts", () => {
       expect(spans([w("a", "Okay.", 0, 300), w("b", "ano...", 800, 1100), w("c", "pumunta", 1600, 1900)])).toEqual([["filler", 800, 1100, "ano..."]]);
     });
 
+    it("'yung before its noun is kept", () => {
+      expect(cutsOf([w("a", "Kinuha", 0, 300), w("b", "ko", 320, 500), w("c", "'yung", 750, 950), w("d", "libro", 1250, 1600)])).toEqual([]);
+    });
+
     it("trailing comma counts as a boundary", () => {
       expect(spans([w("a", "Tapos", 0, 400), w("b", "ano,", 900, 1200), w("c", "pumunta", 1300, 1700)])).toEqual([["filler", 900, 1200, "ano,"]]);
     });
