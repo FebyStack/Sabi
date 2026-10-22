@@ -34,6 +34,7 @@ describe("edit plan api", () => {
     await request(a).post(`/api/projects/${project.id}/plan`).send({});
     const done = await untilPlanned(a, project.id);
     expect(done.editPlan!.cuts).toContainEqual(expect.objectContaining({ reason: "filler", text: "ano," }));
+    expect((deps.llm as FakeLlm).calls[0].system).toContain("Taglish"); // the planner got the language too
   });
 
   it("plans, translates and re-renders", async () => {

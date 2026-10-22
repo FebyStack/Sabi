@@ -1,7 +1,8 @@
 import type { z } from "zod";
-import { PLAN_SYSTEM, llmLinesSchema, llmPlanSchema, translateSystem } from "../../../ai/llm/prompts";
+import { llmLinesSchema, llmPlanSchema, planSystem, translateSystem } from "../../../ai/llm/prompts";
 import { retimePhrase } from "../../../shared/captions/retime";
 import { LANGUAGE_NAMES } from "../../../shared/contract";
+import { TL_FUNCTION_WORDS, isTagalog } from "../../../shared/lang/tagalog";
 import type { Phrase, Shot, ShotKind, TranslationLanguage, Word } from "../../../shared/types";
 import { askJson, type Llm } from "../../shared/llm";
 
@@ -17,19 +18,21 @@ const batches = <T>(xs: T[], size: number) => Array.from({ length: Math.ceil(xs.
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 // LLM labels, then normalization: a small model's sloppy output is clamped or ignored, never trusted.
-export async function planEdit(llm: Llm, phrases: Phrase[], durationMs: number): Promise<{ shots: Shot[]; phrases: Phrase[] }> {
+export async function planEdit(llm: Llm, phrases: Phrase[], durationMs: number, language?: string | null): Promise<{ shots: Shot[]; phrases: Phrase[] }> {
   const answers: LlmPlan[] = [];
   for (const [b, batch] of batches(phrases, PLAN_BATCH).entries()) {
     const input = { phrases: batch.map((p, j) => ({ i: b * PLAN_BATCH + j, text: textOf(p) })) };
-    answers.push(await askJson(llm, llmPlanSchema(batch.length), PLAN_SYSTEM, input));
+    answers.push(await askJson(llm, llmPlanSchema(batch.length), planSystem(language), input));
   }
   const inRange = (i: number) => Number.isInteger(i) && i >= 0 && i < phrases.length;
   const out: Phrase[] = phrases.map(({ emoji: _, ...p }) => ({ ...p, words: p.words.map(plain) }));
 
   const flagged = new Map<number, number>();
+  const tl = isTagalog(language);
   for (const e of answers.flatMap((a) => a.emphasis)) {
     const n = flagged.get(e.phrase) ?? 0;
     if (!inRange(e.phrase) || n >= 2 || !norm(e.word)) continue;
+    if (tl && TL_FUNCTION_WORDS.has(norm(e.word))) continue; // small models highlight ang/ng anyway; it takes no slot
     const word = out[e.phrase].words.find((w) => !w.emphasis && norm(w.text) === norm(e.word));
     if (!word) continue;
     word.emphasis = e.kind;

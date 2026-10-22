@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EmphasisKind, ShotKind } from "../../shared/contract";
+import { isTagalog } from "../../shared/lang/tagalog";
 
 // The LLM only labels (shots, emphasis, emoji) and translates; cuts are heuristic (shared/editing/cuts.ts).
 export const PLAN_SYSTEM = `You are a short-form video editor. The user sends the captions of a talking-head video as JSON: {"phrases":[{"i":<index>,"text":<caption>}]}, in order.
@@ -14,6 +15,10 @@ Answer with JSON only:
   "noun" = a concrete thing, "keyword" = the key idea, "pictorial" = something you can picture.
 - "emoji": one emoji for about one phrase in three, only where it fits the meaning.
 Use only the phrase indices you were given.`;
+
+export const TAGALOG_PLAN_NOTE = `The captions are Tagalog or Taglish (Tagalog mixed with English). Highlight content words only — nouns, verb roots, names, numbers and English loanwords — never particles or function words (ang, ng, sa, mga, na, ay, at, 'yung, kasi, parang, po). Copy each word exactly as written, with its affixes and hyphens (e.g. "pag-aaral", "malaking"). Emoji follow the meaning, not the language.`;
+
+export const planSystem = (language?: string | null) => (isTagalog(language) ? `${PLAN_SYSTEM}\n${TAGALOG_PLAN_NOTE}` : PLAN_SYSTEM);
 
 export const translateSystem = (languageName: string) => `Translate each subtitle line into ${languageName}.
 The user sends JSON {"language":<name>,"lines":[<line>]}. Keep the meaning and tone of the speaker.

@@ -24,7 +24,7 @@ export function startPlanJob(deps: AppDeps, project: Project, input: z.infer<typ
       const durationMs = source.durationMs ?? 0;
       await setStatus("planning");
       report(10, "plan");
-      const { shots, phrases } = await planEdit(deps.llm, project.phrases, durationMs);
+      const { shots, phrases } = await planEdit(deps.llm, project.phrases, durationMs, project.language);
       const cuts = detectCuts(project.transcript!.words, durationMs, project.language); // ASR words, not edited phrases
 
       const targets = input.languages.filter((l) => l !== project.language);
