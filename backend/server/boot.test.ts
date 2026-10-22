@@ -1,10 +1,15 @@
-import { mkdtempSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
+import { DeleteBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { FsStorage } from "../shared/storage";
 import { MemoryEventBus } from "../shared/events";
 import { MemoryJobRunner } from "../shared/jobs";
 import { createJobRunner, createStorage, listenHost, shutdownHandler } from "./boot";
+
+const hoursAgo = new Date(Date.now() - 2 * 3_600_000);
+const leftover = (path: string) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, "x"); utimesSync(path, hoursAgo, hoursAgo); return path; };
 
 describe("createStorage", () => {
   it("uses files under DATA_DIR without S3_ENDPOINT (or with an empty one)", async () => {
@@ -13,6 +18,26 @@ describe("createStorage", () => {
     const s = await createStorage({ S3_ENDPOINT: " " }, dir);
     expect(s.describe()).toBe(`fs:${dir}`);
   });
+
+  it("opening the storage at boot (before any job runs) sweeps the scratch a crash left", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "boot-"));
+    const partial = leftover(join(dir, "work", "renders", "p1-a.mp4"));
+    const stored = leftover(join(dir, "renders", "p1", "a.mp4")); // the store itself is never swept
+    await createStorage({}, dir);
+    expect([existsSync(partial), existsSync(stored)]).toEqual([false, true]);
+  });
+
+  // Real MinIO from `make db` (npm run test:infra).
+  it.skipIf(!process.env.S3_TEST_ENDPOINT)("with S3, scratch is a sabi-work folder inside WORK_DIR, so a sweep never touches anything else there", async () => {
+    const workDir = mkdtempSync(join(tmpdir(), "boot-work-"));
+    const mine = leftover(join(workDir, "notes.txt")); // e.g. WORK_DIR pointed at a folder of the user's
+    const env = { S3_ENDPOINT: process.env.S3_TEST_ENDPOINT, S3_BUCKET: `sabi-test-${randomUUID().slice(0, 8)}`, S3_ACCESS_KEY: process.env.S3_TEST_ACCESS_KEY, S3_SECRET_KEY: process.env.S3_TEST_SECRET_KEY };
+    const s = await createStorage({ ...env, WORK_DIR: workDir }, "/unused");
+    expect(s.workPath("a.bin")).toBe(join(workDir, "sabi-work", "a.bin"));
+    expect(existsSync(mine)).toBe(true);
+    await new S3Client({ endpoint: env.S3_ENDPOINT, region: "auto", forcePathStyle: true, credentials: { accessKeyId: env.S3_ACCESS_KEY!, secretAccessKey: env.S3_SECRET_KEY! } })
+      .send(new DeleteBucketCommand({ Bucket: env.S3_BUCKET })); // createStorage made it
+  }, 30_000);
 
   it("fails clearly when the S3 endpoint can't be reached", async () => {
     const err = await createStorage({ S3_ENDPOINT: "http://127.0.0.1:1", S3_BUCKET: "b", S3_ACCESS_KEY: "k", S3_SECRET_KEY: "s" }, "/x").catch((e) => e);

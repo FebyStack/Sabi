@@ -73,8 +73,9 @@ export async function renderOutputs(deps: AppDeps, project: Project, source: Ass
   scale: 1 | 2 = project.outputs.resolution === "4k" ? 2 : 1): Promise<Project["outputs"]> {
   report(70, "render");
   const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0, assetUrl: (id) => `${deps.apiBaseUrl}${api.assetFile(id)}` });
-  const jobKey = `renders/${project.id}/${deps.id()}`;
-  const outPath = deps.storage.workPath(`${jobKey}.mp4`);
+  const id = deps.id();
+  const jobKey = `renders/${project.id}/${id}`;
+  const outPath = deps.storage.workPath(`renders/${project.id}-${id}.mp4`); // flat: no scratch folder per project left behind
   try {
     await deps.renderer.render({ compositionId: "CaptionVideo", inputProps: props, durationMs: props.durationMs, outPath, scale });
     await deps.storage.put(`${jobKey}.mp4`, outPath);

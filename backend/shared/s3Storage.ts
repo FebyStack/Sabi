@@ -6,7 +6,7 @@ import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-import { checkKey, type ByteRange, type Storage } from "./storage";
+import { checkKey, sweepScratch, type ByteRange, type Storage } from "./storage";
 
 const notFound = (err: unknown) => {
   const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
@@ -79,6 +79,8 @@ export class S3Storage implements Storage {
     mkdirSync(dirname(p), { recursive: true });
     return p;
   }
+
+  sweepWork() { return sweepScratch(this.o.workDir); }
 
   // By bucket alone: the same MinIO is localhost:9000 from the Mac and minio:9000 from the api container.
   describe() { return `s3:${this.bucket}`; }
