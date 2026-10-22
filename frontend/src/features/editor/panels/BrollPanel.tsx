@@ -7,6 +7,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { Sheet } from "@/components/ui/Sheet";
 import { Switch } from "@/components/ui/Switch";
 import { assetFileUrl, uploadFile } from "@/features/projects/api/projects";
+import { MgPropsSheet } from "./MgPropsSheet";
 import { NewOverlaySheet } from "./NewOverlaySheet";
 
 const REPLACE_TYPES = ["image/png", "image/jpeg", "image/webp", "video/mp4"];
@@ -33,6 +34,8 @@ export function BrollPanel({ project, busy, onAdd, onGenerate, commit, onSeek }:
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; action: Action } | null>(null);
   const [renew, setRenew] = useState<Overlay | null>(null);
+  const [editing, setEditing] = useState<string | null>(null); // mgId; the sheet reads the current MG, so agent edits show
+  const editMg = project.motionGraphics.find((m) => m.id === editing);
   const rows = overlayRows(project);
   const notFound = project.warnings.filter((w) => w.startsWith("broll_not_found:")).length;
 
@@ -108,6 +111,7 @@ export function BrollPanel({ project, busy, onAdd, onGenerate, commit, onSeek }:
               <li key={m.id} className="flex min-h-11 items-center gap-2 rounded-2 bg-surface-1 pl-3 text-sm">
                 <button type="button" className="min-h-11 flex-1 text-left tabular-nums" onClick={() => onSeek(m.startMs)}>{m.name} · {range(m.startMs, m.endMs)}</button>
                 <Switch label={`Show ${m.name}`} checked={m.enabled} disabled={busy} onChange={(on) => commit([{ type: "updateMotionGraphic", mgId: m.id, enabled: on }])} />
+                {m.props.length > 0 && <Button size="sm" aria-label={`Edit ${m.name}`} aria-haspopup="dialog" disabled={busy} onClick={() => setEditing(m.id)}>Edit</Button>}
                 {del(m.name, "Delete this motion graphic?", { type: "removeMotionGraphic", mgId: m.id })}
               </li>
             ))}
@@ -115,6 +119,7 @@ export function BrollPanel({ project, busy, onAdd, onGenerate, commit, onSeek }:
         </>
       )}
       {project.creditsUsedCents > 0 && <p className="text-xs text-ink-muted">${(project.creditsUsedCents / 100).toFixed(2)} used</p>}
+      {editMg && <MgPropsSheet mg={editMg} projectId={project.id} busy={busy} commit={commit} onClose={() => setEditing(null)} />}
       {renew && <NewOverlaySheet mediaSource={project.mediaSource} overlay={renew} busy={busy} onClose={() => setRenew(null)} onGenerate={onGenerate} />}
       <Sheet open={!!confirm} onClose={() => setConfirm(null)} title={confirm?.title ?? "Delete?"}>
         <p className="mb-4 text-sm text-ink-muted">This can't be undone.</p>
