@@ -20,11 +20,19 @@ services:
     ports: ["9000:9000", "9001:9001"]
     volumes: ["${DATA_DIR}/minio:/data"]
 
+  # BullMQ jobs (spec row 22). noeviction: a queue must never lose keys under memory pressure.
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    ports: ["6379:6379"]
+    volumes: ["${DATA_DIR}/redis:/data"]
+
   api:
     build: { context: ../.., dockerfile: infrastructure/docker/Dockerfile, target: api }
     environment:
       DATABASE_URL: postgres://captions:captions@postgres:5432/captions
       API_BASE_URL: http://api:3001 # the render browser's URL for assets (inside the network; no outside page can send Host "api")
+      REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
       S3_BUCKET: ${S3_BUCKET}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
@@ -36,7 +44,7 @@ services:
       PEXELS_KEY: ${PEXELS_KEY}
       RETENTION_DAYS: ${RETENTION_DAYS:-30}
     ports: ["3001:3001"]
-    depends_on: [postgres, minio]
+    depends_on: [postgres, minio, redis]
 
   web:
     build:

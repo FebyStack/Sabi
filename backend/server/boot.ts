@@ -1,5 +1,8 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BullJobRunner } from "../shared/bullJobs";
+import type { EventBus } from "../shared/events";
+import { MemoryJobRunner, type JobRunner } from "../shared/jobs";
 import { S3Storage } from "../shared/s3Storage";
 import { FsStorage, type Storage } from "../shared/storage";
 
@@ -17,4 +20,22 @@ export async function createStorage(env: NodeJS.ProcessEnv, dataDir: string): Pr
     throw new Error(`S3 storage at ${endpoint} not reachable — run \`make db\` or unset S3_ENDPOINT (${err instanceof Error ? err.message || err.name : String(err)})`);
   }
   return s3;
+}
+
+// REDIS_URL set → BullMQ (checked now, so a stopped Redis is a clear boot error); otherwise jobs live in this process.
+export async function createJobRunner(redisUrl: string | undefined, bus: EventBus): Promise<JobRunner> {
+  const url = redisUrl?.trim();
+  if (!url) return new MemoryJobRunner(bus);
+  const { Redis } = await import("ioredis");
+  const probe = new Redis(url, { lazyConnect: true, connectTimeout: 3000, maxRetriesPerRequest: 0, retryStrategy: () => null });
+  probe.on("error", () => {}); // reported below, once
+  try {
+    await probe.connect();
+    await probe.ping();
+  } catch (err) {
+    throw new Error(`Redis at ${url} not reachable — run \`make db\` or unset REDIS_URL (${err instanceof Error ? err.message : String(err)})`);
+  } finally {
+    probe.disconnect();
+  }
+  return new BullJobRunner(url, bus);
 }

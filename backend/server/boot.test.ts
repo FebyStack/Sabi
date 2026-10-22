@@ -2,7 +2,9 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FsStorage } from "../shared/storage";
-import { createStorage } from "./boot";
+import { MemoryEventBus } from "../shared/events";
+import { MemoryJobRunner } from "../shared/jobs";
+import { createJobRunner, createStorage } from "./boot";
 
 describe("createStorage", () => {
   it("uses files under DATA_DIR without S3_ENDPOINT (or with an empty one)", async () => {
@@ -17,3 +19,16 @@ describe("createStorage", () => {
     expect(err.message).toMatch(/^S3 storage at http:\/\/127\.0\.0\.1:1 not reachable — run `make db` or unset S3_ENDPOINT/);
   }, 30_000);
 });
+
+describe("createJobRunner", () => {
+  it("is in-memory without REDIS_URL (or with an empty one)", async () => {
+    expect(await createJobRunner(undefined, new MemoryEventBus())).toBeInstanceOf(MemoryJobRunner);
+    expect(await createJobRunner("", new MemoryEventBus())).toBeInstanceOf(MemoryJobRunner);
+  });
+
+  it("fails clearly when Redis can't be reached", async () => {
+    const err = await createJobRunner("redis://127.0.0.1:1", new MemoryEventBus()).catch((e) => e);
+    expect(err.message).toMatch(/^Redis at redis:\/\/127\.0\.0\.1:1 not reachable — run `make db` or unset REDIS_URL/);
+  }, 15_000);
+});
+

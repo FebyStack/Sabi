@@ -69,5 +69,16 @@ describe.skipIf(!url)("postgres schema", { timeout: 60_000 }, () => {
         "this database's files are in fs:/Volumes/PortableSSD/Bong/captions-clone-data; set S3_ENDPOINT/DATA_DIR to match or use another DATABASE_URL");
     });
   });
+
+  it("failStuck skips the given ids", async () => {
+    await withTestDb(async (pool) => {
+      const repo = new PgProjectRepository(pool);
+      const p = editorProject({ updatedAt: "2026-10-21T00:00:00.000Z" });
+      await repo.create({ ...p, id: "a", status: "rendering" });
+      await repo.create({ ...p, id: "b", status: "generating" });
+      expect(await repo.failStuck(["b"])).toBe(1);
+      expect([(await repo.get("a"))?.status, (await repo.get("b"))?.status]).toEqual(["failed", "generating"]);
+    });
+  });
 });
 
