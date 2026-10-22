@@ -1,11 +1,13 @@
 import type { z } from "zod";
 import type {
-  ActionSchema, ApplyActionsInput, BrandFont, CaptionStyleSchema, RenderInput, ApplyActionsResult, AspectRatio, AssetSchema, BeatSchema, BoxSchema, BrandKitSchema, MotionGraphicInput, MotionGraphicPatch, MotionGraphicPropSchema, MotionGraphicSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
+  Actor, ActionSchema, ApplyActionsInput, JobResultSchema, BrandFont, CaptionStyleSchema, RenderInput, ApplyActionsResult, AspectRatio, AssetSchema, BeatSchema, BoxSchema, BrandKitSchema, MotionGraphicInput, MotionGraphicPatch, MotionGraphicPropSchema, MotionGraphicSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
   ProjectEventSchema, ProjectSchema, ProjectStatus, ShotKind, ShotSchema, TranscriptSchema, TranslationLanguage, TranslationSchema, WordSchema,
 } from "./contract";
 
 export type Asset = z.infer<typeof AssetSchema>;
 export type JobState = z.infer<typeof JobStateSchema>;
+export type JobResult = z.infer<typeof JobResultSchema>;
+export type Actor = z.infer<typeof Actor>;
 export type ProjectEvent = z.infer<typeof ProjectEventSchema>;
 export type AspectRatio = z.infer<typeof AspectRatio>;
 export type MediaSource = z.infer<typeof MediaSource>;

@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../app/app";
-import { readyProject } from "../shared/apiTestHelpers";
+import { holdJob, readyProject } from "../shared/apiTestHelpers";
 import type { AppDeps } from "../shared/deps";
 import { FakeLlm } from "../shared/llm";
 import { FakeRenderer } from "../shared/renderer";
@@ -27,12 +27,7 @@ beforeEach(async () => {
 });
 afterEach(() => { server.close(); rmSync(home, { recursive: true, force: true }); });
 
-const gateJob = () => {
-  let release!: () => void;
-  const gate = new Promise<void>((r) => { release = r; });
-  deps.jobs.enqueue(project.id, "plan", async ({ report }) => { report(30, "translate"); await gate; });
-  return release;
-};
+const gateJob = () => holdJob(deps, project.id, { kind: "plan", progress: 30, stage: "translate" });
 
 describe("sabi mcp tools", () => {
   it("inspect pages phrases and searches words", async () => {
@@ -89,7 +84,7 @@ describe("sabi mcp tools", () => {
     const stale = await callTool(api, "apply_actions", { projectId: project.id, baseVersion: project.updatedAt, actions: [{ type: "setTitle", title: "Old" }] });
     expect(stale).toMatchObject({ isError: true, text: `project changed since baseVersion ${project.updatedAt} (now ${now}); re-run inspect_project` });
 
-    const release = gateJob();
+    const release = await gateJob();
     const busy = await callTool(api, "apply_actions", { projectId: project.id, baseVersion: now, actions: [{ type: "setTitle", title: "x" }] });
     expect(busy.isError).toBe(true);
     expect(busy.text).toContain("busy: plan job");

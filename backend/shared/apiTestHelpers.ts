@@ -28,3 +28,16 @@ export async function readyProject(deps: AppDeps) {
   await request(a).post(`/api/projects/${project.id}/run`).send({});
   return { a, project: await untilStatus(a, project.id, "ready") };
 }
+
+// Keeps a job of `kind` running (or queued behind another) for `projectId` until the returned release() is called.
+const holds = new Map<string, Promise<void>>();
+export async function holdJob(deps: AppDeps, projectId: string, opts: { kind?: string; progress?: number; stage?: string } = {}) {
+  let release!: () => void;
+  holds.set(projectId, new Promise<void>((r) => { release = r; }));
+  deps.jobs.handle(opts.kind ?? "hold", async ({ projectId: id, report }) => {
+    if (opts.progress !== undefined) report(opts.progress, opts.stage);
+    await holds.get(id);
+  });
+  await deps.jobs.enqueue(projectId, opts.kind ?? "hold", { input: {}, actor: "web", prevStatus: "ready" });
+  return release;
+}

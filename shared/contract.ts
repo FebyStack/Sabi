@@ -200,6 +200,9 @@ export const UploadStartInput = z.object({
   sizeBytes: z.number().int().positive(),
 });
 
+export const Actor = z.enum(["web", "agent"]); // who started a job: the web app, or the agent over MCP (attribution, not auth)
+export const ACTOR_HEADER = "x-sabi-actor";
+export const JobResultSchema = z.object({ assetIds: z.array(z.string()) });
 export const JobStateSchema = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -208,6 +211,7 @@ export const JobStateSchema = z.object({
   progress: z.number(),
   stage: z.string().optional(),
   error: z.string().optional(),
+  result: JobResultSchema.optional(),
 });
 
 export const ProjectEventSchema = z.discriminatedUnion("type", [

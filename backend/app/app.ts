@@ -10,6 +10,7 @@ import { framesRouter } from "../modules/frames/routes";
 import { pipelineRouter } from "../modules/pipeline/routes";
 import { projectsRouter } from "../modules/projects/routes";
 import type { AppDeps } from "../shared/deps";
+import { registerJobHandlers } from "./jobs";
 
 // Pages on this machine (Vite, the Remotion renderer). Browsers send Origin on cross-site writes; Node clients (MCP, curl) send none.
 const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
@@ -20,6 +21,7 @@ export const parseAllowedOrigins = (env: string | undefined) =>
 
 // Composition root. Routers carry their full paths; this only wires them.
 export function createApp(deps: AppDeps) {
+  registerJobHandlers(deps);
   const app = express();
   const extra = new Set(deps.allowedOrigins ?? []);
   const allowedOrigin = (o: string) => LOCAL_ORIGIN.test(o) || extra.has(o);

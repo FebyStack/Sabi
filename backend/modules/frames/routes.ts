@@ -17,7 +17,7 @@ export function framesRouter(deps: AppDeps) {
     const project = await load(req, res);
     if (!project) return;
     if (!project.phrases.length) return res.status(400).json({ error: "no_captions" });
-    const job = deps.jobs.active(project.id);
+    const job = await deps.jobs.active(project.id);
     if (job) return res.status(409).json({ error: "busy", job });
     const source = project.sourceAssetId ? await deps.assets.get(project.sourceAssetId) : null;
     if (!source) return res.status(400).json({ error: "no_source" });

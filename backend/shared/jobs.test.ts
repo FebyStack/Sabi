@@ -1,48 +1,75 @@
 import { MemoryEventBus } from "./events";
-import { MemoryJobRunner } from "./jobs";
+import { JobBusy, MemoryJobRunner, type JobData } from "./jobs";
 import type { JobState } from "../../shared/types";
 
+const data: JobData = { input: {}, actor: "web", prevStatus: "ready" };
 const collect = (bus: MemoryEventBus, projectId: string) => {
   const seen: JobState[] = [];
   bus.subscribe(projectId, (e) => { if (e.type === "job") seen.push(e.job); });
   return seen;
 };
+const gated = () => {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => { release = r; });
+  return { gate, release };
+};
 
 describe("MemoryJobRunner", () => {
-  it("runs jobs per project in order and reports progress", async () => {
-    const bus = new MemoryEventBus();
-    const runner = new MemoryJobRunner(bus);
-    const seen = collect(bus, "p1");
+  it("runs one job at a time across projects, in order", async () => {
+    const runner = new MemoryJobRunner(new MemoryEventBus());
     const order: string[] = [];
-    runner.enqueue("p1", "a", async ({ report }) => { report(50, "half"); order.push("a"); });
-    runner.enqueue("p1", "b", async () => { order.push("b"); });
+    const a = gated();
+    runner.handle("a", async () => { await a.gate; order.push("a"); });
+    runner.handle("b", async () => { order.push("b"); });
+    await runner.enqueue("p1", "a", data);
+    await runner.enqueue("p2", "b", data);
+    await vi.waitFor(async () => expect((await runner.active("p1"))?.state).toBe("PROCESSING"));
+    expect((await runner.active("p2"))?.state).toBe("QUEUED"); // another project's job waits its turn
+    a.release();
     await vi.waitFor(() => expect(order).toEqual(["a", "b"]));
-    expect(seen.map((j) => [j.kind, j.state, j.progress])).toContainEqual(["a", "PROCESSING", 50]);
-    expect(seen.find((j) => j.kind === "a" && j.progress === 50)?.stage).toBe("half");
-    await vi.waitFor(() => expect(seen.at(-1)).toMatchObject({ kind: "b", state: "COMPLETE", progress: 100 }));
-    expect(runner.active("p1")).toBeNull();
+    await vi.waitFor(async () => expect(await runner.active("p2")).toBeNull());
   });
 
-  it("marks a throwing job FAILED with its message", async () => {
+  it("reports progress, result and failure", async () => {
     const bus = new MemoryEventBus();
     const runner = new MemoryJobRunner(bus);
     const seen = collect(bus, "p1");
-    runner.enqueue("p1", "boom", async () => { throw new Error("boom"); });
-    await vi.waitFor(() => expect(seen.at(-1)).toMatchObject({ state: "FAILED", error: "boom" }));
-    expect(runner.active("p1")).toBeNull();
-    expect(runner.last("p1")).toMatchObject({ kind: "boom", state: "FAILED", error: "boom" }); // pollers still learn why
-    expect(runner.last("p2")).toBeNull();
+    runner.handle("ok", async ({ report }) => { report(50, "half"); return { assetIds: ["x"] }; });
+    runner.handle("boom", async () => { throw new Error("boom"); });
+    await runner.enqueue("p1", "ok", data);
+    await vi.waitFor(() => expect(seen.at(-1)).toMatchObject({ kind: "ok", state: "COMPLETE", progress: 100, result: { assetIds: ["x"] } }));
+    expect(seen).toContainEqual(expect.objectContaining({ kind: "ok", state: "PROCESSING", progress: 50, stage: "half" }));
+    await runner.enqueue("p1", "boom", data);
+    await vi.waitFor(() => expect(seen.at(-1)).toMatchObject({ kind: "boom", state: "FAILED", error: "boom" }));
+    expect(await runner.last("p1")).toMatchObject({ kind: "boom", state: "FAILED", error: "boom" }); // pollers still learn why
+    expect(await runner.last("p2")).toBeNull();
   });
 
-  it("exposes the active job while it runs", async () => {
-    const bus = new MemoryEventBus();
-    const runner = new MemoryJobRunner(bus);
-    let release!: () => void;
-    const gate = new Promise<void>((r) => { release = r; });
-    const job = runner.enqueue("p1", "slow", async () => { await gate; });
-    await vi.waitFor(() => expect(runner.active("p1")?.state).toBe("PROCESSING"));
-    expect(runner.active("p1")?.id).toBe(job.id);
-    release();
-    await vi.waitFor(() => expect(runner.active("p1")).toBeNull());
+  it("refuses a second job for a busy project", async () => {
+    const runner = new MemoryJobRunner(new MemoryEventBus());
+    const a = gated();
+    runner.handle("a", () => a.gate);
+    const first = await runner.enqueue("p1", "a", data);
+    const second = runner.enqueue("p1", "a", data);
+    await expect(second).rejects.toBeInstanceOf(JobBusy);
+    await expect(second).rejects.toMatchObject({ job: { id: first.id } });
+    a.release();
+  });
+
+  it("get finds a finished job by id and forget drops it", async () => {
+    const runner = new MemoryJobRunner(new MemoryEventBus());
+    runner.handle("ok", async () => {});
+    const job = await runner.enqueue("p1", "ok", data);
+    await vi.waitFor(async () => expect(await runner.get("p1", job.id)).toMatchObject({ state: "COMPLETE" }));
+    expect(await runner.get("p2", job.id)).toBeNull(); // a job id never answers for another project
+    await runner.forget("p1");
+    expect(await runner.get("p1", job.id)).toBeNull();
+    expect(await runner.last("p1")).toBeNull();
+  });
+
+  it("an unknown kind fails with no_handler", async () => {
+    const runner = new MemoryJobRunner(new MemoryEventBus());
+    const job = await runner.enqueue("p1", "nope", data);
+    await vi.waitFor(async () => expect(await runner.get("p1", job.id)).toMatchObject({ state: "FAILED", error: "no_handler" }));
   });
 });

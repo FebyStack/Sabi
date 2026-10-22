@@ -1,5 +1,5 @@
 import request from "supertest";
-import { readyProject, untilStatus } from "../../shared/apiTestHelpers";
+import { holdJob, readyProject, untilStatus } from "../../shared/apiTestHelpers";
 import { PNG_1x1_BASE64 } from "../../shared/renderer";
 import { FakeRenderer } from "../../shared/renderer";
 import { makeTestDeps } from "../../shared/testing";
@@ -126,10 +126,7 @@ describe("actions api", () => {
   it("busy is 409", async () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);
-    let release!: () => void;
-    const gate = new Promise<void>((r) => { release = r; });
-    deps.jobs.enqueue(project.id, "plan", async () => { await gate; });
-    await vi.waitFor(() => expect(deps.jobs.active(project.id)).not.toBeNull());
+    const release = await holdJob(deps, project.id, { kind: "plan" });
     const res = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: project.updatedAt, actions: [{ type: "setTitle", title: "x" }] });
     expect(res.status).toBe(409);
     expect(res.body).toMatchObject({ error: "busy", job: { kind: "plan" } });

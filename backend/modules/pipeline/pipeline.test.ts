@@ -49,7 +49,7 @@ describe("caption pipeline", () => {
     const { a, project } = await projectWithSource(deps);
     expect((await request(a).post(`/api/projects/${project.id}/run`).send({})).status).toBe(202);
     await vi.waitFor(() => expect(release).toBeTypeOf("function")); // job reached the transcribe stage
-    expect(deps.jobs.active(project.id)).not.toBeNull();
+    expect(await deps.jobs.active(project.id)).not.toBeNull();
     expect((await request(a).post(`/api/projects/${project.id}/run`).send({})).status).toBe(409);
     release();
     await untilStatus(a, project.id, "ready");
