@@ -36,35 +36,34 @@ export function MotionGraphicLayer({ mg, brand, width, height }: { mg: MotionGra
 function MgSandbox({ mg, item, box, fps, width, height, active, local }:
   { mg: MotionGraphicProps; item: MgItem; box: Box; fps: number; width: number; height: number; active: boolean; local: number }) {
   const ref = useRef<HTMLIFrameElement>(null);
-  const channel = useRef<MgChannel | null>(null);
+  const link = useRef<{ ch: MgChannel; port: MessagePort } | null>(null);
   const loads = useRef(0);
   const shown = useRef(false);
   const [dead, setDead] = useState(false);
   const rendering = getRemotionEnvironment().isRendering;
 
   // One channel per sandbox (the key remounts it). StrictMode runs this twice in dev, hence the setup here, not in render.
+  // The sandbox gets its end of a MessageChannel with init: nothing else reaches it, even if its frame navigated.
   useLayoutEffect(() => {
-    const frameEl = ref.current!;
+    const { port1, port2 } = new MessageChannel();
     const start = rendering ? delayRender(`mg ${mg.id} start`) : null;
-    const ch = new MgChannel((m) => frameEl.contentWindow?.postMessage(m, "*"), (detail) => {
+    const ch = new MgChannel((m) => port1.postMessage(m), (detail) => {
       logMgProblem({ mg: mg.id, kind: "silent", detail });
       setDead(true);
     });
-    channel.current = ch;
+    link.current = { ch, port: port2 };
     void ch.ready.then(() => { if (start !== null) continueRender(start); });
-    const onMessage = (e: MessageEvent) => {
-      if (e.source !== frameEl.contentWindow) return;
+    port1.onmessage = (e) => {
       const m = parseFromSandbox(e.data);
       if (m?.t === "problem") logMgProblem({ mg: mg.id, kind: m.kind, detail: m.detail });
       else if (m) ch.receive(m);
     };
-    addEventListener("message", onMessage);
-    return () => { removeEventListener("message", onMessage); ch.kill(); };
+    return () => { port1.close(); ch.kill(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const itemKey = JSON.stringify(item);
   useLayoutEffect(() => {
-    const ch = channel.current;
+    const ch = link.current?.ch;
     if (!ch || dead) return;
     if (!active) {
       if (shown.current) void ch.draw(null, item); // blank it, so re-entering never flashes a stale frame
@@ -77,11 +76,11 @@ function MgSandbox({ mg, item, box, fps, width, height, active, local }:
   }, [active, local, itemKey, dead]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onLoad = () => {
-    const ch = channel.current;
-    if (!ch) return;
+    const l = link.current;
+    if (!l) return;
     if (++loads.current > 1) { // the sandbox navigated: the page's frame-src blocked it, but its own content is gone
       logMgProblem({ mg: mg.id, kind: "navigated", detail: "tried to leave its frame" });
-      ch.kill();
+      l.ch.kill();
       setDead(true);
       return;
     }
@@ -89,7 +88,7 @@ function MgSandbox({ mg, item, box, fps, width, height, active, local }:
     void Promise.all([fontPayload(), imageBlobs(urls)]).then(([fonts, { blobs, failed }]) => {
       for (const url of failed) logMgProblem({ mg: mg.id, kind: "image", detail: url });
       const init: ToSandbox = { t: "init", id: mg.id, compiled: mg.compiled, fps, width, height, fonts, images: blobs };
-      ref.current?.contentWindow?.postMessage(init, "*");
+      ref.current?.contentWindow?.postMessage(init, "*", [l.port]); // "*": an opaque origin can't be named
     });
   };
 

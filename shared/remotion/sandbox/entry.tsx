@@ -6,7 +6,9 @@ import type { FromSandbox, ToSandbox } from "../mgProtocol";
 import { MgView, buildMotionGraphic, withBlobUrls, type MgConfig } from "../mgRuntime";
 
 const host = window.parent; // captured once: code the MG runs can't reroute it
-const post = (m: FromSandbox) => host.postMessage(m, "*"); // the page's origin is the only reader; its own is opaque to us
+// The page hands over a MessagePort with init; everything after travels through it, never through window messages.
+let port: MessagePort | null = null;
+const post = (m: FromSandbox) => port?.postMessage(m);
 const report = (kind: "threw" | "image" | "blocked", detail: string) => post({ t: "problem", kind, detail });
 addEventListener("securitypolicyviolation", (e) => report("blocked", `${e.effectiveDirective} ${e.blockedURI}`));
 
@@ -15,9 +17,14 @@ const blobs = new Map<string, string>();
 const pending = new Set<Promise<unknown>>();
 let mg: { component: ReturnType<typeof buildMotionGraphic>; id: string; config: MgConfig } | null = null;
 
-addEventListener("message", async (e: MessageEvent<ToSandbox>) => {
-  if (e.source !== host) return;
-  const m = e.data;
+addEventListener("message", (e: MessageEvent<ToSandbox>) => {
+  if (e.source !== host || port || e.data?.t !== "init" || !e.ports[0]) return;
+  port = e.ports[0];
+  port.onmessage = (ev: MessageEvent<ToSandbox>) => void onMessage(ev.data);
+  void onMessage(e.data);
+});
+
+async function onMessage(m: ToSandbox) {
   if (m.t === "init" && !mg) {
     const style = document.createElement("style");
     style.textContent = m.fonts.css.replace(/__sabi_font_(\d+)__/g, (_, i: string) => URL.createObjectURL(m.fonts.files[Number(i)]));
@@ -41,4 +48,4 @@ addEventListener("message", async (e: MessageEvent<ToSandbox>) => {
     await document.fonts.ready;
     post({ t: "drawn", seq: m.seq });
   }
-});
+}
