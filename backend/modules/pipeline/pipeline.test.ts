@@ -85,6 +85,15 @@ describe("caption pipeline", () => {
     expect(await runWith({})).toBe("tl"); // the stored transcript's language
   });
 
+  it("tl line breaks keep ng with its noun", async () => {
+    const words = "Bumili ako kahapon ng isda".split(" ").map((text, i) => ({ id: `w-${i}`, text, startMs: i * 300, endMs: i * 300 + 250 }));
+    const { a, project } = await projectWithSource(makeTestDeps({ transcriber: new FakeTranscriber({ language: "tl", words }) }));
+    expect(project.captionTemplateId).toBe("clean");
+    await request(a).post(`/api/projects/${project.id}/run`).send({});
+    const done = await untilStatus(a, project.id, "ready");
+    expect(done.phrases[0].lineBreaksAfter).toEqual([2]);
+  });
+
   it("pipeline warns timing_estimated", async () => {
     const deps = makeTestDeps({ transcriber: new FakeTranscriber({ language: "tl", words: sample.words.slice(0, 5), estimatedWords: 2 }) });
     const { a, project } = await projectWithSource(deps);

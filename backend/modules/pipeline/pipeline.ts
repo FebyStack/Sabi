@@ -38,7 +38,7 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
         report(60, "segment");
         // A template change re-flows the user's edited words (spelling fixes survive); a fresh transcription starts from the ASR words.
         const words = !opts.transcribe && phrases.length ? phrases.flatMap((p) => p.words) : transcript?.words ?? [];
-        phrases = segmentCaptions(words, template.layout);
+        phrases = segmentCaptions(words, template.layout, transcript?.language ?? project.language);
         if (!opts.transcribe) phrases = carryEmoji(project.phrases, phrases);
       }
       const warnings = [
