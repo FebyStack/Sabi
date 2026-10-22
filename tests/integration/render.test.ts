@@ -275,4 +275,17 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     expect(g).toBeGreaterThan(200);
     expect(r).toBeLessThan(60);
   }, 900_000);
+
+  it("renderStill returns the MG problems", async () => {
+    const inputProps: CaptionVideoProps = {
+      videoSrc, sourceKind: "video", template: getCaptionTemplate("clean"), width: 1080, height: 1920, phrases: [], durationMs: 1000,
+      brand: templateLook(getCaptionTemplate("clean")), overlays: [], motionGraphics: [
+        mgp("const Component = () => { throw new Error('boom'); };", { id: "mg-0" }),
+        mgp('const Component = () => React.createElement("img", { src: "https://example.invalid/x.png" });', { id: "mg-1" }),
+      ],
+    };
+    const { mgProblems } = await renderer.renderStill({ compositionId: "CaptionVideo", inputProps, timestampMs: 500, width: 540, outPath: join(dir, "mg-problems.png") });
+    expect(mgProblems).toContainEqual({ mg: "mg-0", kind: "threw", detail: "boom" });
+    expect(mgProblems.find((p) => p.mg === "mg-1" && p.kind === "blocked")?.detail).toMatch(/^img-src https:\/\/example\.invalid\/x\.png/);
+  }, 900_000);
 });

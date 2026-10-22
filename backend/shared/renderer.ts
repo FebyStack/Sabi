@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { Segment } from "../../shared/editing/cuts";
+import { parseMgLog } from "../../shared/remotion/mgProtocol";
+import type { MgProblem } from "../../shared/types";
 
 // null = Remotion's own chrome-headless-shell (downloaded once into node_modules/.remotion). The installed Google
 // Chrome renders ~4× slower (it waits on its frame clock for every screenshot); REMOTION_BROWSER_EXECUTABLE overrides.
@@ -75,9 +77,12 @@ export interface StillRequest {
   outPath: string;
 }
 
+// What a still's motion graphics reported from their sandboxes (spec row 26); render_frame shows it to the agent.
+export type StillResult = { mgProblems: MgProblem[] };
+
 export interface Renderer {
   render(req: RenderRequest): Promise<void>;
-  renderStill(req: StillRequest): Promise<void>;
+  renderStill(req: StillRequest): Promise<StillResult>;
   warm?(): Promise<void>; // bundle + open the browser ahead of the first render
   close?(): Promise<void>; // shut the shared browser (process exit)
 }
@@ -134,10 +139,11 @@ export class RemotionRenderer implements Renderer {
     }
   }
 
-  async renderStill(req: StillRequest) {
+  async renderStill(req: StillRequest): Promise<StillResult> {
     const { renderStill, selectComposition } = await import("@remotion/renderer");
     const serveUrl = await this.bundleOnce();
     const browserExecutable = this.browserExecutable();
+    const lines = new Set<string>();
     await this.withBrowser(async (puppeteerInstance) => {
       const composition = await selectComposition({ serveUrl, id: req.compositionId, inputProps: req.inputProps, browserExecutable, puppeteerInstance });
       // t = durationMs maps one past the last frame; clamp so the end of the timeline never crashes Remotion.
@@ -145,8 +151,10 @@ export class RemotionRenderer implements Renderer {
       await renderStill({
         serveUrl, composition, frame, inputProps: req.inputProps, output: req.outPath, imageFormat: "png",
         scale: req.width / composition.width, browserExecutable, puppeteerInstance,
+        onBrowserLog: (log) => { if (parseMgLog(log.text)) lines.add(log.text); },
       });
     });
+    return { mgProblems: [...lines].map((l) => parseMgLog(l)!) };
   }
 }
 
@@ -156,6 +164,11 @@ export const PNG_1x1_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAD
 export class FakeRenderer implements Renderer {
   calls: RenderRequest[] = [];
   stillCalls: StillRequest[] = [];
+  stillProblems: MgProblem[] = [];
   async render(req: RenderRequest) { this.calls.push(req); await writeFile(req.outPath, "fake-mp4"); }
-  async renderStill(req: StillRequest) { this.stillCalls.push(req); await writeFile(req.outPath, Buffer.from(PNG_1x1_BASE64, "base64")); }
+  async renderStill(req: StillRequest) {
+    this.stillCalls.push(req);
+    await writeFile(req.outPath, Buffer.from(PNG_1x1_BASE64, "base64"));
+    return { mgProblems: this.stillProblems };
+  }
 }

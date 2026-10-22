@@ -9,7 +9,7 @@ import { deriveBeats } from "../../shared/editing/beats";
 import { keptSegments, mapTime } from "../../shared/editing/cuts";
 import { staleOverlays } from "../../shared/editing/overlays";
 import { enabledCuts } from "../../shared/editing/renderProps";
-import type { Asset, Catalog, JobState, Project } from "../../shared/types";
+import type { Asset, Catalog, JobState, MgProblem, Project } from "../../shared/types";
 import { SabiHttpError, SabiUnreachable, type SabiApi } from "./client";
 
 export type ToolResult = { text: string; images?: { data: Buffer; mimeType: string }[]; isError?: boolean };
@@ -27,6 +27,14 @@ const INLINE_MAX_BYTES = 5 * 1024 ** 2;
 const pad = (n: number) => String(n).padStart(2, "0");
 const mmss = (ms: number) => `${Math.floor(ms / 60_000)}:${pad(Math.floor((ms % 60_000) / 1000))}`;
 const mmssd = (ms: number) => `${mmss(ms)}.${Math.floor((ms % 1000) / 100)}`;
+// Why a motion graphic shows ⚠ or what its sandbox refused, with what to change (spec row 26).
+const mgProblemLine = ({ mg, kind, detail }: MgProblem) => ({
+  threw: `⚠ ${mg} threw: ${detail} — fix the code; it draws its ⚠ label`,
+  image: `⚠ ${mg} image failed: ${detail} — use an image prop (upload_asset) or item.brand.logoUrl`,
+  blocked: `${mg} was refused ${detail} — MGs have no network; images come only from image props or item.brand.logoUrl`,
+  navigated: `⚠ ${mg} tried to navigate — MGs can't leave their frame; it draws ⚠`,
+  silent: `⚠ ${mg} stopped answering (${detail}) — look for a loop that never ends; it draws ⚠`,
+})[kind];
 const capped = (lines: string[], more: string) => (lines.length > LIST_CAP ? [...lines.slice(0, LIST_CAP), `… ${lines.length - LIST_CAP} more (${more})`] : lines);
 const outputMs = (p: Project) => keptSegments(p.sourceDurationMs ?? 0, enabledCuts(p)).reduce((ms, s) => ms + s.endMs - s.startMs, 0);
 const jobLine = (j: JobState) => `${j.kind} job ${j.state} ${Math.round(j.progress)}%${j.stage ? ` (${j.stage})` : ""}`;
@@ -205,8 +213,8 @@ const TOOLS = {
       width: z.number().int().default(540).describe("PNG width, 160–1080"),
     },
     run: async (api: SabiApi, i: { projectId: string; timestampMs: number; width: number }): Promise<ToolResult> => {
-      const { data, ms } = await api.frame(i.projectId, i.timestampMs, i.width);
-      return { images: [{ data, mimeType: "image/png" }], text: `frame at ${mmssd(ms)} (output timeline)` };
+      const { data, ms, problems } = await api.frame(i.projectId, i.timestampMs, i.width);
+      return { images: [{ data, mimeType: "image/png" }], text: [`frame at ${mmssd(ms)} (output timeline)`, ...problems.map(mgProblemLine)].join("\n") };
     },
   },
   apply_actions: {

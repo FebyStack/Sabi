@@ -24,6 +24,17 @@ describe("still frames", () => {
     expect((deps.renderer as FakeRenderer).stillCalls.at(-1)).toMatchObject({ timestampMs: 4000, width: 540, compositionId: "CaptionVideo" });
   });
 
+  it("sends the still's MG problems in a header", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const problems = [{ mg: "mg-0", kind: "threw" as const, detail: "Hindi gumana 🙃" }];
+    (deps.renderer as FakeRenderer).stillProblems = problems;
+    const res = await request(a).get(`/api/projects/${project.id}/frame?t=1000`).expect(200);
+    expect(JSON.parse(res.headers["x-sabi-mg-problems"])).toEqual(problems);
+    (deps.renderer as FakeRenderer).stillProblems = [];
+    expect((await request(a).get(`/api/projects/${project.id}/frame?t=1000`)).headers["x-sabi-mg-problems"]).toBeUndefined();
+  });
+
   it("leaves no frame files behind on the data disk", async () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);
