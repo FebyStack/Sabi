@@ -126,5 +126,27 @@ describe.skipIf(!url)("BullJobRunner", { timeout: 30_000 }, () => {
     await r.close();
     admin.disconnect();
   });
+
+  it("a rewrite already running at forget took its snapshot before the delete: forget waits for it and rewrites again", async () => {
+    const admin = new Redis(url!);
+    const rewrites = async () => Number((await admin.info("persistence")).match(/aof_rewrites:(\d+)/)?.[1] ?? 0); // counted when one starts
+    const r = new BullJobRunner(url!, new MemoryEventBus(), { queue: queue() });
+    r.handle("ok", async () => {});
+    await r.start();
+    const job = await r.enqueue("p3", "ok", { input: { prompt: "a private prompt" }, actor: "agent", prevStatus: "ready" });
+    await vi.waitFor(async () => expect((await r.get("p3", job.id))?.state).toBe("COMPLETE"));
+    await vi.waitFor(async () => expect((await admin.info("persistence")).includes("aof_rewrite_in_progress:0")).toBe(true));
+    const before = await rewrites();
+    try {
+      await admin.config("SET", "rdb-key-save-delay", "10000"); // 10 ms per key: the rewrite below runs for a second or more
+      await admin.bgrewriteaof(); // e.g. another project's delete a moment ago; its snapshot still holds p3's prompt
+    } finally {
+      await admin.config("SET", "rdb-key-save-delay", "0"); // the running rewrite keeps its own copy of the setting
+    }
+    await r.forget("p3");
+    await vi.waitFor(async () => expect(await rewrites()).toBeGreaterThanOrEqual(before + 2), { timeout: 20_000 });
+    await r.close();
+    admin.disconnect();
+  });
 });
 

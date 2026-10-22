@@ -93,6 +93,7 @@ export class BullJobRunner implements JobRunner {
 
   // Deleting a job only appends a delete to Redis's append-only log; the write with the prompt stays on disk until the log is
   // rewritten, so a deleted project's jobs end with a rewrite (BullMQ 6's client wrapper has no raw command: a short connection).
+  // A rewrite already running took its snapshot before the delete: ask again until one starts (it normally ends in milliseconds).
   async forget(projectId: string) {
     const done = (await this.queue.getJobs(["completed", "failed"], 0, -1)).filter((j) => j?.data.projectId === projectId);
     if (!done.length) return;
@@ -100,7 +101,11 @@ export class BullJobRunner implements JobRunner {
     const { Redis } = await import("ioredis");
     const admin = new Redis(this.url, { maxRetriesPerRequest: 1 });
     try {
-      await admin.bgrewriteaof().catch(() => {}); // "already in progress" is fine: the next delete rewrites again
+      for (let tries = 0; tries < 300; tries++) { // a minute at most
+        const running = await admin.bgrewriteaof().then(() => false, (err) => /already in progress/.test(String(err))); // other errors: best effort
+        if (!running) return;
+        await new Promise((r) => setTimeout(r, 200));
+      }
     } finally {
       admin.disconnect();
     }
