@@ -1,5 +1,6 @@
 // Test utility (vitest globals): the behaviour every Storage must have. storage.test.ts runs it for files and, against MinIO, for S3.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { Readable } from "node:stream";
 import { buffer } from "node:stream/consumers";
 import type { Storage } from "./storage";
@@ -45,6 +46,18 @@ export function storageContract(make: () => Promise<Storage>) {
     expect(a).not.toBe(b);
     writeFileSync(a, "x"); // its folder exists
     expect(readFileSync(a, "utf8")).toBe("x");
+  });
+
+  it("sweepWork drops scratch nothing touched for an hour (a crash's leftovers) with its emptied folders, and keeps fresh files", async () => {
+    const hoursAgo = new Date(Date.now() - 2 * 3_600_000);
+    const partial = s.workPath("renders/p1/partial.mp4"), live = s.workPath("uploads/live.mp4"), empty = dirname(s.workPath("frames/p1/x.png"));
+    writeFileSync(partial, "x");
+    writeFileSync(live, "y");
+    for (const p of [partial, dirname(partial), empty]) utimesSync(p, hoursAgo, hoursAgo);
+    await s.sweepWork();
+    expect([existsSync(partial), existsSync(dirname(partial)), existsSync(empty)]).toEqual([false, false, false]);
+    expect(readFileSync(live, "utf8")).toBe("y"); // another API on the same folder may be mid-upload
+    writeFileSync(s.workPath("frames/p2.png"), "z"); // scratch still works
   });
 
   it("refuses keys that could leave the store", async () => {

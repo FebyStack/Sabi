@@ -45,6 +45,22 @@ describe("pipeline routes", () => {
     await untilStatus(a, project.id, "ready");
   });
 
+  it("a new source is 409 busy while the project has a queued or running job (it would clear the plan under a B-roll job)", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const source = project.sourceAssetId;
+    const release = await holdJob(deps, "someone-else"); // the machine is busy with another project's job
+    await deps.jobs.enqueue(project.id, "broll", { input: {}, actor: "web", prevStatus: "ready" }); // this one waits its turn
+    const queued = await request(a).post(`/api/projects/${project.id}/source`).send({ assetId: source });
+    expect([queued.status, queued.body]).toEqual([409, { error: "busy", job: expect.objectContaining({ kind: "broll", state: "QUEUED" }) }]);
+    const other = await request(a).post(`/api/projects/someone-else/source`).send({ assetId: source });
+    expect(other.status).toBe(404); // (no such project: the busy check comes after the 404)
+    expect((await deps.projects.get(project.id))!.status).toBe("ready"); // untouched
+    release();
+    await vi.waitFor(async () => expect(await deps.jobs.active(project.id)).toBeNull());
+    expect((await request(a).post(`/api/projects/${project.id}/source`).send({ assetId: source })).status).toBe(200);
+  });
+
   it("a job whose project was deleted while queued fails not_found", async () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);

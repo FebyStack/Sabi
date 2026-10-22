@@ -343,6 +343,13 @@ describe("sabi mcp tools", () => {
     expect(res.text).toContain("last job broll FAILED: interrupted by an API restart (nothing was charged twice); run it again");
   });
 
+  it("wait_job explains a job whose result a restart lost", async () => {
+    deps.jobs.handle("broll", async () => { throw new Error("already_ran"); });
+    await deps.jobs.enqueue(project.id, "broll", { input: {}, actor: "agent", prevStatus: "ready" });
+    const res = await callTool(api, "wait_job", { projectId: project.id });
+    expect(res.text).toContain(`last job broll FAILED: it ran, but an API restart lost its result; check inspect_project {section: "assets"} before running it again (it may have spent credits)`);
+  });
+
   it("inspect assets marks where each asset is used", async () => {
     const add = (id: string, meta?: Asset["meta"]) => deps.assets.create({ id, projectId: project.id, kind: "image", key: `broll/${id}.png`, mimeType: "image/png", sizeBytes: 1, width: 1080, height: 1920, createdAt: "2026-01-01T00:00:00.000Z", ...(meta ? { meta } : {}) });
     await add("img-ov", { source: "stock", attribution: { author: "Jane Doe", url: "https://www.pexels.com/photo/1" }, query: "kettle" });

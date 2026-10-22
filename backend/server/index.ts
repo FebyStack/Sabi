@@ -21,6 +21,9 @@ const port = Number(process.env.PORT ?? 3001);
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required (use `npm run dev:lite` for the in-memory server)");
 const dataDir = process.env.DATA_DIR ?? "/Volumes/PortableSSD/Bong/captions-clone-data";
+// Settings first: a typo fails the boot at once, not after the database, S3 and Redis checks.
+const spendCapCents = parseSpendCap(process.env.SPEND_CAP_CENTS);
+const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
 
 const pool = createPool(url);
 await applySchema(pool);
@@ -49,9 +52,9 @@ const deps: AppDeps = {
   stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
   generator: process.env.FAL_KEY ? new FalGenerator(process.env.FAL_KEY, globalThis.fetch) : null,
   ledger: new PgCreditLedger(pool),
-  spendCapCents: parseSpendCap(process.env.SPEND_CAP_CENTS),
+  spendCapCents,
   apiBaseUrl: process.env.API_BASE_URL ?? `http://127.0.0.1:${port}`,
-  allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
+  allowedOrigins,
   now: () => new Date(),
   id: randomUUID,
 };

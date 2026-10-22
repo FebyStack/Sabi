@@ -54,15 +54,16 @@ describe("demo seed", () => {
   it("the committed bundle is valid and small", async () => {
     const deps = makeTestDeps();
     const p = await seedDemo(deps); // database/seed/demo
-    expect(p).toMatchObject({ id: "demo", demo: true, status: "ready", sourceAssetId: "demo-src" });
-    expect(p!.outputs).toMatchObject({ mp4AssetId: "demo-mp4", srtAssetId: "demo-srt", vttAssetId: "demo-vtt", resolution: "1080p" });
-    expect(p!.overlays.map((o) => [o.id, o.assetId, o.source])).toEqual([["ov-0", "demo-ov-0", "stock"], ["ov-1", "demo-ov-1", "stock"]]);
+    expect(p).toMatchObject({ id: "demo", demo: true, status: "ready", outputs: { resolution: "1080p" } });
+    const assets = await deps.assets.listByProject("demo");
+    const kind = new Map(assets.map((a) => [a.id, a.kind])); // ids change with every demo:pack, so check what they point at
+    expect([p!.sourceAssetId, p!.outputs.mp4AssetId, p!.outputs.srtAssetId, p!.outputs.vttAssetId].map((id) => kind.get(id!))).toEqual(["video", "render", "subtitle", "subtitle"]);
+    expect(p!.overlays.map((o) => [o.id, kind.get(o.assetId), o.source])).toEqual([["ov-0", "image", "stock"], ["ov-1", "image", "stock"]]);
     for (const o of p!.overlays) expect(o.attribution!.url).toMatch(/^https:\/\/www\.pexels\.com\/photo\//);
     expect(p!.brand).toBeTruthy();
     expect(p!.captionStyle).toBeTruthy();
     expect(p!.motionGraphics).toHaveLength(1);
-    const assets = await deps.assets.listByProject("demo");
-    expect(assets.map((a) => a.id).sort()).toEqual(["demo-mp4", "demo-ov-0", "demo-ov-1", "demo-src", "demo-srt", "demo-vtt"]);
+    expect(assets).toHaveLength(6);
     const total = (await Promise.all(assets.map((a) => deps.storage.stat(a.key)))).reduce((n, s) => n + s!.size, 0);
     expect(total).toBeLessThan(25 * 1024 ** 2);
   });

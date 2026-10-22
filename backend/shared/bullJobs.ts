@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Job, Queue, Worker } from "bullmq";
+import { Job, Queue, UnrecoverableError, Worker } from "bullmq";
 import type { JobResult, JobState } from "../../shared/types";
 import type { EventBus } from "./events";
 import { JobBusy, type JobData, type JobHandler, type JobRunner } from "./jobs";
@@ -26,19 +26,28 @@ export class BullJobRunner implements JobRunner {
   private worker: Worker<Data>;
   private handlers = new Map<string, JobHandler>();
   private adding: Promise<unknown> = Promise.resolve(); // enqueue's busy check and add are one step in this process
+  private abandoned = async (_projectId: string, _data: JobData) => {};
 
   constructor(private url: string, private bus: EventBus, opts: { queue?: string; lockMs?: number } = {}) {
-    const connection = { url, maxRetriesPerRequest: null };
     const name = opts.queue ?? "sabi-jobs";
-    this.queue = new Queue<Data>(name, { connection, defaultJobOptions: { attempts: 1, removeOnComplete: KEEP, removeOnFail: KEEP } });
+    // Requests read the queue: while Redis is down they fail in seconds (500) instead of waiting for it. Only the worker's
+    // blocking reads must wait out an outage (BullMQ requires maxRetriesPerRequest: null there).
+    this.queue = new Queue<Data>(name, { connection: { url, maxRetriesPerRequest: 1 }, defaultJobOptions: { attempts: 1, removeOnComplete: KEEP, removeOnFail: KEEP } });
     this.worker = new Worker<Data>(name, (job) => this.process(job), {
-      connection, autorun: false, concurrency: 1, ...(opts.lockMs ? { lockDuration: opts.lockMs, stalledInterval: opts.lockMs } : {}),
+      connection: { url, maxRetriesPerRequest: null }, autorun: false, concurrency: 1, ...(opts.lockMs ? { lockDuration: opts.lockMs, stalledInterval: opts.lockMs } : {}),
     });
     this.worker.on("completed", (job) => this.emit(toState(job, "COMPLETE")));
-    this.worker.on("failed", (job) => { if (job) this.emit(toState(job, "FAILED")); });
+    this.worker.on("failed", (job, err) => {
+      if (!job) return;
+      this.emit(toState(job, "FAILED"));
+      // A job that stalled twice is failed by BullMQ itself, without its handler: nothing put its project back yet.
+      if (err instanceof UnrecoverableError) this.abandoned(job.data.projectId, job.data).catch((e) => console.error("abandoned job cleanup failed", e));
+    });
   }
 
   handle(kind: string, handler: JobHandler) { this.handlers.set(kind, handler); }
+
+  onAbandoned(fn: (projectId: string, data: JobData) => Promise<void>) { this.abandoned = fn; }
 
   async start() { void this.worker.run(); }
 
@@ -84,6 +93,7 @@ export class BullJobRunner implements JobRunner {
 
   // Deleting a job only appends a delete to Redis's append-only log; the write with the prompt stays on disk until the log is
   // rewritten, so a deleted project's jobs end with a rewrite (BullMQ 6's client wrapper has no raw command: a short connection).
+  // A rewrite already running took its snapshot before the delete: ask again until one starts (it normally ends in milliseconds).
   async forget(projectId: string) {
     const done = (await this.queue.getJobs(["completed", "failed"], 0, -1)).filter((j) => j?.data.projectId === projectId);
     if (!done.length) return;
@@ -91,7 +101,11 @@ export class BullJobRunner implements JobRunner {
     const { Redis } = await import("ioredis");
     const admin = new Redis(this.url, { maxRetriesPerRequest: 1 });
     try {
-      await admin.bgrewriteaof().catch(() => {}); // "already in progress" is fine: the next delete rewrites again
+      for (let tries = 0; tries < 300; tries++) { // a minute at most
+        const running = await admin.bgrewriteaof().then(() => false, (err) => /already in progress/.test(String(err))); // other errors: best effort
+        if (!running) return;
+        await new Promise((r) => setTimeout(r, 200));
+      }
     } finally {
       admin.disconnect();
     }

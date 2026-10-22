@@ -1,4 +1,5 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import request from "supertest";
 import { createApp } from "../../app/app";
 import { FakeMedia } from "../../shared/media";
@@ -142,6 +143,15 @@ describe("caption pipeline", () => {
     await untilStatus(a, project.id, "ready");
     expect(wavPath).not.toBe("");
     expect(existsSync(wavPath)).toBe(false); // ExFAT DATA_DIR: work files must not pile up
+  });
+
+  it("a render leaves no scratch file or per-project folder behind", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await projectWithSource(deps);
+    await request(a).post(`/api/projects/${project.id}/run`).send({});
+    await untilStatus(a, project.id, "ready");
+    expect((deps.renderer as FakeRenderer).calls).toHaveLength(1);
+    expect(readdirSync(dirname(deps.storage.workPath("renders/probe")))).toEqual([]); // a folder costs 1 MiB on the ExFAT DATA_DIR
   });
 });
 
