@@ -20,6 +20,7 @@ export function reduceProjectEvents(state: EventsState, e: ProjectEvent): Events
 
 const ERRORS: Record<string, string> = {
   interrupted: "Interrupted by a restart — run it again.",
+  already_ran: "It ran, but a restart lost its result — check the B-roll before running it again.",
   over_cap: "Monthly spending cap reached — see Usage.",
   generator_unavailable: "fal.ai isn't set up: add FAL_KEY to the API, or switch B-roll to Stock only.",
   stock_unavailable: "Pexels isn't set up: add PEXELS_KEY to the API.",
