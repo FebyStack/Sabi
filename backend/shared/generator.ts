@@ -1,12 +1,12 @@
+import { GENERATION_COST_CENTS } from "../../shared/contract";
 import type { OverlayMedia } from "../../shared/types";
 
 // One edit to change models. Prices (2026-10): flux/schnell ≈ $0.003/image, kling 1.6 standard ≈ $0.25 per 5 s clip.
 export const FAL_IMAGE_MODEL = "fal-ai/flux/schnell";
 export const FAL_VIDEO_MODEL = "fal-ai/kling-video/v1.6/standard/image-to-video";
-// What each generation is ledgered at (whole cents; flux/schnell's $0.003 rounds up).
 export const FAL_MODELS: Record<OverlayMedia, { id: string; costCents: number }> = {
-  image: { id: FAL_IMAGE_MODEL, costCents: 1 },
-  video: { id: FAL_VIDEO_MODEL, costCents: 25 },
+  image: { id: FAL_IMAGE_MODEL, costCents: GENERATION_COST_CENTS.image },
+  video: { id: FAL_VIDEO_MODEL, costCents: GENERATION_COST_CENTS.video },
 };
 
 export type GenerateRequest = { prompt: string; media: OverlayMedia; width: number; height: number };

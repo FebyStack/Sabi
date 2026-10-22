@@ -45,7 +45,7 @@ Claude over MCP (row 10: `inspect_project`, `apply_actions`, `render_frame`, `ru
 - `POST /api/projects/:id/generate`, body `GenerateInput`:
   `{ source: "generate" | "stock", media: "image" | "video", prompt?: string (1–600), query?: string (1–200), overlayId?: string }` — `generate` needs `prompt`, `stock` needs `query` (zod refine).
   Synchronous refusals, in this order: `400 invalid_input`; `404`; `400 unknown_id` (overlayId); `503 generator_unavailable` / `stock_unavailable`; `402 over_cap { monthCents, capCents }` (generate only: `monthCents + model cost > cap`); `409 busy`. Then `202 { jobId }`.
-- Job kind **`generate`** (stages `generate` → `import`). It **does not change project status and never renders**.
+- Job kind **`generate`** (stages `generate` → `import`). It **never renders**; the project shows `generating` while it runs and gets its previous status back at the end (the editor attributes changes made without a running status to the agent).
   - generate: `generator.generate({ prompt, media, ...DIMS[aspectRatio] })` → **ledger row written immediately** (fal has charged, even if the file later fails) → `importRemote` → asset with `meta { source: "generated", generationInfo, prompt }`; `creditsUsedCents += cost`.
   - stock: `stock.search(query, { media, orientation })` → import the first **3** results that import cleanly (**1** when `overlayId` is set) → assets with `meta { source: "stock", attribution, query }`. None → job fails `not_found`.
   - with `overlayId`: the overlay's asset is swapped for the first new asset (same id, range, placement), provenance copied, `query`/`prompt` updated; `outputs.stale = true` when an MP4 exists.

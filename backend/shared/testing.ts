@@ -111,7 +111,8 @@ export function makeMemoryDeps(dataDir: string, apiBaseUrl = `http://127.0.0.1:$
       stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
       generator: process.env.FAL_KEY ? new FalGenerator(process.env.FAL_KEY, globalThis.fetch) : null,
     }),
-    ledger: new JsonlCreditLedger(join(dataDir, "ledger.jsonl")), // survives tsx-watch restarts, so the cap does too
+    // Real fal spend survives tsx-watch restarts (so the cap does too); the fake generator spends nothing and stays in memory.
+    ledger: fakeAi ? new MemoryCreditLedger() : new JsonlCreditLedger(join(dataDir, "ledger.jsonl")),
     spendCapCents: parseSpendCap(process.env.SPEND_CAP_CENTS),
     apiBaseUrl: process.env.API_BASE_URL ?? apiBaseUrl,
     allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),

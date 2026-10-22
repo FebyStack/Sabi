@@ -116,4 +116,18 @@ describe("generate api", () => {
     expect(res.body.some((x: { id: string }) => x.id === project.sourceAssetId)).toBe(true);
     expect((await request(a).get("/api/projects/nope/assets")).status).toBe(404);
   });
+
+  it("shows as generating while it runs, then returns to the previous status", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const fake = new FakeGenerator(() => "https://media.test/one.png");
+    const deps = makeTestDeps({ generator: { generate: async (req) => { await gate; return fake.generate(req); } } });
+    const { a, project } = await readyProject(deps);
+    const res = await request(a).post(`/api/projects/${project.id}/generate`).send({ source: "generate", media: "image", prompt: "a kettle" });
+    await vi.waitFor(async () => expect((await get(a, project.id)).status).toBe("generating")); // the editor and the list see a job, not an outside edit
+    release();
+    await vi.waitFor(async () => expect((await request(a).get(`/api/projects/${project.id}/job?id=${res.body.jobId}`)).body.state).toBe("COMPLETE"));
+    expect((await get(a, project.id)).status).toBe("ready");
+  });
 });
+

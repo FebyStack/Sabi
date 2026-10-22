@@ -15,14 +15,17 @@ export function startGenerateJob(deps: AppDeps, project: Project, input: Input, 
   return deps.jobs.enqueue(project.id, "generate", { input, actor, prevStatus: project.status });
 }
 
-// Job "generate": one fal asset (prompt) or up to 3 Pexels candidates (query), stored with provenance. It never renders and never
-// changes the project's status; with overlayId the first asset replaces that overlay's media and the MP4 goes stale.
+// Job "generate": one fal asset (prompt) or up to 3 Pexels candidates (query), stored with provenance. It never renders; the project
+// shows "generating" while it runs (so the editor knows its own job made the change) and then gets its previous status back.
+// With overlayId the first asset replaces that overlay's media and the MP4 goes stale.
 export const generateJob = (deps: AppDeps): JobHandler => async ({ projectId, data, report }) => {
   const input = data.input as Input;
   const project = await deps.projects.get(projectId);
   if (!project) throw new Error("not_found");
   const assets: Asset[] = [];
   let costCents = 0;
+  await deps.projects.update(projectId, { status: "generating" });
+  deps.bus.publish(projectId, { type: "project", status: "generating" });
   try {
     report(10, "generate");
     if (input.source === "generate") {
@@ -51,10 +54,11 @@ export const generateJob = (deps: AppDeps): JobHandler => async ({ projectId, da
       ? applyActions(latest, [{ type: "replaceOverlay", overlayId: input.overlayId, assetId: assets[0].id }], { assets: new Map([[assets[0].id, assets[0]]]) })
       : null;
     const patch: Partial<Project> = {
+      status: data.prevStatus,
       ...(costCents ? { creditsUsedCents: (latest?.creditsUsedCents ?? 0) + costCents } : {}),
       ...(swap && !("error" in swap) ? { ...swap.patch, ...(latest!.outputs.mp4AssetId ? { outputs: { ...latest!.outputs, stale: true } } : {}) } : {}),
     };
-    if (latest && Object.keys(patch).length) {
+    if (latest) {
       const updated = await deps.projects.update(projectId, patch);
       deps.bus.publish(projectId, { type: "project", status: updated.status }); // open tabs refetch
     }

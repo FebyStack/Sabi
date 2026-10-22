@@ -14,6 +14,9 @@ describe("progressModel", () => {
       [v("plan", "plan", 10), { stage: "planning", pct: 14 }],
       [v("broll", "fetch", 50), { stage: "generating", pct: 63 }],
       [v("broll", "beats", 5), { stage: "generating", pct: 6 }],
+      [v("generate", "generate", 10), { stage: "generating", pct: 10 }],
+      [v("generate", "import", 60), { stage: "generating", pct: 60 }],
+      [v("generate", null, 0), { stage: "generating", pct: 0 }], // queued behind another project's job
       [v("captions", "render", 70), { stage: "rendering", pct: 25 }],
       [v("plan", "subtitles", 95), { stage: "rendering", pct: 88 }],
       [v("broll", "render", 70), { stage: "rendering", pct: 25 }],

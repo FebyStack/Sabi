@@ -19,6 +19,8 @@ export function useProjectEvents(id: string, onJobDone?: (job: JobState) => void
       if (parsed.data.type === "job" && parsed.data.job.state === "COMPLETE") done.current?.(parsed.data.job);
       if (parsed.data.type === "project" || parsed.data.job.state === "COMPLETE" || parsed.data.job.state === "FAILED")
         qc.invalidateQueries({ queryKey: ["project", id] });
+      if (parsed.data.type === "job" && ["broll", "generate"].includes(parsed.data.job.kind) && ["COMPLETE", "FAILED"].includes(parsed.data.job.state))
+        qc.invalidateQueries({ queryKey: ["usage"] }); // the job may have spent fal credits
     };
     es.addEventListener("job", onEvent);
     es.addEventListener("project", onEvent);

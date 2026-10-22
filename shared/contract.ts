@@ -134,6 +134,8 @@ export const PlanInput = z
 export const BrollInput = z.object({
   regenerate: z.boolean().default(false), overlayId: z.string().optional(), query: z.string().max(200).optional(), prompt: z.string().max(600).optional(),
 });
+// What one fal generation is ledgered at, in whole cents (flux/schnell's $0.003 rounds up); the web shows it before spending.
+export const GENERATION_COST_CENTS = { image: 1, video: 25 } as const;
 // One asset on demand (spec row 19): a fal generation from a prompt, or Pexels candidates for a query; overlayId swaps that overlay's media.
 export const GenerateInput = z.object({
   source: MediaSource, media: OverlayMedia,

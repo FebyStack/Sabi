@@ -1,4 +1,4 @@
-import { initialEventsState, reduceProjectEvents } from "./projectEvents";
+import { initialEventsState, jobErrorText, reduceProjectEvents } from "./projectEvents";
 
 describe("reduceProjectEvents", () => {
   it("tracks stage and progress from job events", () => {
@@ -23,4 +23,22 @@ describe("reduceProjectEvents", () => {
     const s = reduceProjectEvents(initialEventsState, { type: "job", job: { id: "j", projectId: "p", kind: "plan", state: "PROCESSING", stage: "plan", progress: 10 } });
     expect(s.kind).toBe("plan");
   });
+
+  it("queued and running follow the job state", () => {
+    const job = (state: "QUEUED" | "PROCESSING" | "COMPLETE" | "FAILED") => ({ type: "job" as const, job: { id: "j", projectId: "p", kind: "generate", state, progress: 0 } });
+    let s = reduceProjectEvents(initialEventsState, job("QUEUED"));
+    expect(s).toMatchObject({ running: true, queued: true });
+    s = reduceProjectEvents(s, job("PROCESSING"));
+    expect(s).toMatchObject({ running: true, queued: false });
+    expect(reduceProjectEvents(s, job("COMPLETE"))).toMatchObject({ running: false, queued: false });
+    expect(reduceProjectEvents(s, job("FAILED"))).toMatchObject({ running: false, queued: false });
+    expect(initialEventsState).toMatchObject({ running: false, queued: false });
+  });
+
+  it("jobErrorText explains restarts and the cap", () => {
+    expect(jobErrorText("interrupted")).toBe("Interrupted by a restart — run it again.");
+    expect(jobErrorText("over_cap")).toBe("Monthly spending cap reached — see Usage.");
+    expect(jobErrorText("transcriber_unavailable")).toBe("transcriber_unavailable");
+  });
 });
+
