@@ -9,8 +9,12 @@ export type Segment = { startMs: number; endMs: number };
 const FILLERS = new Set(["um", "uh", "umm", "uhm", "erm", "er", "ah", "hmm", "mm"]);
 const isFiller = (w: Word) => FILLERS.has(normWord(w.text));
 
+const ENDS_SENTENCE = /([?!]|(^|[^.])\.)["')]?$/; // ? ! or a lone full stop: "Ganun." is an answer, not a hesitation
+const TRAILS_OFF = /(,|\.\.\.|…)["')]?$/;
+
 // Which words are filler cuts. FILLERS always are; in Tagalog a run of hesitation words (ano, kasi, parang…) is one only as an
-// island: an ASR gap ≥ 250 ms before it, and one after it or a trailing , . … on its last word — never a question.
+// island: an ASR gap ≥ 250 ms before it, and one after it — or, mid-sentence, a trailing , … on its last word — and never
+// when it ends a sentence. Whisper commas every sentence-opening "Kasi," so that needs a real pause after it.
 function fillerWords(words: Word[], language?: string | null): boolean[] {
   const tl = isTagalog(language);
   const hesitant = (w: Word) => isFiller(w) || (tl && TL_HESITATION.has(normWord(w.text)));
@@ -22,7 +26,8 @@ function fillerWords(words: Word[], language?: string | null): boolean[] {
     const before = i > 0 ? words[i].startMs - words[i - 1].endMs : Infinity;
     const after = j + 1 < words.length ? words[j + 1].startMs - words[j].endMs : Infinity;
     const last = words[j].text;
-    if (!/[?!]["')]?$/.test(last) && before >= FILLER_GAP_MS && (after >= FILLER_GAP_MS || /[,.…]["')]?$/.test(last))) {
+    const opensSentence = i === 0 || ENDS_SENTENCE.test(words[i - 1].text);
+    if (!ENDS_SENTENCE.test(last) && before >= FILLER_GAP_MS && (after >= FILLER_GAP_MS || (!opensSentence && TRAILS_OFF.test(last)))) {
       for (let k = i; k <= j; k++) filler[k] = true;
     }
     i = j + 1;

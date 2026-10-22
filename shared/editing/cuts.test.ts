@@ -68,6 +68,19 @@ describe("detectCuts", () => {
         .toEqual([["filler", 220, 400, "um"]]);
     });
 
+    it("a sentence-opening kasi, is kept", () => {
+      expect(cutsOf([w("a", "Okay.", 0, 300), w("b", "Kasi,", 800, 1100), w("c", "wala", 1150, 1400), w("d", "akong", 1420, 1600), w("e", "pera", 1620, 1900)])).toEqual([]);
+      expect(cutsOf([w("a", "Parang,", 0, 300), w("b", "hindi", 350, 600), w("c", "ko", 620, 700), w("d", "alam", 720, 1000)])).toEqual([]);
+    });
+
+    it("a one-word answer is kept", () => {
+      expect(cutsOf([w("a", "Bakit", 0, 300), w("b", "siya", 320, 500), w("c", "umalis?", 520, 900), w("d", "Ganun.", 1500, 1900)])).toEqual([]);
+    });
+
+    it("a sentence-opening hesitation set off by pauses is cut", () => {
+      expect(spans([w("a", "Okay.", 0, 300), w("b", "ano...", 800, 1100), w("c", "pumunta", 1600, 1900)])).toEqual([["filler", 800, 1100, "ano..."]]);
+    });
+
     it("trailing comma counts as a boundary", () => {
       expect(spans([w("a", "Tapos", 0, 400), w("b", "ano,", 900, 1200), w("c", "pumunta", 1300, 1700)])).toEqual([["filler", 900, 1200, "ano,"]]);
     });
