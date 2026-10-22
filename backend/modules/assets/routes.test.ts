@@ -149,6 +149,24 @@ describe("assets", () => {
     expect((await get()).status).toBe(404);
   });
 
+  it("a file is cached for good under its asset id (its bytes never change); a revalidation gets 304; errors are not cached", async () => {
+    const deps = makeTestDeps();
+    const a = createApp(deps);
+    const { body: { uploadId } } = await request(a).post("/api/assets/uploads/start").send({ fileName: "c.mp4", mimeType: "video/mp4", sizeBytes: 5 });
+    await request(a).put(`/api/assets/uploads/${uploadId}`).set("content-type", "video/mp4").send(Buffer.from("hello"));
+    const { body: asset } = await request(a).post(`/api/assets/uploads/${uploadId}/done`).send({});
+    const cached = { "cache-control": "private, max-age=31536000, immutable", etag: `"${asset.id}"` };
+    expect((await request(a).get(`/api/assets/${asset.id}/file`)).headers).toMatchObject(cached);
+    expect((await request(a).get(`/api/assets/${asset.id}/file`).set("range", "bytes=1-2")).headers).toMatchObject(cached);
+    const again = await request(a).get(`/api/assets/${asset.id}/file`).set("if-none-match", `"${asset.id}"`);
+    expect([again.status, again.text]).toEqual([304, ""]);
+    expect(again.headers).toMatchObject(cached);
+    expect((await request(a).get(`/api/assets/${asset.id}/file`).set("if-none-match", `"other"`)).status).toBe(200);
+    expect((await request(a).get(`/api/assets/${asset.id}/file`).set("range", "bytes=99-")).headers["cache-control"]).toBeUndefined(); // 416
+    await deps.storage.remove(asset.key);
+    expect((await request(a).get(`/api/assets/${asset.id}/file`)).headers["cache-control"]).toBeUndefined(); // 404 file_missing
+  });
+
   it("an uploaded file is sanitized before it is stored", async () => {
     const calls: [string, string, string][] = [];
     class CleaningMedia extends FakeMedia {

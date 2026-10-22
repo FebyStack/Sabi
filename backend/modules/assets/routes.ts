@@ -91,16 +91,20 @@ export function assetsRouter(deps: AppDeps) {
   });
 
   // One path for files and buckets: Range is what iOS <video>, the Player and the render browser seek with (206 / 416).
+  // An asset's key, so its bytes, never changes: the browser keeps a file for good (errors are never cached).
   r.get<{ id: string }>(api.assetFile(":id"), async (req, res) => {
     const asset = await deps.assets.get(req.params.id);
     if (!asset) return res.status(404).json({ error: "not_found" });
+    const cache = { "cache-control": "private, max-age=31536000, immutable", etag: `"${asset.id}"` };
+    res.set("etag", cache.etag); // req.fresh compares If-None-Match with it
+    if (req.fresh) return res.status(304).set(cache).end();
     const stored = await deps.storage.stat(asset.key);
     if (!stored) return res.status(404).json({ error: "file_missing" });
     const ranges = req.range(stored.size, { combine: true });
     if (ranges === -1) return res.status(416).set("content-range", `bytes */${stored.size}`).end();
     const range = Array.isArray(ranges) && ranges.type === "bytes" ? ranges[0] : undefined; // no or malformed Range: the whole file
     res.status(range ? 206 : 200).set({
-      "content-type": asset.mimeType, "x-content-type-options": "nosniff", "accept-ranges": "bytes",
+      ...cache, "content-type": asset.mimeType, "x-content-type-options": "nosniff", "accept-ranges": "bytes",
       "content-length": String(range ? range.end - range.start + 1 : stored.size),
       ...(range ? { "content-range": `bytes ${range.start}-${range.end}/${stored.size}` } : {}),
     });
