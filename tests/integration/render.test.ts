@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { RemotionRenderer } from "../../backend/shared/renderer";
 import { getCaptionTemplate } from "../../shared/captions/templates";
 import { templateLook } from "../../shared/editing/brand";
+import type { MotionGraphicProps } from "../../shared/editing/overlays";
 import type { CaptionVideoProps } from "../../shared/remotion/CaptionVideo";
 import type { Phrase } from "../../shared/types";
 
@@ -20,10 +21,17 @@ const words = [
 const pixel = (file: string, atS: number, x: number, y: number) =>
   [...execFileSync("ffmpeg", ["-v", "error", "-ss", String(atS), "-i", file, "-frames:v", "1", "-vf", `crop=2:2:${x}:${y}`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])].slice(0, 3);
 const phrases: Phrase[] = [{ id: "ph-0", startMs: 100, endMs: 1900, lineBreaksAfter: [1], words }];
+// RGB of one pixel of output frame `n`.
+const pixelAt = (file: string, n: number, x: number, y: number) =>
+  [...execFileSync("ffmpeg", ["-v", "error", "-i", file, "-vf", `select=eq(n\\,${n}),crop=2:2:${x}:${y}`, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])].slice(0, 3);
+const mgp = (compiled: string, extra: Partial<MotionGraphicProps> = {}): MotionGraphicProps =>
+  ({ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {}, images: [], ...extra });
+const frameRed = 'const Component = () => React.createElement("div", { style: { position: "absolute", inset: 0, background: `rgb(${useCurrentFrame() * 4},0,0)` } });';
 
 // Real Chromium render; opt in with RUN_RENDER=1 (npm run render:sample).
 describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
-  let dir: string, videoSrc: string, base: string, server: Server, renderer: RemotionRenderer;
+  let dir: string, videoSrc: string, base: string, server: Server, renderer: RemotionRenderer, canary: Server, canaryUrl: string;
+  const canaryHits: string[] = [];
 
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), "render-"));
@@ -32,18 +40,23 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=2:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", clip]);
     // Chromium needs an http(s) URL for the source video, same as the API serves in production.
     execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=400x600", "-frames:v", "1", join(dir, "red.png")]);
+    execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=400x600", "-frames:v", "1", join(dir, "blue.png")]);
     // A loud 440 Hz tone: a hard cut through it at an arbitrary phase is an audible click.
     execFileSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=3:r=30", "-f", "lavfi", "-i", "aevalsrc=0.8*sin(2*PI*440*t):s=48000:d=3",
       "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "320k", "-shortest", join(dir, "tone.mp4")]);
     server = createServer((req, res) => {
-      const png = req.url === "/red.png";
-      res.writeHead(200, { "content-type": png ? "image/png" : "video/mp4" });
-      createReadStream(png ? join(dir, "red.png") : req.url === "/tone.mp4" ? join(dir, "tone.mp4") : clip).pipe(res);
+      const png = req.url === "/red.png" || req.url === "/blue.png";
+      // CORS: the page fetches an MG's image props itself and hands the bytes to the MG's sandbox.
+      res.writeHead(200, { "content-type": png ? "image/png" : "video/mp4", "access-control-allow-origin": "*" });
+      createReadStream(png ? join(dir, req.url!.slice(1)) : req.url === "/tone.mp4" ? join(dir, "tone.mp4") : clip).pipe(res);
     }).listen(0);
+    // Every request an MG's sandbox manages to send lands here.
+    canary = createServer((req, res) => { canaryHits.push(req.url ?? ""); res.end("x"); }).listen(0);
+    canaryUrl = `http://127.0.0.1:${(canary.address() as AddressInfo).port}`;
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     videoSrc = `${base}/clip.mp4`;
   });
-  afterAll(() => server.close());
+  afterAll(() => { server.close(); canary.close(); });
 
   const render = async (props: Partial<CaptionVideoProps> & { phrases: Phrase[]; durationMs: number }, name: string, scale: 1 | 2 = 1) => {
     const outPath = join(dir, name);
@@ -130,7 +143,7 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
   it("renders a brand-graded clip with a motion graphic", async () => {
     const brand = { primary: "#1E90FF", accent: "#FFD60A", text: "#FFFFFF", background: "#0B0B0B", fontFamily: "Inter", logoUrl: null, grade: 0.6 };
     const compiled = `const Component = ({ item }) => React.createElement("div", { style: { position: "absolute", inset: 0, background: item.brand.accent } });`;
-    const out = await render({ phrases, durationMs: 2000, brand, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 2000, box: { x: 0, y: 0, w: 1, h: 0.2 }, props: {} }] }, "brand.mp4");
+    const out = await render({ phrases, durationMs: 2000, brand, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 2000, box: { x: 0, y: 0, w: 1, h: 0.2 }, props: {}, images: [] }] }, "brand.mp4");
     expect(statSync(out).size).toBeGreaterThan(10_000);
     const [r, g, b] = pixel(out, 1, 540, 100); // the MG is drawn above the grade, in the accent colour
     expect(r).toBeGreaterThan(200);
@@ -140,7 +153,7 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
 
   it("renders a motion graphic that throws without failing", async () => {
     const compiled = "const Component = () => { throw new Error('boom'); };";
-    const out = await render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {} }] }, "throws.mp4");
+    const out = await render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {}, images: [] }] }, "throws.mp4");
     const [r, g] = pixel(out, 0.5, 6, 6); // the red ⚠ mg-0 label at the box's top-left
     expect(r).toBeGreaterThan(150);
     expect(g).toBeLessThan(60);
@@ -148,7 +161,7 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
 
   it("an MG image that fails to load draws a marker instead of failing the render", async () => {
     const compiled = `const Component = () => React.createElement(Img, { src: "${base}/missing.png", style: { position: "absolute", inset: 0, width: "100%", height: "100%" } });`;
-    const out = await render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 0.3 }, props: {} }] }, "badimg.mp4");
+    const out = await render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 0.3 }, props: {}, images: [] }] }, "badimg.mp4");
     const [r, g] = pixel(out, 0.5, 900, 400); // inside the red ⚠ image marker that replaced the image
     expect(r).toBeGreaterThan(150);
     expect(g).toBeLessThan(60);
@@ -157,7 +170,109 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
   it("an infinite loop fails the render within the timeout", async () => {
     const compiled = "const Component = () => { for (;;) {} };";
     const started = Date.now();
-    await expect(render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {} }] }, "loop.mp4")).rejects.toThrow();
+    await expect(render({ phrases, durationMs: 1000, motionGraphics: [{ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {}, images: [] }] }, "loop.mp4")).rejects.toThrow();
     expect(Date.now() - started).toBeLessThan(90_000);
+  }, 900_000);
+
+  it("MG frames are exact", async () => {
+    const out = await render({ phrases: [], durationMs: 2000, motionGraphics: [mgp(frameRed, { endMs: 2000 })] }, "mg-exact.mp4");
+    for (const f of [0, 15, 30, 45]) expect(Math.abs(pixelAt(out, f, 540, 960)[0] - f * 4), `frame ${f}`).toBeLessThanOrEqual(6);
+  }, 900_000);
+
+  it("an MG cannot reach the network or the page", async () => {
+    canaryHits.length = 0;
+    const compiled = `const Component = () => {
+  const c = ${JSON.stringify(canaryUrl)};
+  try { fetch(c + "/fetch").catch(() => {}); } catch (e) {}
+  try { const x = new XMLHttpRequest(); x.open("GET", c + "/xhr"); x.send(); } catch (e) {}
+  try { new WebSocket(c.replace("http", "ws") + "/ws"); } catch (e) {}
+  try { navigator.sendBeacon(c + "/beacon", "x"); } catch (e) {}
+  try { new Image().src = c + "/img"; } catch (e) {}
+  try { window.parent.document.body.style.background = "red"; } catch (e) {}
+  return React.createElement("div", { style: { position: "absolute", inset: 0, background: "#00ff00" } },
+    React.createElement("div", { style: { width: 10, height: 10, backgroundImage: "url(" + c + "/css)" } }),
+    React.createElement("iframe", { src: c + "/frame", style: { width: 10, height: 10 } }));
+};`;
+    const out = await render({ phrases: [], durationMs: 1000, motionGraphics: [mgp(compiled, { box: { x: 0, y: 0, w: 1, h: 0.2 } })] }, "mg-nonet.mp4");
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(canaryHits).toEqual([]);
+    const [r, g] = pixelAt(out, 15, 540, 200);
+    expect(g).toBeGreaterThan(200);
+    expect(r).toBeLessThan(60);
+    expect(pixelAt(out, 15, 540, 1500)[0]).toBeLessThan(60); // the page underneath is untouched
+  }, 900_000);
+
+  it("an MG that navigates draws ⚠ and reaches nothing", async () => {
+    canaryHits.length = 0;
+    const compiled = `const Component = () => { location.href = ${JSON.stringify(`${canaryUrl}/nav`)}; return null; };`;
+    const out = await render({ phrases: [], durationMs: 1000, motionGraphics: [mgp(compiled, { box: { x: 0, y: 0, w: 1, h: 0.5 } })] }, "mg-nav.mp4");
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(canaryHits).toEqual([]);
+    const [r, g] = pixelAt(out, 25, 6, 6); // the page's red ⚠ mg-0 at the box's top-left
+    expect(r).toBeGreaterThan(150);
+    expect(g).toBeLessThan(60);
+  }, 900_000);
+
+  const imgMg = 'const Component = ({ item }) => React.createElement(Img, { src: item.props.photo, style: { position: "absolute", inset: 0, width: "100%", height: "100%" } });';
+
+  it("an image prop is drawn from bytes", async () => {
+    const photo = `${base}/blue.png`;
+    const out = await render({ phrases: [], durationMs: 1000, motionGraphics: [mgp(imgMg, { props: { photo }, images: [photo], box: { x: 0, y: 0, w: 1, h: 0.3 } })] }, "mg-imgprop.mp4");
+    const [r, , b] = pixelAt(out, 15, 540, 300);
+    expect(b).toBeGreaterThan(200);
+    expect(r).toBeLessThan(60);
+  }, 900_000);
+
+  it("an image prop that doesn't decode draws ⚠ image", async () => {
+    const photo = `${base}/missing.png`; // served as MP4 bytes
+    const out = await render({ phrases: [], durationMs: 1000, motionGraphics: [mgp(imgMg, { props: { photo }, images: [photo], box: { x: 0, y: 0, w: 1, h: 0.3 } })] }, "mg-imgbad.mp4");
+    const [r, g] = pixelAt(out, 15, 900, 400); // inside the red ⚠ image marker
+    expect(r).toBeGreaterThan(150);
+    expect(g).toBeLessThan(60);
+  }, 900_000);
+
+  it("a silent MG becomes ⚠ in 5 s and the render finishes", async () => {
+    // Breaks its sandbox's runtime (which waits on Promise.allSettled before answering a frame), so no frame is answered.
+    const compiled = 'const Component = () => { Promise.allSettled = () => new Promise(() => {}); return null; };';
+    const started = Date.now();
+    const out = await render({ phrases: [], durationMs: 1000, motionGraphics: [mgp(compiled)] }, "mg-silent.mp4");
+    expect(Date.now() - started).toBeLessThan(60_000);
+    const [r, g] = pixelAt(out, 27, 6, 6);
+    expect(r).toBeGreaterThan(150);
+    expect(g).toBeLessThan(60);
+  }, 900_000);
+
+  it("two MGs on one frame of a 4K export", async () => {
+    const fill = (c: string) => `const Component = () => React.createElement("div", { style: { position: "absolute", inset: 0, background: "${c}" } });`;
+    const out = await render({ phrases: [], durationMs: 1000, motionGraphics: [
+      mgp(fill("#00ff00"), { id: "mg-0", box: { x: 0, y: 0, w: 1, h: 0.2 } }),
+      mgp(fill("#0000ff"), { id: "mg-1", box: { x: 0, y: 0.8, w: 1, h: 0.2 } }),
+    ] }, "mg-two-4k.mp4", 2);
+    expect(pixelAt(out, 15, 1080, 300)[1]).toBeGreaterThan(200);
+    expect(pixelAt(out, 15, 1080, 3500)[2]).toBeGreaterThan(200);
+  }, 900_000);
+
+  it("the /frame still equals the MP4 frame", async () => {
+    const inputProps: CaptionVideoProps = {
+      videoSrc, sourceKind: "video", template: getCaptionTemplate("clean"), width: 1080, height: 1920, phrases: [], durationMs: 2000,
+      brand: templateLook(getCaptionTemplate("clean")), overlays: [], motionGraphics: [mgp(frameRed, { endMs: 2000 })],
+    };
+    const mp4 = await render(inputProps, "mg-still-vs-mp4.mp4");
+    const png = join(dir, "mg-still-1000.png");
+    await renderer.renderStill({ compositionId: "CaptionVideo", inputProps, timestampMs: 1000, width: 1080, outPath: png });
+    const still = [...execFileSync("ffmpeg", ["-v", "error", "-i", png, "-vf", "crop=2:2:540:960", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])].slice(0, 3);
+    expect(still[0]).toBeGreaterThan(100); // frame 30 → rgb(120, 0, 0)
+    expect(Math.abs(still[0] - pixelAt(mp4, 30, 540, 960)[0])).toBeLessThanOrEqual(6);
+  }, 900_000);
+
+  it("an MG gets the brand fonts", async () => {
+    const compiled = `const Component = () => {
+  const loaded = [...document.fonts].some((f) => f.family === "Bebas Neue" && f.status === "loaded");
+  return React.createElement("div", { style: { position: "absolute", inset: 0, background: loaded ? "#00ff00" : "#ff0000", fontFamily: '"Bebas Neue"', fontSize: 80 } }, "SABI");
+};`;
+    const out = await render({ phrases: [], durationMs: 1000, motionGraphics: [mgp(compiled, { box: { x: 0, y: 0, w: 1, h: 0.3 } })] }, "mg-font.mp4");
+    const [r, g] = pixelAt(out, 15, 900, 450);
+    expect(g).toBeGreaterThan(200);
+    expect(r).toBeLessThan(60);
   }, 900_000);
 });

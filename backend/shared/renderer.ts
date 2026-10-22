@@ -89,11 +89,12 @@ export class RemotionRenderer implements Renderer {
     const { openBrowser } = await import("@remotion/renderer");
     return openBrowser("chrome", { browserExecutable: this.browserExecutable() });
   });
-  constructor(private opts: { entry: string; bundleDir?: string; browserExecutable?: string | null }) {}
+  // publicDir: frontend/public holds mg-sandbox.html, the page every motion graphic runs in (spec row 24).
+  constructor(private opts: { entry: string; bundleDir?: string; browserExecutable?: string | null; publicDir?: string }) {}
 
   private bundleOnce() {
     const outDir = resolve(this.opts.bundleDir ?? defaultBundleDir());
-    this.serveUrl ??= ownBundleDir(outDir).then(() => import("@remotion/bundler")).then(({ bundle }) => bundle({ entryPoint: resolve(this.opts.entry), outDir }))
+    this.serveUrl ??= ownBundleDir(outDir).then(() => import("@remotion/bundler")).then(({ bundle }) => bundle({ entryPoint: resolve(this.opts.entry), outDir, publicDir: resolve(this.opts.publicDir ?? "frontend/public") }))
       .catch((err) => { this.serveUrl = null; throw err; });
     return this.serveUrl;
   }

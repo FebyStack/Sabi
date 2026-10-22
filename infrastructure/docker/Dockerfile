@@ -21,6 +21,7 @@ RUN npm ci --omit=dev && npx remotion browser ensure
 COPY --from=build /app/dist-server ./dist-server
 # Remotion bundles the composition from source at boot; the schema and the demo bundle are read at boot too.
 COPY shared ./shared
+COPY frontend/public ./frontend/public
 COPY database ./database
 ENV NODE_ENV=production PORT=3001
 EXPOSE 3001
