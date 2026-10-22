@@ -110,7 +110,7 @@ describe("applyActions: overlays, brand, motion graphics", () => {
   });
 
   it("image props and logos must be image assets", () => {
-    const brand = { palette: { primary: "#1E90FF", accent: "#FFD60A", text: "#FFFFFF", background: "#0B0B0B" }, fontFamily: "Inter", logoAssetId: "mp4", grade: 0.4 };
+    const brand = { palette: { primary: "#1E90FF", accent: "#FFD60A", text: "#FFFFFF", background: "#0B0B0B" }, fontFamily: "Inter" as const, logoAssetId: "mp4", grade: 0.4 };
     expect(applyActions(p, [{ type: "setBrand", brand }], assets(asset("mp4", "video")))).toEqual({ error: "bad_asset", id: "mp4" });
     expect(applyActions(p, [{ type: "setBrand", brand: { ...brand, logoAssetId: "png" } }], assets(asset("png", "image")))).toMatchObject({ rerender: true, patch: { brand: { logoAssetId: "png" } } });
     const mg = { type: "addMotionGraphic" as const, name: "Logo", code: MG_CODE, startMs: 0, endMs: 2000, box: { x: 0, y: 0, w: 1, h: 1 }, props: [{ key: "logo", type: "image" as const, value: "missing" }] };
@@ -152,5 +152,25 @@ describe("applyActions: overlays, brand, motion graphics", () => {
     const flip = [{ type: "setShotKind" as const, shotId: shotOf().id, kind: "Talking Head" as const }];
     expect(applyActions(p, flip)).toMatchObject({ rerender: true });
     expect(applyActions({ ...p, overlays: [] }, flip)).toMatchObject({ rerender: false });
+  });
+
+  it("delegates local actions and keeps server checks", () => {
+    const [s0, s1] = project.editPlan!.shots;
+    const mid = Math.round((s0.startMs + s1.endMs) / 2);
+    const brand = { palette: { primary: "#1E90FF", accent: "#FFD60A", text: "#FFFFFF", background: "#0B0B0B" }, fontFamily: "Inter" as const, logoAssetId: null, grade: 0.4 };
+    const out = applyActions(p, [{ type: "setShotBounds", shotId: s0.id, endMs: mid }, { type: "setBrand", brand }]);
+    if ("error" in out) throw new Error(out.error);
+    expect(out.patch.editPlan!.shots.slice(0, 2).map((s) => [s.startMs, s.endMs])).toEqual([[s0.startMs, mid], [mid, s1.endMs]]);
+    expect(out.patch.brand).toEqual(brand);
+    expect(out.rerender).toBe(true);
+    expect(Object.keys(out.patch).sort()).toEqual(["brand", "editPlan"]);
+    const badLogo = applyActions(p, [{ type: "setShotBounds", shotId: s0.id, endMs: mid }, { type: "setBrand", brand: { ...brand, logoAssetId: "mp4" } }], assets(asset("mp4", "video")));
+    expect(badLogo).toEqual({ error: "bad_asset", id: "mp4" });
+  });
+
+  it("overlap and out_of_range reach the caller", () => {
+    const [ph0, ph1] = project.phrases;
+    expect(applyActions(p, [{ type: "retimePhraseRange", phraseId: ph1.id, startMs: ph0.endMs - 50, endMs: ph1.endMs }])).toEqual({ error: "overlap", id: ph1.id });
+    expect(applyActions(p, [{ type: "setShotBounds", shotId: "shot-0", startMs: 100 }])).toEqual({ error: "out_of_range", id: "shot-0" });
   });
 });

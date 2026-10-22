@@ -73,52 +73,6 @@ describe("caption pipeline", () => {
     expect(vtt.text).toBe("WEBVTT\n");
   });
 
-  it("phrase edit re-renders without transcribing", async () => {
-    const deps = makeTestDeps();
-    const fake = deps.transcriber as FakeTranscriber;
-    const { a, project } = await projectWithSource(deps);
-    await request(a).post(`/api/projects/${project.id}/run`).send({});
-    const done = await untilStatus(a, project.id, "ready");
-    const edited = done.phrases.map((p, i) => (i === 0 ? { ...p, words: p.words.map((w, j) => (j === 0 ? { ...w, text: "HERE" } : w)) } : p));
-    const res = await request(a).put(`/api/projects/${project.id}/phrases`).send({ phrases: edited });
-    expect(res.status).toBe(202);
-    await vi.waitFor(async () => {
-      const p: Project = (await request(a).get(`/api/projects/${project.id}`)).body;
-      expect(p.status).toBe("ready");
-      expect(p.outputs.mp4AssetId).not.toBe(done.outputs.mp4AssetId);
-    }, { timeout: 5000 });
-    const after: Project = (await request(a).get(`/api/projects/${project.id}`)).body;
-    expect(after.phrases[0].words[0].text).toBe("HERE");
-    expect(fake.calls).toBe(1);
-  });
-
-  it("template change keeps phrase spelling edits", async () => {
-    const deps = makeTestDeps();
-    const { a, project } = await projectWithSource(deps);
-    await request(a).post(`/api/projects/${project.id}/run`).send({});
-    const done = await untilStatus(a, project.id, "ready");
-    const edited = done.phrases.map((p, i) => (i === 0 ? { ...p, words: p.words.map((w, j) => (j === 0 ? { ...w, text: "HERE" } : w)) } : p));
-    await request(a).put(`/api/projects/${project.id}/phrases`).send({ phrases: edited });
-    await vi.waitFor(async () => expect((await request(a).get(`/api/projects/${project.id}`)).body.outputs.mp4AssetId).not.toBe(done.outputs.mp4AssetId));
-    await request(a).put(`/api/projects/${project.id}/template`).send({ captionTemplateId: "bold" });
-    await vi.waitFor(async () => {
-      const p: Project = (await request(a).get(`/api/projects/${project.id}`)).body;
-      expect(p.captionTemplateId).toBe("bold");
-      expect(p.status).toBe("ready");
-      expect(p.phrases.flatMap((x) => x.words)[0].text).toBe("HERE");
-    }, { timeout: 5000 });
-  });
-
-  it("template change before any run saves without starting a job", async () => {
-    const deps = makeTestDeps();
-    const { a, project } = await projectWithSource(deps);
-    const res = await request(a).put(`/api/projects/${project.id}/template`).send({ captionTemplateId: "bold" });
-    expect(res.status).toBe(200);
-    expect(res.body.captionTemplateId).toBe("bold");
-    expect(deps.jobs.active(project.id)).toBeNull();
-    expect((await request(a).get(`/api/projects/${project.id}`)).body.status).toBe("draft");
-  });
-
   it("renders audio-only sources with sourceKind audio", async () => {
     const deps = makeTestDeps();
     const a = createApp(deps);
@@ -133,25 +87,4 @@ describe("caption pipeline", () => {
     expect(renderer.calls.at(-1)?.inputProps.sourceKind).toBe("audio");
   });
 
-  it("rejects phrases with no words", async () => {
-    const deps = makeTestDeps();
-    const { a, project } = await projectWithSource(deps);
-    await request(a).post(`/api/projects/${project.id}/run`).send({});
-    const done = await untilStatus(a, project.id, "ready");
-    const res = await request(a).put(`/api/projects/${project.id}/phrases`).send({ phrases: [{ ...done.phrases[0], words: [] }] });
-    expect(res.status).toBe(400);
-  });
-
-  it("template change re-renders", async () => {
-    const deps = makeTestDeps();
-    const { a, project } = await projectWithSource(deps);
-    await request(a).post(`/api/projects/${project.id}/run`).send({});
-    await untilStatus(a, project.id, "ready");
-    expect((await request(a).put(`/api/projects/${project.id}/template`).send({ captionTemplateId: "bold" })).status).toBe(202);
-    await vi.waitFor(async () => {
-      const p: Project = (await request(a).get(`/api/projects/${project.id}`)).body;
-      expect(p.captionTemplateId).toBe("bold");
-      expect(p.status).toBe("ready");
-    }, { timeout: 5000 });
-  });
 });

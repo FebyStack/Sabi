@@ -1,4 +1,4 @@
-import { applyCuts, detectCuts, keptSegments, mapTime } from "./cuts";
+import { applyCuts, detectCuts, keptSegments, mapTime, toSourceTime } from "./cuts";
 import type { Cut, Phrase } from "../types";
 
 const w = (id: string, text: string, startMs: number, endMs: number) => ({ id, text, startMs, endMs });
@@ -78,5 +78,16 @@ describe("cut timeline", () => {
 
   it("applyCuts drops a phrase whose whole span is cut, so no zero-length cue", () => {
     expect(applyCuts(input, fillers, false).map((p) => [p.id, p.startMs, p.endMs])).toEqual([["p0", 0, 600], ["p2", 900, 1200]]);
+  });
+});
+
+describe("toSourceTime", () => {
+  it("toSourceTime inverts mapTime", () => {
+    const cuts = [cut(1000, 2000, true), cut(5000, 5500, true), cut(8000, 9000, false)];
+    expect(toSourceTime(1500, cuts)).toBe(2500);
+    expect(toSourceTime(4000, cuts)).toBe(5500);
+    expect(toSourceTime(1000, cuts)).toBe(2000); // a cut boundary maps to the cut's end
+    expect(toSourceTime(500, cuts)).toBe(500);
+    for (const ms of [0, 2500, 6000, 9500]) expect(toSourceTime(mapTime(ms, cuts), cuts)).toBe(ms);
   });
 });

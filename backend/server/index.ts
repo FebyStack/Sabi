@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { createApp, parseAllowedOrigins } from "../app/app";
 import { PgAssetRepository } from "../modules/assets/repository";
 import { PgProjectRepository } from "../modules/projects/repository";
+import { seedDemo } from "../modules/demo/seed";
+import { startRetention } from "../modules/retention/sweep";
+import type { AppDeps } from "../shared/deps";
 import { MemoryEventBus } from "../shared/events";
 import { MemoryJobRunner } from "../shared/jobs";
 import { OllamaLlm } from "../shared/llm";
@@ -25,7 +28,7 @@ const stuck = await projects.failStuck(); // jobs are in-process; nothing surviv
 if (stuck) console.warn(`marked ${stuck} interrupted project(s) as failed`);
 const bus = new MemoryEventBus();
 
-createApp({
+const deps: AppDeps = {
   projects,
   assets: new PgAssetRepository(pool),
   storage: new FsStorage(dataDir),
@@ -33,7 +36,7 @@ createApp({
   bus,
   jobs: new MemoryJobRunner(bus),
   transcriber: new WhisperXTranscriber(process.env.WHISPERX_URL ?? "http://localhost:8010"),
-  renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts", bundleDir: ".remotion-bundle" }),
+  renderer: new RemotionRenderer({ entry: "shared/remotion/index.ts" }),
   llm: new OllamaLlm(process.env.OLLAMA_URL ?? "http://localhost:11434", process.env.OLLAMA_MODEL ?? "qwen2.5:3b"),
   fetch: globalThis.fetch,
   stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
@@ -42,4 +45,10 @@ createApp({
   allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
   now: () => new Date(),
   id: randomUUID,
-}).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));
+};
+const demo = await seedDemo(deps).catch((err) => { console.error("demo seed failed", err); return null; }); // only into an empty database
+if (demo) console.log(`seeded demo project ${demo.id}`);
+createApp(deps).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));
+startRetention(deps);
+const warmStart = Date.now(); // bundle + browser now, so the first render or frame does not pay for them
+deps.renderer.warm?.().then(() => console.log(`renderer warm in ${((Date.now() - warmStart) / 1000).toFixed(1)}s`), (err) => console.error("renderer warm-up failed", err));

@@ -25,7 +25,7 @@ export function detectCuts(words: Word[], durationMs: number): Cut[] {
 }
 
 // Enabled cuts, sorted and merged.
-function removed(cuts: Cut[]): Segment[] {
+export function removed(cuts: Cut[]): Segment[] {
   const out: Segment[] = [];
   for (const c of cuts.filter((c) => c.shouldTrim).sort((a, b) => a.startMs - b.startMs)) {
     const last = out.at(-1);
@@ -49,6 +49,16 @@ export function keptSegments(durationMs: number, cuts: Cut[]): Segment[] {
 // Source → output ms; a time inside a cut maps to the cut's start.
 export function mapTime(ms: number, cuts: Cut[]): number {
   return ms - removed(cuts).reduce((sum, r) => sum + Math.max(0, Math.min(ms, r.endMs) - r.startMs), 0);
+}
+
+// Output → source ms (inverse of mapTime); a time at a cut boundary maps to the cut's end.
+export function toSourceTime(outMs: number, cuts: Cut[]): number {
+  let ms = outMs;
+  for (const r of removed(cuts)) {
+    if (ms < r.startMs) break;
+    ms += r.endMs - r.startMs;
+  }
+  return ms;
 }
 
 export function applyCuts(phrases: Phrase[], cuts: Cut[], dropCutWords = true): Phrase[] {

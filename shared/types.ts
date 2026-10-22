@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type {
-  ActionSchema, ApplyActionsInput, ApplyActionsResult, AspectRatio, AssetSchema, BeatSchema, BoxSchema, BrandKitSchema, MotionGraphicInput, MotionGraphicPatch, MotionGraphicPropSchema, MotionGraphicSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
-  ProjectEventSchema, ProjectSchema, ProjectStatus, ShotKind, ShotSchema, TranscriptSchema, TranslationLanguage, TranslationSchema, UpdatePlanInput, WordSchema,
+  ActionSchema, ApplyActionsInput, BrandFont, CaptionStyleSchema, RenderInput, ApplyActionsResult, AspectRatio, AssetSchema, BeatSchema, BoxSchema, BrandKitSchema, MotionGraphicInput, MotionGraphicPatch, MotionGraphicPropSchema, MotionGraphicSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
+  ProjectEventSchema, ProjectSchema, ProjectStatus, ShotKind, ShotSchema, TranscriptSchema, TranslationLanguage, TranslationSchema, WordSchema,
 } from "./contract";
 
 export type Asset = z.infer<typeof AssetSchema>;
@@ -23,7 +23,6 @@ export type EditPlan = z.infer<typeof EditPlanSchema>;
 export type Translation = z.infer<typeof TranslationSchema>;
 export type TranslationLanguage = z.infer<typeof TranslationLanguage>;
 export type PlanInput = z.input<typeof PlanInput>;
-export type UpdatePlanInput = z.input<typeof UpdatePlanInput>;
 export type Action = z.infer<typeof ActionSchema>;
 export type ApplyActionsInput = z.input<typeof ApplyActionsInput>;
 export type ApplyActionsResult = z.infer<typeof ApplyActionsResult>;
@@ -46,6 +45,9 @@ export type OverlayMedia = z.infer<typeof OverlayMedia>;
 export type Overlay = z.infer<typeof OverlaySchema>;
 export type BrollInput = z.input<typeof BrollInput>;
 export type BrandKit = z.infer<typeof BrandKitSchema>;
+export type BrandFont = z.infer<typeof BrandFont>;
+export type CaptionStyle = z.infer<typeof CaptionStyleSchema>;
+export type RenderInput = z.input<typeof RenderInput>;
 export type MotionGraphic = z.infer<typeof MotionGraphicSchema>;
 export type MotionGraphicProp = z.infer<typeof MotionGraphicPropSchema>;
 export type MotionGraphicInput = z.input<typeof MotionGraphicInput>;

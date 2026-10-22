@@ -23,6 +23,7 @@ export function actionsRouter(deps: AppDeps) {
     const loaded = await Promise.all(referencedAssetIds(actions).map((id) => deps.assets.get(id)));
     const out = applyActions(project, actions, { assets: new Map(loaded.flatMap((a) => (a ? [[a.id, a] as const] : []))) });
     if ("error" in out) return res.status(400).json(out);
+    if (out.rerender && !render) out.patch.outputs = { ...project.outputs, stale: true }; // export is explicit: the MP4 is now behind the edits
 
     let updated;
     try {

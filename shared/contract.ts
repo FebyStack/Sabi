@@ -45,12 +45,23 @@ export const OverlaySchema = z.object({
 }).refine((o) => o.endMs > o.startMs, { message: "bad_range", path: ["endMs"] });
 
 export const Hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+// Bundled OFL fonts (shared/remotion/fonts.ts): the Player and the render browser load the same files.
+export const BRAND_FONTS = ["Inter", "Montserrat", "Poppins", "Bebas Neue", "Playfair Display", "Space Grotesk"] as const;
+export const BrandFont = z.enum(BRAND_FONTS);
 export const BrandKitSchema = z.object({
   palette: z.object({ primary: Hex, accent: Hex, text: Hex, background: Hex }),
-  fontFamily: z.string().regex(/^[A-Za-z0-9 -]{1,60}$/),
+  fontFamily: BrandFont,
   logoAssetId: z.string().nullable().default(null),
   grade: z.number().min(0).max(1).default(0.4),
 });
+// Per-project overrides on top of the caption template and the brand kit; absent keys keep the template's value.
+export const CaptionStyleSchema = z.object({
+  fontFamily: BrandFont.optional(), sizePx: z.number().int().min(40).max(120).optional(), y: z.number().min(0.5).max(0.9).optional(),
+  uppercase: z.boolean().optional(), weight: z.union([z.literal(400), z.literal(700), z.literal(900)]).optional(),
+  background: z.boolean().optional(), animation: z.enum(["karaoke", "none"]).optional(),
+});
+export const MIN_SHOT_MS = 500;
+export const MIN_PHRASE_MS = 200;
 export const MAX_MG_CODE = 20_000;
 export const MAX_MG_COMPILED = 60_000;
 const PropKey = z.string().regex(/^[a-z][A-Za-z0-9]{0,31}$/);
@@ -94,6 +105,8 @@ export const ProjectSchema = z.object({
   outputs: z.object({
     mp4AssetId: z.string().optional(), srtAssetId: z.string().optional(), vttAssetId: z.string().optional(),
     translations: z.array(z.object({ language: TranslationLanguage, srtAssetId: z.string(), vttAssetId: z.string() })).optional(),
+    stale: z.boolean().optional(), // a visual edit landed after this render
+    resolution: z.enum(["1080p", "4k"]).optional(),
   }),
   warnings: z.array(z.string()),
   sourceDurationMs: z.number().nullable(),
@@ -104,24 +117,18 @@ export const ProjectSchema = z.object({
   creditsUsedCents: z.number().int().nonnegative().default(0), // fal.ai spend ledger (spec §11.9), no billing
   brand: BrandKitSchema.nullable().default(null),
   motionGraphics: z.array(MotionGraphicSchema).default([]),
+  captionStyle: CaptionStyleSchema.nullable().default(null),
+  demo: z.boolean().default(false),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
 export const SetSourceInput = z.object({ assetId: z.string().min(1) });
 export const RunInput = z.object({ language: z.string().min(2).max(8).optional() });
-export const UpdatePhrasesInput = z.object({ phrases: z.array(PhraseSchema) });
-export const UpdateTemplateInput = z.object({ captionTemplateId: CaptionTemplateId });
+export const RenderInput = z.object({ scale: z.union([z.literal(1), z.literal(2)]).optional() }); // 2 = 4K; absent = the last export's resolution
 export const PlanInput = z
   .object({ languages: z.array(TranslationLanguage).max(3).default([]), burnInLanguage: TranslationLanguage.nullable().default(null) })
   .refine((v) => v.burnInLanguage === null || v.languages.includes(v.burnInLanguage), { message: "burn_in_not_translated", path: ["burnInLanguage"] });
-export const UpdatePlanInput = z.object({
-  cuts: z.array(z.object({ id: z.string(), shouldTrim: z.boolean() })).default([]),
-  shots: z.array(z.object({ id: z.string(), kind: ShotKind })).default([]),
-  burnInLanguage: TranslationLanguage.nullable().optional(),
-});
-
-export const UpdateProjectInput = z.object({ mediaSource: MediaSource });
 export const BrollInput = z.object({
   regenerate: z.boolean().default(false), overlayId: z.string().optional(), query: z.string().max(200).optional(), prompt: z.string().max(600).optional(),
 });
@@ -142,6 +149,11 @@ export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("addMotionGraphic"), ...MotionGraphicInput.shape }),
   z.object({ type: z.literal("updateMotionGraphic"), mgId: z.string(), ...MotionGraphicPatch.shape }),
   z.object({ type: z.literal("removeMotionGraphic"), mgId: z.string() }),
+  z.object({ type: z.literal("setShotBounds"), shotId: z.string(), startMs: z.number().int().nonnegative().optional(), endMs: z.number().int().positive().optional() }),
+  z.object({ type: z.literal("retimePhraseRange"), phraseId: z.string(), startMs: z.number().int().nonnegative(), endMs: z.number().int().positive() }),
+  z.object({ type: z.literal("setWordEmphasis"), phraseId: z.string(), wordId: z.string(), emphasis: EmphasisKind.nullable() }),
+  z.object({ type: z.literal("setPhraseEmoji"), phraseId: z.string(), emoji: z.string().max(16).nullable() }),
+  z.object({ type: z.literal("setCaptionStyle"), style: CaptionStyleSchema.nullable() }),
 ]);
 export const MAX_ACTIONS = 50;
 export const ApplyActionsInput = z.object({
@@ -208,10 +220,7 @@ export const api = {
   projectEvents: (id: string) => `/api/projects/${id}/events`,
   projectSource: (id: string) => `/api/projects/${id}/source`,
   projectRun: (id: string) => `/api/projects/${id}/run`,
-  projectPhrases: (id: string) => `/api/projects/${id}/phrases`,
-  projectTemplate: (id: string) => `/api/projects/${id}/template`,
   projectPlan: (id: string) => `/api/projects/${id}/plan`,
-  projectUpdate: (id: string) => `/api/projects/${id}`,
   projectBroll: (id: string) => `/api/projects/${id}/broll`,
   projectFrame: (id: string) => `/api/projects/${id}/frame`,
   projectJob: (id: string) => `/api/projects/${id}/job`,

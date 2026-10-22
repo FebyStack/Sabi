@@ -49,9 +49,9 @@ describe("actions api", () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);
     await new Promise((r) => setTimeout(r, 5)); // updatedAt has millisecond resolution
-    const phrases = project.phrases.map((p, i) => (i ? p : { ...p, words: p.words.map((w) => ({ ...w, text: "web" })) }));
-    expect((await request(a).put(`/api/projects/${project.id}/phrases`).send({ phrases })).status).toBe(202);
-    const edited = await untilStatus(a, project.id, "ready");
+    const web = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: project.updatedAt, actions: [{ type: "editPhrase", phraseId: project.phrases[0].id, text: "web" }] });
+    expect(web.status).toBe(200);
+    const edited: Project = web.body.project;
     const res = await request(a).post(`/api/projects/${project.id}/actions`).send({
       baseVersion: project.updatedAt, actions: [{ type: "setTitle", title: "agent" }, { type: "editPhrase", phraseId: project.phrases[0].id, text: "agent text" }],
     });
@@ -76,6 +76,51 @@ describe("actions api", () => {
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("stale");
     expect((await get(project.id))!.title).toBe("web");
+  });
+
+  it("an action without render marks outputs stale", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const cut = project.phrases[0];
+    const res = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: project.updatedAt, render: false, actions: [{ type: "editPhrase", phraseId: cut.id, text: "Fresh words" }] });
+    expect(res.body.project.outputs).toEqual({ ...project.outputs, stale: true });
+    expect((await request(a).post(`/api/projects/${project.id}/render`).send({})).status).toBe(202);
+    const done = await untilStatus(a, project.id, "ready");
+    expect(done.outputs.stale).toBeUndefined();
+    expect(done.outputs.mp4AssetId).not.toBe(project.outputs.mp4AssetId);
+  });
+
+  it("title edits do not mark outputs stale", async () => {
+    const { a, project } = await readyProject(makeTestDeps());
+    const res = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: project.updatedAt, actions: [{ type: "setTitle", title: "x" }, { type: "setMediaSource", mediaSource: "stock" }] });
+    expect(res.body.project.outputs).toEqual(project.outputs);
+  });
+
+  it("setCut with render re-renders at full length", async () => {
+    const deps = makeTestDeps();
+    const { a, project: ready } = await readyProject(deps);
+    await request(a).post(`/api/projects/${ready.id}/plan`).send({});
+    const project = await vi.waitFor(async () => {
+      const p: Project = (await request(a).get(`/api/projects/${ready.id}`)).body;
+      expect(p.status === "ready" && p.editPlan).toBeTruthy();
+      return p;
+    });
+    const trailing = project.editPlan!.cuts.find((c) => c.endMs === 21000)!;
+    const res = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: project.updatedAt, render: true, actions: [{ type: "setCut", cutId: trailing.id, shouldTrim: false }] });
+    expect(res.status).toBe(202);
+    await untilStatus(a, project.id, "ready");
+    expect((deps.renderer as FakeRenderer).calls.at(-1)!.durationMs).toBe(21000);
+  });
+
+  it("a template action keeps phrase spelling edits", async () => {
+    const { a, project } = await readyProject(makeTestDeps());
+    const first = project.phrases[0];
+    const text = ["HERE", ...first.words.slice(1).map((w) => w.text)].join(" ");
+    const res = await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: project.updatedAt, actions: [
+      { type: "editPhrase", phraseId: first.id, text }, { type: "setTemplate", captionTemplateId: "bold" },
+    ] });
+    expect(res.body.project.captionTemplateId).toBe("bold");
+    expect(res.body.project.phrases[0].words[0].text).toBe("HERE");
   });
 
   it("busy is 409", async () => {

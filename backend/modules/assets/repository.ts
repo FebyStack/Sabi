@@ -5,6 +5,7 @@ export interface AssetRepository {
   get(id: string): Promise<Asset | null>;
   create(a: Asset): Promise<Asset>;
   listByProject(projectId: string): Promise<Asset[]>;
+  removeByProject(projectId: string): Promise<void>;
 }
 
 export class MemoryAssetRepository implements AssetRepository {
@@ -12,6 +13,7 @@ export class MemoryAssetRepository implements AssetRepository {
   async get(id: string) { return this.rows.get(id) ?? null; }
   async create(a: Asset) { this.rows.set(a.id, a); return a; }
   async listByProject(projectId: string) { return [...this.rows.values()].filter((a) => a.projectId === projectId); }
+  async removeByProject(projectId: string) { for (const a of await this.listByProject(projectId)) this.rows.delete(a.id); }
 }
 
 type Row = { id: string; project_id: string | null; kind: Asset["kind"]; key: string; mime_type: string; size_bytes: string; duration_ms: number | null; width: number | null; height: number | null; created_at: Date };
@@ -37,4 +39,5 @@ export class PgAssetRepository implements AssetRepository {
     const { rows } = await this.pool.query<Row>("SELECT * FROM assets WHERE project_id = $1 ORDER BY created_at", [projectId]);
     return rows.map(toAsset);
   }
+  async removeByProject(projectId: string) { await this.pool.query("DELETE FROM assets WHERE project_id = $1", [projectId]); }
 }

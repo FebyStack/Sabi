@@ -15,4 +15,12 @@ gitdir=$(cd "$(git rev-parse --git-dir)" && pwd -P) # so the `prepare` hook stil
 (cd "$dir" && GIT_DIR="$gitdir" npm install --no-audit --no-fund "$@")
 cp "$dir/package.json" "$dir/package-lock.json" "$top/"
 [ -L "$top/node_modules" ] || ln -s "$dir/node_modules" "$top/node_modules"
-echo "deps: $top/node_modules -> $dir/node_modules"
+# Remotion downloads its chrome-headless-shell (~570 MB) into node_modules/.remotion: one shared copy for every checkout.
+shared="${SABI_DEPS_DIR:-$HOME/Developer/.sabi-deps}/.remotion"
+mkdir -p "$shared"
+if [ -d "$dir/node_modules/.remotion" ] && [ ! -L "$dir/node_modules/.remotion" ]; then
+  if [ -z "$(ls -A "$shared")" ]; then mv "$dir/node_modules/.remotion"/* "$shared/"; fi # first checkout donates its download
+  rm -rf "$dir/node_modules/.remotion"
+fi
+[ -L "$dir/node_modules/.remotion" ] || ln -s "$shared" "$dir/node_modules/.remotion"
+echo "deps: $top/node_modules -> $dir/node_modules (Remotion browser: $shared)"

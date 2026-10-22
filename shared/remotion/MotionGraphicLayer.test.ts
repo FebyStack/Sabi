@@ -20,4 +20,9 @@ describe("MotionGraphicLayer", () => {
     expect(boundaryKey(mg(broken))).not.toBe(boundaryKey(mg(fixed)));
     expect(boundaryKey(mg(fixed))).toBe(boundaryKey(mg(fixed)));
   });
+
+  it("motion graphics get the bundled font's css family", () => {
+    const seq = MotionGraphicLayer({ mg: mg("const Component = () => null;"), brand: { ...templateLook(getCaptionTemplate("clean")), fontFamily: "Montserrat" }, width: 1080, height: 1920 }) as ReactElement<{ children: ReactElement<{ children: ReactElement<{ children: ReactElement<{ item: { brand: { fontFamily: string } } }> }> }> }>;
+    expect(seq.props.children.props.children.props.children.props.item.brand.fontFamily).toBe("Montserrat Variable");
+  });
 });

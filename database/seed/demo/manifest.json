@@ -1,0 +1,1130 @@
+{
+  "project": {
+    "id": "demo",
+    "title": "Morning routines (demo)",
+    "aspectRatio": "9:16",
+    "mediaSource": "stock",
+    "status": "ready",
+    "sourceAssetId": "demo-src",
+    "sourceKind": "video",
+    "language": "en",
+    "captionTemplateId": "clean",
+    "transcript": {
+      "language": "en",
+      "words": [
+        {
+          "id": "w-0",
+          "text": "Here",
+          "startMs": 40,
+          "endMs": 290,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-1",
+          "text": "is",
+          "startMs": 290,
+          "endMs": 414,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-2",
+          "text": "the",
+          "startMs": 414,
+          "endMs": 601,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-3",
+          "text": "thing",
+          "startMs": 601,
+          "endMs": 913,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-4",
+          "text": "about",
+          "startMs": 913,
+          "endMs": 1225,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-5",
+          "text": "morning",
+          "startMs": 1225,
+          "endMs": 1662,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-6",
+          "text": "routines.",
+          "startMs": 1662,
+          "endMs": 2224,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-7",
+          "text": "Most",
+          "startMs": 2224,
+          "endMs": 2473,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-8",
+          "text": "people",
+          "startMs": 2473,
+          "endMs": 2847,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-9",
+          "text": "think",
+          "startMs": 2847,
+          "endMs": 3159,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-10",
+          "text": "you",
+          "startMs": 3159,
+          "endMs": 3347,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-11",
+          "text": "need",
+          "startMs": 3347,
+          "endMs": 3596,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-12",
+          "text": "two",
+          "startMs": 3596,
+          "endMs": 3783,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-13",
+          "text": "hours",
+          "startMs": 3783,
+          "endMs": 4095,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-14",
+          "text": "of",
+          "startMs": 4095,
+          "endMs": 4220,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-15",
+          "text": "meditation,",
+          "startMs": 4259,
+          "endMs": 5107,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-16",
+          "text": "a",
+          "startMs": 5107,
+          "endMs": 5184,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-17",
+          "text": "cold",
+          "startMs": 5184,
+          "endMs": 5492,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-18",
+          "text": "plunge,",
+          "startMs": 5492,
+          "endMs": 6032,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-19",
+          "text": "and",
+          "startMs": 6032,
+          "endMs": 6263,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-20",
+          "text": "a",
+          "startMs": 6263,
+          "endMs": 6340,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-21",
+          "text": "green",
+          "startMs": 6340,
+          "endMs": 6725,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-22",
+          "text": "smoothie.",
+          "startMs": 6725,
+          "endMs": 7419,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-23",
+          "text": "You",
+          "startMs": 7719,
+          "endMs": 7942,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-24",
+          "text": "don't.",
+          "startMs": 7942,
+          "endMs": 8389,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-25",
+          "text": "You",
+          "startMs": 8389,
+          "endMs": 8612,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-26",
+          "text": "need",
+          "startMs": 8612,
+          "endMs": 8910,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-27",
+          "text": "one",
+          "startMs": 8910,
+          "endMs": 9133,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-28",
+          "text": "small",
+          "startMs": 9133,
+          "endMs": 9506,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-29",
+          "text": "habit",
+          "startMs": 9506,
+          "endMs": 9878,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-30",
+          "text": "you",
+          "startMs": 9878,
+          "endMs": 10101,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-31",
+          "text": "can",
+          "startMs": 10101,
+          "endMs": 10325,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-32",
+          "text": "actually",
+          "startMs": 10325,
+          "endMs": 10920,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-33",
+          "text": "keep.",
+          "startMs": 10920,
+          "endMs": 11292,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-34",
+          "text": "For",
+          "startMs": 11292,
+          "endMs": 11516,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-35",
+          "text": "me,",
+          "startMs": 11516,
+          "endMs": 11739,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-36",
+          "text": "that",
+          "startMs": 12060,
+          "endMs": 12312,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-37",
+          "text": "is",
+          "startMs": 12312,
+          "endMs": 12438,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-38",
+          "text": "making",
+          "startMs": 12438,
+          "endMs": 12815,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-39",
+          "text": "my",
+          "startMs": 12815,
+          "endMs": 12941,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-40",
+          "text": "bed",
+          "startMs": 12941,
+          "endMs": 13130,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-41",
+          "text": "and",
+          "startMs": 13130,
+          "endMs": 13319,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-42",
+          "text": "drinking",
+          "startMs": 13319,
+          "endMs": 13823,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-43",
+          "text": "a",
+          "startMs": 13823,
+          "endMs": 13886,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-44",
+          "text": "glass",
+          "startMs": 13886,
+          "endMs": 14200,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-45",
+          "text": "of",
+          "startMs": 14200,
+          "endMs": 14326,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-46",
+          "text": "water",
+          "startMs": 14326,
+          "endMs": 14641,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-47",
+          "text": "before",
+          "startMs": 14641,
+          "endMs": 15019,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-48",
+          "text": "I",
+          "startMs": 15019,
+          "endMs": 15082,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-49",
+          "text": "touch",
+          "startMs": 15082,
+          "endMs": 15396,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-50",
+          "text": "my",
+          "startMs": 15396,
+          "endMs": 15522,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-51",
+          "text": "phone.",
+          "startMs": 15522,
+          "endMs": 15900,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-52",
+          "text": "Start",
+          "startMs": 16280,
+          "endMs": 16597,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-53",
+          "text": "there",
+          "startMs": 16597,
+          "endMs": 16913,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-54",
+          "text": "and",
+          "startMs": 16913,
+          "endMs": 17103,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-55",
+          "text": "build",
+          "startMs": 17103,
+          "endMs": 17420,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-56",
+          "text": "from",
+          "startMs": 17420,
+          "endMs": 17673,
+          "confidence": 0.98
+        },
+        {
+          "id": "w-57",
+          "text": "it",
+          "startMs": 17673,
+          "endMs": 17800,
+          "confidence": 0.98
+        }
+      ]
+    },
+    "phrases": [
+      {
+        "id": "ph-0",
+        "startMs": 40,
+        "endMs": 2224,
+        "words": [
+          {
+            "id": "w-0",
+            "text": "Here",
+            "startMs": 40,
+            "endMs": 290,
+            "confidence": 0.98,
+            "emphasis": "keyword"
+          },
+          {
+            "id": "w-1",
+            "text": "is",
+            "startMs": 290,
+            "endMs": 414,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-2",
+            "text": "the",
+            "startMs": 414,
+            "endMs": 601,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-3",
+            "text": "thing",
+            "startMs": 601,
+            "endMs": 913,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-4",
+            "text": "about",
+            "startMs": 913,
+            "endMs": 1225,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-5",
+            "text": "morning",
+            "startMs": 1225,
+            "endMs": 1662,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-6",
+            "text": "routines.",
+            "startMs": 1662,
+            "endMs": 2224,
+            "confidence": 0.98
+          }
+        ],
+        "lineBreaksAfter": [
+          4
+        ],
+        "emoji": "🔥"
+      },
+      {
+        "id": "ph-1",
+        "startMs": 2224,
+        "endMs": 4220,
+        "words": [
+          {
+            "id": "w-7",
+            "text": "Most",
+            "startMs": 2224,
+            "endMs": 2473,
+            "confidence": 0.98,
+            "emphasis": "keyword"
+          },
+          {
+            "id": "w-8",
+            "text": "people",
+            "startMs": 2473,
+            "endMs": 2847,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-9",
+            "text": "think",
+            "startMs": 2847,
+            "endMs": 3159,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-10",
+            "text": "you",
+            "startMs": 3159,
+            "endMs": 3347,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-11",
+            "text": "need",
+            "startMs": 3347,
+            "endMs": 3596,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-12",
+            "text": "two",
+            "startMs": 3596,
+            "endMs": 3783,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-13",
+            "text": "hours",
+            "startMs": 3783,
+            "endMs": 4095,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-14",
+            "text": "of",
+            "startMs": 4095,
+            "endMs": 4220,
+            "confidence": 0.98
+          }
+        ],
+        "lineBreaksAfter": [
+          3
+        ]
+      },
+      {
+        "id": "ph-2",
+        "startMs": 4259,
+        "endMs": 6725,
+        "words": [
+          {
+            "id": "w-15",
+            "text": "meditation,",
+            "startMs": 4259,
+            "endMs": 5107,
+            "confidence": 0.98,
+            "emphasis": "keyword"
+          },
+          {
+            "id": "w-16",
+            "text": "a",
+            "startMs": 5107,
+            "endMs": 5184,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-17",
+            "text": "cold",
+            "startMs": 5184,
+            "endMs": 5492,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-18",
+            "text": "plunge,",
+            "startMs": 5492,
+            "endMs": 6032,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-19",
+            "text": "and",
+            "startMs": 6032,
+            "endMs": 6263,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-20",
+            "text": "a",
+            "startMs": 6263,
+            "endMs": 6340,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-21",
+            "text": "green",
+            "startMs": 6340,
+            "endMs": 6725,
+            "confidence": 0.98
+          }
+        ],
+        "lineBreaksAfter": [
+          2
+        ]
+      },
+      {
+        "id": "ph-3",
+        "startMs": 6725,
+        "endMs": 7419,
+        "words": [
+          {
+            "id": "w-22",
+            "text": "smoothie.",
+            "startMs": 6725,
+            "endMs": 7419,
+            "confidence": 0.98,
+            "emphasis": "keyword"
+          }
+        ],
+        "lineBreaksAfter": [],
+        "emoji": "🔥"
+      },
+      {
+        "id": "ph-4",
+        "startMs": 7719,
+        "endMs": 8389,
+        "words": [
+          {
+            "id": "w-23",
+            "text": "You",
+            "startMs": 7719,
+            "endMs": 7942,
+            "confidence": 0.98,
+            "emphasis": "keyword"
+          },
+          {
+            "id": "w-24",
+            "text": "don't.",
+            "startMs": 7942,
+            "endMs": 8389,
+            "confidence": 0.98
+          }
+        ],
+        "lineBreaksAfter": []
+      },
+      {
+        "id": "ph-5",
+        "startMs": 8389,
+        "endMs": 11292,
+        "words": [
+          {
+            "id": "w-25",
+            "text": "You",
+            "startMs": 8389,
+            "endMs": 8612,
+            "confidence": 0.98,
+            "emphasis": "keyword"
+          },
+          {
+            "id": "w-26",
+            "text": "need",
+            "startMs": 8612,
+            "endMs": 8910,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-27",
+            "text": "one",
+            "startMs": 8910,
+            "endMs": 9133,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-28",
+            "text": "small",
+            "startMs": 9133,
+            "endMs": 9506,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-29",
+            "text": "habit",
+            "startMs": 9506,
+            "endMs": 9878,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-30",
+            "text": "you",
+            "startMs": 9878,
+            "endMs": 10101,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-31",
+            "text": "can",
+            "startMs": 10101,
+            "endMs": 10325,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-32",
+            "text": "actually",
+            "startMs": 10325,
+            "endMs": 10920,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-33",
+            "text": "keep.",
+            "startMs": 10920,
+            "endMs": 11292,
+            "confidence": 0.98
+          }
+        ],
+        "lineBreaksAfter": [
+          4
+        ]
+      },
+      {
+        "id": "ph-6",
+        "startMs": 11292,
+        "endMs": 13886,
+        "words": [
+          {
+            "id": "w-34",
+            "text": "For",
+            "startMs": 11292,
+            "endMs": 11516,
+            "confidence": 0.98,
+            "emphasis": "keyword"
+          },
+          {
+            "id": "w-35",
+            "text": "me,",
+            "startMs": 11516,
+            "endMs": 11739,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-36",
+            "text": "that",
+            "startMs": 12060,
+            "endMs": 12312,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-37",
+            "text": "is",
+            "startMs": 12312,
+            "endMs": 12438,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-38",
+            "text": "making",
+            "startMs": 12438,
+            "endMs": 12815,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-39",
+            "text": "my",
+            "startMs": 12815,
+            "endMs": 12941,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-40",
+            "text": "bed",
+            "startMs": 12941,
+            "endMs": 13130,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-41",
+            "text": "and",
+            "startMs": 13130,
+            "endMs": 13319,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-42",
+            "text": "drinking",
+            "startMs": 13319,
+            "endMs": 13823,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-43",
+            "text": "a",
+            "startMs": 13823,
+            "endMs": 13886,
+            "confidence": 0.98
+          }
+        ],
+        "lineBreaksAfter": [
+          4
+        ],
+        "emoji": "🔥"
+      },
+      {
+        "id": "ph-7",
+        "startMs": 13886,
+        "endMs": 15900,
+        "words": [
+          {
+            "id": "w-44",
+            "text": "glass",
+            "startMs": 13886,
+            "endMs": 14200,
+            "confidence": 0.98,
+            "emphasis": "keyword"
+          },
+          {
+            "id": "w-45",
+            "text": "of",
+            "startMs": 14200,
+            "endMs": 14326,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-46",
+            "text": "water",
+            "startMs": 14326,
+            "endMs": 14641,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-47",
+            "text": "before",
+            "startMs": 14641,
+            "endMs": 15019,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-48",
+            "text": "I",
+            "startMs": 15019,
+            "endMs": 15082,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-49",
+            "text": "touch",
+            "startMs": 15082,
+            "endMs": 15396,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-50",
+            "text": "my",
+            "startMs": 15396,
+            "endMs": 15522,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-51",
+            "text": "phone.",
+            "startMs": 15522,
+            "endMs": 15900,
+            "confidence": 0.98
+          }
+        ],
+        "lineBreaksAfter": [
+          4
+        ]
+      },
+      {
+        "id": "ph-8",
+        "startMs": 16280,
+        "endMs": 17800,
+        "words": [
+          {
+            "id": "w-52",
+            "text": "Start",
+            "startMs": 16280,
+            "endMs": 16597,
+            "confidence": 0.98,
+            "emphasis": "keyword"
+          },
+          {
+            "id": "w-53",
+            "text": "there",
+            "startMs": 16597,
+            "endMs": 16913,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-54",
+            "text": "and",
+            "startMs": 16913,
+            "endMs": 17103,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-55",
+            "text": "build",
+            "startMs": 17103,
+            "endMs": 17420,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-56",
+            "text": "from",
+            "startMs": 17420,
+            "endMs": 17673,
+            "confidence": 0.98
+          },
+          {
+            "id": "w-57",
+            "text": "it",
+            "startMs": 17673,
+            "endMs": 17800,
+            "confidence": 0.98
+          }
+        ],
+        "lineBreaksAfter": [
+          3
+        ]
+      }
+    ],
+    "outputs": {
+      "mp4AssetId": "demo-mp4",
+      "srtAssetId": "demo-srt",
+      "vttAssetId": "demo-vtt",
+      "resolution": "1080p"
+    },
+    "warnings": [],
+    "sourceDurationMs": 21167,
+    "editPlan": {
+      "cuts": [
+        {
+          "id": "cut-0",
+          "startMs": 17950,
+          "endMs": 21167,
+          "reason": "pause",
+          "text": "",
+          "shouldTrim": true
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot-0",
+          "kind": "Hook",
+          "startMs": 0,
+          "endMs": 6725
+        },
+        {
+          "id": "shot-1",
+          "kind": "B-Roll",
+          "startMs": 6725,
+          "endMs": 13130
+        },
+        {
+          "id": "shot-2",
+          "kind": "B-Roll",
+          "startMs": 13130,
+          "endMs": 21167
+        }
+      ]
+    },
+    "translations": [],
+    "burnInLanguage": null,
+    "overlays": [
+      {
+        "id": "ov-0",
+        "shotId": "shot-1",
+        "assetId": "demo-ov-0",
+        "media": "image",
+        "source": "stock",
+        "startMs": 11300,
+        "endMs": 13130,
+        "placement": "full",
+        "transition": "fade",
+        "enabled": true,
+        "query": "making the bed",
+        "prompt": "photo of smoothie. You don t. You need one small habit you can actually keep. For me,",
+        "intent": "smoothie. You don t.",
+        "attribution": {
+          "author": "Ron Lach",
+          "url": "https://www.pexels.com/photo/woman-making-the-bed-10554813/"
+        }
+      },
+      {
+        "id": "ov-1",
+        "shotId": "shot-2",
+        "assetId": "demo-ov-1",
+        "media": "image",
+        "source": "stock",
+        "startMs": 13319,
+        "endMs": 15900,
+        "placement": "full",
+        "transition": "fade",
+        "enabled": true,
+        "query": "glass of water",
+        "prompt": "photo of drinking a glass of water before I touch my phone. Start there and build from it",
+        "intent": "drinking a glass",
+        "attribution": {
+          "author": "River Augustin",
+          "url": "https://www.pexels.com/photo/crystal-clear-glass-of-water-on-sunlit-table-31206817/"
+        }
+      }
+    ],
+    "creditsUsedCents": 0,
+    "brand": {
+      "palette": {
+        "primary": "#E8743B",
+        "accent": "#FFC857",
+        "text": "#FFF8F0",
+        "background": "#2B1B12"
+      },
+      "fontFamily": "Montserrat",
+      "logoAssetId": null,
+      "grade": 0.4
+    },
+    "motionGraphics": [
+      {
+        "name": "Stat: 2 hours",
+        "code": "const Component = ({ item }) => {\n  const frame = useCurrentFrame();\n  const { fps } = useVideoConfig();\n  const { value, unit, label } = item.props;\n  const b = item.brand;\n  const rise = spring({ frame, fps, config: { damping: 18 } });\n  const n = Math.round(interpolate(frame, [0, 20], [0, value], { extrapolateRight: \"clamp\" }));\n  const bar = interpolate(frame, [8, 26], [0, 1], { extrapolateLeft: \"clamp\", extrapolateRight: \"clamp\", easing: Easing.out(Easing.cubic) });\n  const out = interpolate(frame, [item.durationInFrames - 10, item.durationInFrames], [1, 0], { extrapolateLeft: \"clamp\" });\n  return (\n    <div style={{ position: \"absolute\", inset: 0, display: \"flex\", flexDirection: \"column\", justifyContent: \"center\", gap: 12, fontFamily: `${b.fontFamily}, system-ui, sans-serif`, color: b.text, opacity: out, transform: `translateY(${(1 - rise) * 40}px)` }}>\n      <div style={{ fontSize: item.height * 0.42, fontWeight: 900, lineHeight: 1 }}>{n} <span style={{ fontSize: item.height * 0.18, color: b.accent }}>{unit}</span></div>\n      <div style={{ height: 10, width: `${bar * 70}%`, background: b.accent, borderRadius: 5 }} />\n      <div style={{ fontSize: item.height * 0.12, fontWeight: 700 }}>{label}</div>\n    </div>\n  );\n};",
+        "startMs": 3300,
+        "endMs": 6700,
+        "box": {
+          "x": 0.06,
+          "y": 0.1,
+          "w": 0.6,
+          "h": 0.3
+        },
+        "props": [
+          {
+            "key": "value",
+            "type": "number",
+            "value": 2
+          },
+          {
+            "key": "unit",
+            "type": "text",
+            "value": "hours"
+          },
+          {
+            "key": "label",
+            "type": "text",
+            "value": "of meditation? No."
+          }
+        ],
+        "id": "mg-0",
+        "compiled": "const Component = ({ item }) => {\n    const frame = useCurrentFrame();\n    const { fps } = useVideoConfig();\n    const { value, unit, label } = item.props;\n    const b = item.brand;\n    const rise = spring({ frame, fps, config: { damping: 18 } });\n    const n = Math.round(interpolate(frame, [0, 20], [0, value], { extrapolateRight: \"clamp\" }));\n    const bar = interpolate(frame, [8, 26], [0, 1], { extrapolateLeft: \"clamp\", extrapolateRight: \"clamp\", easing: Easing.out(Easing.cubic) });\n    const out = interpolate(frame, [item.durationInFrames - 10, item.durationInFrames], [1, 0], { extrapolateLeft: \"clamp\" });\n    return (React.createElement(\"div\", { style: { position: \"absolute\", inset: 0, display: \"flex\", flexDirection: \"column\", justifyContent: \"center\", gap: 12, fontFamily: `${b.fontFamily}, system-ui, sans-serif`, color: b.text, opacity: out, transform: `translateY(${(1 - rise) * 40}px)` } },\n        React.createElement(\"div\", { style: { fontSize: item.height * 0.42, fontWeight: 900, lineHeight: 1 } },\n            n,\n            \" \",\n            React.createElement(\"span\", { style: { fontSize: item.height * 0.18, color: b.accent } }, unit)),\n        React.createElement(\"div\", { style: { height: 10, width: `${bar * 70}%`, background: b.accent, borderRadius: 5 } }),\n        React.createElement(\"div\", { style: { fontSize: item.height * 0.12, fontWeight: 700 } }, label)));\n};\n",
+        "enabled": true
+      }
+    ],
+    "captionStyle": {
+      "sizePx": 72
+    },
+    "demo": true,
+    "createdAt": "2026-10-21T00:00:00.000Z",
+    "updatedAt": "2026-10-21T00:00:00.000Z"
+  },
+  "assets": [
+    {
+      "id": "demo-src",
+      "projectId": "demo",
+      "kind": "video",
+      "key": "clip.mp4",
+      "mimeType": "video/mp4",
+      "sizeBytes": 139765,
+      "createdAt": "2026-10-21T00:00:00.000Z",
+      "width": 540,
+      "height": 960,
+      "durationMs": 21167
+    },
+    {
+      "id": "demo-ov-0",
+      "projectId": "demo",
+      "kind": "image",
+      "key": "broll-0.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 178019,
+      "createdAt": "2026-10-21T00:00:00.000Z",
+      "width": 1080,
+      "height": 1620
+    },
+    {
+      "id": "demo-ov-1",
+      "projectId": "demo",
+      "kind": "image",
+      "key": "broll-1.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 111745,
+      "createdAt": "2026-10-21T00:00:00.000Z",
+      "width": 1080,
+      "height": 1760
+    },
+    {
+      "id": "demo-mp4",
+      "projectId": "demo",
+      "kind": "render",
+      "key": "demo.mp4",
+      "mimeType": "video/mp4",
+      "sizeBytes": 1352227,
+      "createdAt": "2026-10-21T00:00:00.000Z",
+      "width": 1080,
+      "height": 1920,
+      "durationMs": 17967
+    },
+    {
+      "id": "demo-srt",
+      "projectId": "demo",
+      "kind": "subtitle",
+      "key": "demo.srt",
+      "mimeType": "text/plain",
+      "sizeBytes": 601,
+      "createdAt": "2026-10-21T00:00:00.000Z"
+    },
+    {
+      "id": "demo-vtt",
+      "projectId": "demo",
+      "kind": "subtitle",
+      "key": "demo.vtt",
+      "mimeType": "text/vtt",
+      "sizeBytes": 609,
+      "createdAt": "2026-10-21T00:00:00.000Z"
+    }
+  ]
+}

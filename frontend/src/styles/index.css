@@ -1,4 +1,57 @@
 @import "tailwindcss";
 
+/* Design tokens (blueprint §10.5): components use these classes (bg-surface-1, text-ink-muted, bg-shot-broll), never raw hex. */
+@theme {
+  --color-surface-0: #0a0a0a;
+  --color-surface-1: #141414;
+  --color-surface-2: #1f1f1f;
+  --color-line: #2a2a2a;
+  --color-ink: #f5f5f5;
+  --color-ink-muted: #a3a3a3;
+  --color-accent: #ffd60a;
+  --color-accent-ink: #0a0a0a;
+  --color-danger: #ff453a;
+  --color-warn: #ffb020;
+  --color-ok: #30d158;
+  --color-shot-hook: #f59e0b;
+  --color-shot-th: #737373;
+  --color-shot-broll: #0ea5e9;
+  --color-shot-thb: #8b5cf6;
+  --color-cut: #ef4444;
+  --color-caption: #e5e5e5;
+  --color-overlay: #0ea5e9;
+  --color-mg: #a78bfa;
+  --radius-1: 4px;
+  --radius-2: 8px;
+  --radius-3: 12px;
+  --radius-4: 20px;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-base: 16px;
+  --text-base--line-height: 24px;
+  --text-lg: 20px;
+  --text-lg--line-height: 28px;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-slow: 250ms;
+}
+
 :root { color-scheme: dark; }
-body { margin: 0; background: #0a0a0a; font-family: system-ui, sans-serif; }
+body { margin: 0; background: var(--color-surface-0); color: var(--color-ink); font-family: system-ui, sans-serif; }
+
+/* A block an agent edit just changed. */
+@keyframes pulse-outline {
+  from { outline-color: var(--color-accent); }
+  to { outline-color: transparent; }
+}
+.pulse { outline: 2px solid transparent; outline-offset: 1px; animation: pulse-outline 1s var(--ease-out); }
+
+/* Bottom sheet slides up on phones. */
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@media (max-width: 767px) { dialog.sheet[open] { animation: sheet-in var(--duration-slow) var(--ease-out); } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

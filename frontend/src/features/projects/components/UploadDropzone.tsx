@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { UPLOAD_LIMITS } from "@shared/contract";
 import type { Asset } from "@shared/types";
+import { track } from "@/features/consent/analytics";
 import { uploadFile } from "../api/projects";
 
-export function UploadDropzone({ projectId, onUploaded }: { projectId: string; onUploaded: (asset: Asset) => void }) {
-  const [pct, setPct] = useState<number | null>(null);
+// Reports its progress upward (onProgress), so the editor shows "Uploading" in the same stepper as every job.
+export function UploadDropzone({ projectId, onUploaded, onProgress }: { projectId: string; onUploaded: (asset: Asset) => void; onProgress?: (pct: number | null) => void }) {
+  const [pct, setPctState] = useState<number | null>(null);
+  const setPct = (v: number | null) => { setPctState(v); onProgress?.(v); };
   const [error, setError] = useState<string | null>(null);
 
   const handle = async (file: File | undefined) => {
@@ -12,7 +15,7 @@ export function UploadDropzone({ projectId, onUploaded }: { projectId: string; o
     if (!(UPLOAD_LIMITS.mimeTypes as readonly string[]).includes(file.type)) return setError("Use an MP4, MOV, MP3 or WAV file.");
     if (file.size > UPLOAD_LIMITS.maxBytes) return setError("File is over 2 GB.");
     setError(null); setPct(0);
-    try { onUploaded(await uploadFile(file, setPct, projectId)); } catch (e) { setError((e as Error).message); } finally { setPct(null); }
+    try { const asset = await uploadFile(file, setPct, projectId); track("upload_done"); onUploaded(asset); } catch (e) { setError((e as Error).message); } finally { setPct(null); }
   };
 
   return (

@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { lstat, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { extname, join, sep } from "node:path";
+import { dirname, extname, join, sep } from "node:path";
+import { promisify } from "node:util";
 import { z } from "zod";
 import { ActionSchema, MAX_ACTIONS, TranslationLanguage } from "../../shared/contract";
 import { deriveBeats } from "../../shared/editing/beats";
@@ -35,6 +37,16 @@ async function underHome(path: string) {
   return real === home || real.startsWith(home + sep) ? real : "outside";
 }
 
+// iCloud can evict a synced file to the cloud, leaving a placeholder on this Mac. macOS marks the roots it syncs
+// (~/Desktop and ~/Documents with Desktop & Documents sync, ~/Library/Mobile Documents) with a file-provider domain.
+const run = promisify(execFile);
+const fileProviderDomain = (dir: string) =>
+  process.platform === "darwin" ? run("xattr", ["-p", "com.apple.file-provider-domain-id", dir]).then((r) => r.stdout, () => "") : Promise.resolve("");
+export async function syncedToICloud(dir: string, home: string, domainOf = fileProviderDomain) {
+  for (let d = dir; d.startsWith(home + sep); d = dirname(d)) if ((await domainOf(d)).startsWith("com.apple.CloudDocs")) return true;
+  return false;
+}
+
 function summary(p: Project) {
   const cuts = p.editPlan?.cuts ?? [];
   const on = cuts.filter((c) => c.shouldTrim);
@@ -50,9 +62,10 @@ function summary(p: Project) {
       "shots:", ...capped(p.editPlan.shots.map((s) => `  ${s.id} ${s.kind} ${mmss(s.startMs)}–${mmss(s.endMs)}`), 'section: "plan"'),
       "enabled cuts:", ...capped(on.map((c) => `  ${c.id} ${c.reason} ${mmssd(c.startMs)}–${mmssd(c.endMs)} (on)`), 'section: "plan"'),
     ] : ["no edit plan yet (run_job plan)"]),
-    `outputs: ${o.mp4AssetId ? `mp4 ${o.mp4AssetId}` : "none"}${o.srtAssetId ? " · srt · vtt" : ""}${o.translations?.length ? ` · ${o.translations.map((t) => t.language).join(",")}` : ""}`,
+    `outputs: ${o.mp4AssetId ? `mp4 ${o.mp4AssetId}` : "none"}${o.srtAssetId ? " · srt · vtt" : ""}${o.translations?.length ? ` · ${o.translations.map((t) => t.language).join(",")}` : ""}${o.stale ? " (stale)" : ""}`,
     `overlays ${p.overlays.length} (${p.overlays.filter((o) => o.enabled).length} on${stale.length ? `, ${stale.length} stale` : ""})` +
       ` · motion graphics ${p.motionGraphics.length} · brand ${p.brand ? `${p.brand.palette.primary} ${p.brand.fontFamily} grade ${p.brand.grade}` : "none"}`,
+    ...(p.captionStyle ? [`caption style ${JSON.stringify(p.captionStyle)}`] : []),
     `media source ${p.mediaSource}${p.creditsUsedCents ? ` · ${credits(p)}` : ""}`,
     ...(p.warnings.length ? [`warnings: ${p.warnings.join(", ")}`] : []),
     "times are source time; render_frame takes output time (shown as \"out\" when cuts are on)",
@@ -165,7 +178,8 @@ const TOOLS = {
   },
   apply_actions: {
     description: "Apply typed edits atomically (all or nothing): setTitle, editPhrase, setCut, setShotKind, setTemplate, setBurnIn, " +
-      "setMediaSource, setOverlay, removeOverlay, replaceOverlay, setBrand, addMotionGraphic, updateMotionGraphic, removeMotionGraphic (see the sabi-editor skill). " +
+      "setMediaSource, setOverlay, removeOverlay, replaceOverlay, setBrand, addMotionGraphic, updateMotionGraphic, removeMotionGraphic, " +
+      "setShotBounds, retimePhraseRange, setWordEmphasis, setPhraseEmoji, setCaptionStyle (see the sabi-editor skill). " +
       "Pass the baseVersion from your last inspect_project; render:true also starts a re-render (otherwise verify with render_frame first).",
     inputSchema: {
       projectId,
@@ -176,7 +190,8 @@ const TOOLS = {
     run: async (api: SabiApi, i: { projectId: string; baseVersion: string; actions: z.infer<typeof ActionSchema>[]; render: boolean }) => {
       try {
         const r = await api.applyActions(i.projectId, { baseVersion: i.baseVersion, actions: i.actions, render: i.render });
-        return { text: `applied ${r.applied} action(s); baseVersion now ${r.project.updatedAt}${r.jobId ? `; render job ${r.jobId} started (wait_job)` : ""}` };
+        const stale = r.project.outputs.stale ? "; outputs now stale — run_job render before export_outputs" : "";
+        return { text: `applied ${r.applied} action(s); baseVersion now ${r.project.updatedAt}${r.jobId ? `; render job ${r.jobId} started (wait_job)` : ""}${stale}` };
       } catch (e) {
         if (e instanceof SabiHttpError && e.body.error === "stale") return fail(`project changed since baseVersion ${i.baseVersion} (now ${e.body.currentVersion}); re-run inspect_project`);
         throw e;
@@ -195,15 +210,16 @@ const TOOLS = {
       overlayId: z.string().optional().describe("broll only: re-pick just this overlay (next stock result or a new generation)"),
       query: z.string().max(200).optional().describe("broll + overlayId only: new stock search words"),
       prompt: z.string().max(600).optional().describe("broll + overlayId only: new generation prompt"),
+      scale: z.union([z.literal(1), z.literal(2)]).optional().describe("render only: 2 = 4K, 1 = 1080p (default: the last export's resolution)"),
     },
     run: async (api: SabiApi, i: {
       projectId: string; kind: "captions" | "plan" | "render" | "broll"; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;
-      regenerate?: boolean; overlayId?: string; query?: string; prompt?: string;
+      regenerate?: boolean; overlayId?: string; query?: string; prompt?: string; scale?: 1 | 2;
     }) => {
       const { jobId } = i.kind === "captions" ? await api.run(i.projectId)
         : i.kind === "plan" ? await api.plan(i.projectId, { languages: i.languages ?? [], burnInLanguage: i.burnInLanguage ?? null })
           : i.kind === "broll" ? await api.broll(i.projectId, { regenerate: i.regenerate ?? false, overlayId: i.overlayId, query: i.query, prompt: i.prompt })
-            : await api.render(i.projectId);
+            : await api.render(i.projectId, i.scale === undefined ? {} : { scale: i.scale });
       return { text: `job ${jobId} (${i.kind}) started; next: wait_job` };
     },
   },
@@ -258,15 +274,18 @@ const TOOLS = {
     },
   },
   export_outputs: {
-    description: "Write the rendered MP4 and SRT/VTT (plus translated tracks) into an existing directory under your home directory.",
-    inputSchema: { projectId, outDir: z.string().describe("existing directory under $HOME") },
+    description: "Write the rendered MP4 and SRT/VTT (plus translated tracks) into an existing directory under your home directory that iCloud does not sync (e.g. ~/Movies/Sabi).",
+    inputSchema: { projectId, outDir: z.string().describe("existing directory under $HOME, not synced to iCloud") },
     run: async (api: SabiApi, i: { projectId: string; outDir: string }) => {
       const dir = await underHome(i.outDir);
       if (dir === "outside") return fail(`refused: ${i.outDir} is outside your home directory`);
       if (dir === null || !(await stat(dir)).isDirectory()) return fail(`no such directory: ${i.outDir}`);
+      if (await syncedToICloud(dir, await realpath(homedir())))
+        return fail(`refused: ${i.outDir} syncs to iCloud, which can move the files off this Mac; export to a folder outside it, e.g. ~/Movies/Sabi (mkdir -p ~/Movies/Sabi)`);
       const p = await api.getProject(i.projectId);
       const o = p.outputs;
       if (!o.mp4AssetId) return fail("no outputs yet; run_job captions (or render) first");
+      if (o.stale) return fail("outputs are stale; run_job render first");
       const title = p.title.replace(/[^\p{L}\p{N} _-]+/gu, "").trim() || p.id;
       const files = (base: string): [string | undefined, string][] => [
         [o.mp4AssetId, `${base}.mp4`], [o.srtAssetId, `${base}.srt`], [o.vttAssetId, `${base}.vtt`],

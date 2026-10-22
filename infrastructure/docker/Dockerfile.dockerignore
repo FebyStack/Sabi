@@ -7,3 +7,5 @@ dist-server
 **/.venv
 **/*.mp4
 **/*.mov
+# the committed demo bundle ships in the api image (seeded on first boot)
+!database/seed/demo/*.mp4

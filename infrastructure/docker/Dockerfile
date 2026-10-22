@@ -3,7 +3,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build && npm run build:server
+ARG VITE_POSTHOG_KEY=""
+ARG VITE_POSTHOG_HOST=""
+RUN VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST npm run build && npm run build:server
 
 FROM node:22-alpine AS api
 WORKDIR /app
