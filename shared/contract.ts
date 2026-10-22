@@ -90,6 +90,9 @@ export const MotionGraphicPatch = z.object({ // no defaults: an absent key means
 // Stored in source time; `compiled` is written by the server and executed only in Chrome (render, frames, Player).
 export const MotionGraphicSchema = MotionGraphicInput.extend({ id: z.string(), compiled: z.string().max(MAX_MG_COMPILED), enabled: z.boolean().default(true) })
   .refine((m) => m.endMs > m.startMs, { message: "bad_range", path: ["endMs"] });
+// Why an MG shows ⚠ or what its sandbox refused, as GET /frame reports it to the agent (spec row 26).
+export const MG_PROBLEMS_HEADER = "x-sabi-mg-problems";
+export const MgProblemSchema = z.object({ mg: z.string().max(40), kind: z.enum(["threw", "image", "blocked", "navigated", "silent"]), detail: z.string().max(200) });
 
 export const ProjectSchema = z.object({
   id: z.string(),

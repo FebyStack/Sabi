@@ -1,9 +1,7 @@
 import React, { createElement, useState, type ComponentProps, type ComponentType } from "react";
 import { AbsoluteFill, Easing, Img as RemotionImg, interpolate, interpolateColors, random, spring, useCurrentFrame, useVideoConfig } from "remotion";
-import type { BrandLook } from "../editing/brand";
+import type { MgItem } from "./mgProtocol";
 
-// What an agent-written motion graphic receives. width/height are its box in pixels; frames count from its own start.
-export type MgItem = { props: Record<string, string | number | boolean>; brand: BrandLook; width: number; height: number; durationInFrames: number };
 type Mg = ComponentType<{ item: MgItem }>;
 
 // Remotion's <Img> cancels the whole render when a source never loads; an MG's broken image draws a marker instead.
