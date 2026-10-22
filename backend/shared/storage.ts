@@ -15,7 +15,7 @@ export interface Storage {
   put(key: string, localPath: string): Promise<void>; // moves a finished local file in (the local file is gone after)
   withLocalFile<T>(key: string, fn: (path: string) => Promise<T>): Promise<T>; // a readable local copy for the duration of fn
   workPath(name: string): string; // local scratch file path; its folder exists
-  describe(): string; // "fs:<root>" | "s3:<endpoint>/<bucket>": which store a database's keys live in
+  describe(): string; // "fs:<root>" | "s3:<bucket>": which store a database's keys live in
 }
 
 // Keys are relative paths with plain segments, so no key can name anything outside the store.

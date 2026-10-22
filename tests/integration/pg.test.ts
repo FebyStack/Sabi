@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import { PgAssetRepository } from "../../backend/modules/assets/repository";
 import { PgProjectRepository } from "../../backend/modules/projects/repository";
 import { PgCreditLedger } from "../../backend/modules/usage/ledger";
-import { applySchema } from "../../backend/shared/pg";
+import { applySchema, ensureStorageMatches } from "../../backend/shared/pg";
 import { editorProject } from "../../shared/editing/fixtures";
 
 // Real Postgres; opt in with PG_TEST_URL (npm run test:infra, after `make db`). Each case gets a throwaway database.
@@ -58,6 +58,15 @@ describe.skipIf(!url)("postgres schema", { timeout: 60_000 }, () => {
       expect(await ledger.since(new Date("2026-10-01T00:00:00.000Z"))).toEqual([{ ...e, id: "new", projectId: null, createdAt: "2026-10-01T00:00:00.000Z" }]);
       expect((await ledger.since(new Date(0))).map((r) => r.id)).toEqual(["new", "old"]);
       await expect(ledger.record({ ...e, id: "bad", projectId: null, actor: "robot" as "web", createdAt: "2026-10-02T00:00:00.000Z" })).rejects.toThrow(/check constraint/);
+    });
+  });
+
+  it("the database refuses a second store", async () => {
+    await withTestDb(async (pool) => {
+      await ensureStorageMatches(pool, "fs:/Volumes/PortableSSD/Bong/captions-clone-data"); // first boot records it
+      await ensureStorageMatches(pool, "fs:/Volumes/PortableSSD/Bong/captions-clone-data");
+      await expect(ensureStorageMatches(pool, "s3:captions")).rejects.toThrow(
+        "this database's files are in fs:/Volumes/PortableSSD/Bong/captions-clone-data; set S3_ENDPOINT/DATA_DIR to match or use another DATABASE_URL");
     });
   });
 });

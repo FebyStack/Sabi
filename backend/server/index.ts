@@ -12,11 +12,11 @@ import { MemoryJobRunner } from "../shared/jobs";
 import { OllamaLlm } from "../shared/llm";
 import { FalGenerator } from "../shared/generator";
 import { FfmpegMedia } from "../shared/media";
-import { applySchema, createPool } from "../shared/pg";
+import { applySchema, createPool, ensureStorageMatches } from "../shared/pg";
 import { RemotionRenderer } from "../shared/renderer";
 import { PexelsStock } from "../shared/stock";
-import { FsStorage } from "../shared/storage";
 import { WhisperXTranscriber } from "../shared/transcriber";
+import { createStorage } from "./boot";
 
 const port = Number(process.env.PORT ?? 3001);
 const url = process.env.DATABASE_URL;
@@ -25,6 +25,8 @@ const dataDir = process.env.DATA_DIR ?? "/Volumes/PortableSSD/Bong/captions-clon
 
 const pool = createPool(url);
 await applySchema(pool);
+const storage = await createStorage(process.env, dataDir);
+await ensureStorageMatches(pool, storage.describe());
 const projects = new PgProjectRepository(pool);
 const stuck = await projects.failStuck(); // jobs are in-process; nothing survives a restart
 if (stuck) console.warn(`marked ${stuck} interrupted project(s) as failed`);
@@ -33,7 +35,7 @@ const bus = new MemoryEventBus();
 const deps: AppDeps = {
   projects,
   assets: new PgAssetRepository(pool),
-  storage: new FsStorage(dataDir),
+  storage,
   media: new FfmpegMedia(),
   bus,
   jobs: new MemoryJobRunner(bus),
@@ -52,7 +54,7 @@ const deps: AppDeps = {
 };
 const demo = await seedDemo(deps).catch((err) => { console.error("demo seed failed", err); return null; }); // only into an empty database
 if (demo) console.log(`seeded demo project ${demo.id}`);
-createApp(deps).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, data in ${dataDir}`));
+createApp(deps).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, files in ${storage.describe()}`));
 startRetention(deps);
 const warmStart = Date.now(); // bundle + browser now, so the first render or frame does not pay for them
 deps.renderer.warm?.().then(() => console.log(`renderer warm in ${((Date.now() - warmStart) / 1000).toFixed(1)}s`), (err) => console.error("renderer warm-up failed", err));

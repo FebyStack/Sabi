@@ -122,7 +122,7 @@ interface Storage {
   - **frames**: a work file, deleted after reading (as today).
   - **file route**: one path for both adapters — `stat` → `req.range(size)` → `read(key, range)` with `206` / `Content-Range` / `Accept-Ranges: bytes`, `416` on an unsatisfiable range, `404 file_missing`. (`sendFile`'s ETag/304 goes; asset keys are never rewritten, so nothing is lost.)
 - `removeProject` keeps deleting `work/<id>/audio.wav` for projects made before this change.
-- **One database, one store.** A one-row table `sabi_meta (key 'storage', value 'fs:<DATA_DIR>' | 's3:<endpoint>/<bucket>')` is written on the first Postgres boot; a later boot with the other adapter exits: `this database's files are in <value>; set S3_ENDPOINT/DATA_DIR to match or use another DATABASE_URL`. So `make up` (S3) and an un-exported `dev:server` (files) can't share `make db`'s Postgres by accident (dangling files, half-done retention, demo in one store). `dev:server` stays env-selected; nothing loads `.env` for the npm scripts.
+- **One database, one store.** A one-row table `sabi_meta (key 'storage', value 'fs:<DATA_DIR>' | 's3:<bucket>' — the bucket alone, since one MinIO is localhost:9000 from the Mac and minio:9000 in Docker)` is written on the first Postgres boot; a later boot with the other adapter exits: `this database's files are in <value>; set S3_ENDPOINT/DATA_DIR to match or use another DATABASE_URL`. So `make up` (S3) and an un-exported `dev:server` (files) can't share `make db`'s Postgres by accident (dangling files, half-done retention, demo in one store). `dev:server` stays env-selected; nothing loads `.env` for the npm scripts.
 
 ### 4. Job queue
 

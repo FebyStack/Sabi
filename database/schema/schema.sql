@@ -59,3 +59,9 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS credit_ledger_created_idx ON credit_ledger (created_at);
+
+-- Boot facts about this database: 'storage' = where its files live (fs:<DATA_DIR> or s3:<bucket>).
+CREATE TABLE IF NOT EXISTS sabi_meta (
+  key    TEXT PRIMARY KEY,
+  value  TEXT NOT NULL
+);
