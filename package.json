@@ -45,6 +45,7 @@
     "react-dom": "^19.2.0",
     "react-router": "^8.4.0",
     "remotion": "^4.0.536",
+    "sharp": "0.35.5",
     "typescript": "^5.9.3",
     "zod": "^4.1.11"
   },

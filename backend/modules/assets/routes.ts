@@ -61,19 +61,25 @@ export function assetsRouter(deps: AppDeps) {
     const local = await stat(up.work).catch(() => null);
     if (!local) { pending.set(req.params.uploadId, up); return res.status(409).json({ error: "no_bytes" }); }
     const kind = kindOf(up.mimeType);
-    const info = await deps.media.probe(up.work, kind === "image" ? "image" : "av");
-    if (kind === "image" && (!info.width || !info.height || Math.max(info.width, info.height) > MAX_IMAGE_PX)) {
-      await rm(up.work, { force: true });
-      return res.status(422).json(info.width && info.height ? { error: "too_large_image", maxPx: MAX_IMAGE_PX } : { error: "bad_image" });
+    const probeKind = kind === "image" ? "image" : "av";
+    const clean = deps.storage.workPath(`uploads/clean-${up.key.slice("uploads/".length)}`);
+    let info, size;
+    try {
+      const raw = await deps.media.probe(up.work, probeKind); // limits first: never decode an oversized picture
+      if (kind === "image" && (!raw.width || !raw.height || Math.max(raw.width, raw.height) > MAX_IMAGE_PX))
+        return res.status(422).json(raw.width && raw.height ? { error: "too_large_image", maxPx: MAX_IMAGE_PX } : { error: "bad_image" });
+      if (raw.durationMs > MAX_CLIP_MS) return res.status(422).json({ error: "too_long", maxMs: MAX_CLIP_MS });
+      // Spec row 2: only the stripped copy is stored; its probe is what the asset says (a photo turned upright swaps width/height).
+      try { await deps.media.sanitize(up.work, clean, probeKind); } catch { return res.status(422).json({ error: "bad_media" }); }
+      info = await deps.media.probe(clean, probeKind);
+      size = (await stat(clean)).size;
+      await deps.storage.put(up.key, clean);
+    } finally {
+      await Promise.all([rm(up.work, { force: true }), rm(clean, { force: true })]);
     }
-    if (info.durationMs > MAX_CLIP_MS) {
-      await rm(up.work, { force: true });
-      return res.status(422).json({ error: "too_long", maxMs: MAX_CLIP_MS });
-    }
-    await deps.storage.put(up.key, up.work);
     const asset = await deps.assets.create({
       id: deps.id(), projectId: typeof req.body?.projectId === "string" ? req.body.projectId : null, kind,
-      key: up.key, mimeType: up.mimeType, sizeBytes: local.size, ...info, createdAt: deps.now().toISOString(),
+      key: up.key, mimeType: up.mimeType, sizeBytes: size, ...info, createdAt: deps.now().toISOString(),
     });
     res.status(201).json(asset);
   });

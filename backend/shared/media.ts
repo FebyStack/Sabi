@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { copyFile } from "node:fs/promises";
+import { extname } from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -15,6 +17,7 @@ export interface MediaInfo { durationMs: number; width?: number; height?: number
 export interface Media {
   probe(path: string, kind?: ProbeKind): Promise<MediaInfo>; // kind defaults to "av"
   extractAudio(input: string, outWav: string): Promise<void>; // 16 kHz mono PCM for the transcriber
+  sanitize(input: string, output: string, kind: ProbeKind): Promise<void>; // same format, no EXIF/GPS/location (spec row 2)
 }
 
 export type ProbeJson = {
@@ -40,10 +43,23 @@ export class FfmpegMedia implements Media {
   async extractAudio(input: string, outWav: string) {
     await run("ffmpeg", ["-y", "-v", "error", ...safe("av"), "-i", input, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", outWav]);
   }
+  // Images: sharp turns the pixels upright from the EXIF orientation and writes no metadata (EXIF, GPS, XMP) unless asked.
+  // Audio/video: a stream copy (no re-encode) without global/stream metadata, chapters or cover art; rotation is side data and stays.
+  async sanitize(input: string, output: string, kind: ProbeKind) {
+    if (kind === "image") {
+      const { default: sharp } = await import("sharp");
+      const img = sharp(input, { limitInputPixels: MAX_IMAGE_PX ** 2 }).rotate();
+      const ext = extname(output).toLowerCase();
+      await (ext === ".png" ? img.png() : ext === ".webp" ? img.webp({ quality: 92 }) : img.jpeg({ quality: 92 })).toFile(output);
+      return;
+    }
+    await run("ffmpeg", ["-v", "error", "-y", ...safe("av"), "-i", input, "-map", "0:V?", "-map", "0:a?", "-map_metadata", "-1", "-map_chapters", "-1", "-c", "copy", output]);
+  }
 }
 
 export class FakeMedia implements Media {
   constructor(private info: MediaInfo) {}
   async probe() { return this.info; }
   async extractAudio(_input: string, _outWav: string) {}
+  async sanitize(input: string, output: string, _kind: ProbeKind) { await copyFile(input, output); }
 }

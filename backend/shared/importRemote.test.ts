@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buffer } from "node:stream/consumers";
@@ -43,7 +43,7 @@ describe("importRemote", () => {
   });
 
   it("removes the file when the probe fails", async () => {
-    const d = deps({ probe: async () => { throw new Error("ffprobe"); }, extractAudio: async () => {} });
+    const d = deps({ probe: async () => { throw new Error("ffprobe"); }, extractAudio: async () => {}, sanitize: async () => {} });
     await expect(importRemote(d, `${MEDIA_TEST}/clip.mp4`, { expect: "video" })).rejects.toThrow("bad_remote_media");
     expect(leftovers(d)).toEqual([]);
   });
@@ -58,4 +58,15 @@ describe("importAsAsset", () => {
     expect(await d.assets.get(asset.id)).toEqual(asset);
     expect((await d.storage.stat(asset.key))?.size).toBeGreaterThan(0);
   });
+
+  it("imported media is sanitized before it is stored", async () => {
+    class CleaningMedia extends FakeMedia {
+      async sanitize(_input: string, output: string) { writeFileSync(output, "CLEAN"); }
+    }
+    const d = deps(new CleaningMedia({ durationMs: 0, width: 1, height: 1 }));
+    const out = await importRemote(d, `${MEDIA_TEST}/one.png`, { expect: "image" });
+    expect((await buffer(await d.storage.read(out.key))).toString()).toBe("CLEAN");
+    expect(leftovers(d)).toEqual(["id-1.png"]);
+  });
 });
+

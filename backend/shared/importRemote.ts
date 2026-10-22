@@ -33,18 +33,23 @@ export async function importRemote(
   const name = `${deps.id()}${ext}`;
   const key = `broll/${name}`;
   const work = deps.storage.workPath(`imports/${name}`); // checked locally, stored only once it passes
+  const clean = deps.storage.workPath(`imports/clean-${name}`);
   try {
     const src = Readable.fromWeb(res.body as WebStream<Uint8Array>);
     const limited = limitBytes(max);
     src.on("error", (err) => limited.destroy(err)); // .pipe() does not forward a dropped connection
     await pipeline(src.pipe(limited), createWriteStream(work));
-    const info = await deps.media.probe(work, opts.expect === "image" ? "image" : "av");
-    if (!info.width || !info.height || (opts.expect === "image" && Math.max(info.width, info.height) > MAX_IMAGE_PX)) throw bad();
-    await deps.storage.put(key, work);
+    const kind = opts.expect === "image" ? "image" : "av";
+    const raw = await deps.media.probe(work, kind);
+    if (!raw.width || !raw.height || (opts.expect === "image" && Math.max(raw.width, raw.height) > MAX_IMAGE_PX)) throw bad();
+    await deps.media.sanitize(work, clean, kind); // stock photos carry camera EXIF too
+    const info = await deps.media.probe(clean, kind);
+    await deps.storage.put(key, clean);
     return { key, mimeType, info };
   } catch {
-    await rm(work, { force: true });
     throw bad();
+  } finally {
+    await Promise.all([rm(work, { force: true }), rm(clean, { force: true })]);
   }
 }
 

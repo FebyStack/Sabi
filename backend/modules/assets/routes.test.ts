@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import request from "supertest";
 import { createApp } from "../../app/app";
@@ -147,6 +147,34 @@ describe("assets", () => {
     expect([past.status, past.headers["content-range"]]).toEqual([416, "bytes */1000"]);
     await deps.storage.remove(asset.key);
     expect((await get()).status).toBe(404);
+  });
+
+  it("an uploaded file is sanitized before it is stored", async () => {
+    const calls: [string, string, string][] = [];
+    class CleaningMedia extends FakeMedia {
+      async sanitize(input: string, output: string, kind: "image" | "av") { calls.push([input, output, kind]); writeFileSync(output, "CLEAN"); }
+    }
+    const deps = makeTestDeps({ media: new CleaningMedia({ durationMs: 0, width: 40, height: 20 }) });
+    const a = createApp(deps);
+    const { body: { uploadId } } = await request(a).post("/api/assets/uploads/start").send({ fileName: "photo.jpg", mimeType: "image/jpeg", sizeBytes: 5 });
+    await request(a).put(`/api/assets/uploads/${uploadId}`).set("content-type", "image/jpeg").send(Buffer.from("hello"));
+    const { body: asset } = await request(a).post(`/api/assets/uploads/${uploadId}/done`).send({});
+    expect(calls).toEqual([[deps.storage.workPath(`uploads/${uploadId}.jpg`), expect.stringMatching(/\.jpg$/), "image"]]);
+    expect((await request(a).get(`/api/assets/${asset.id}/file`)).body.toString()).toBe("CLEAN"); // the original bytes never reach storage
+    expect(asset.sizeBytes).toBe(5); // the stored (clean) file's size
+    expect(existsSync(calls[0][0]) || existsSync(calls[0][1])).toBe(false); // no scratch left
+  });
+
+  it("a file the sanitizer can't read is refused, not stored", async () => {
+    class BrokenMedia extends FakeMedia { async sanitize(): Promise<void> { throw new Error("corrupt"); } }
+    const deps = makeTestDeps({ media: new BrokenMedia({ durationMs: 1000, width: 40, height: 20 }) });
+    const a = createApp(deps);
+    const { body: { uploadId } } = await request(a).post("/api/assets/uploads/start").send({ fileName: "c.mp4", mimeType: "video/mp4", sizeBytes: 5 });
+    await request(a).put(`/api/assets/uploads/${uploadId}`).set("content-type", "video/mp4").send(Buffer.from("hello"));
+    const done = await request(a).post(`/api/assets/uploads/${uploadId}/done`).send({});
+    expect([done.status, done.body]).toEqual([422, { error: "bad_media" }]);
+    expect(await deps.storage.stat(`uploads/${uploadId}.mp4`)).toBeNull();
+    await vi.waitFor(() => expect(existsSync(deps.storage.workPath(`uploads/${uploadId}.mp4`))).toBe(false)); // cleanup finishes after the reply
   });
 });
 
