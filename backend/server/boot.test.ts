@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { DeleteBucketCommand, S3Client } from "@aws-sdk/client-s3";
@@ -70,6 +71,18 @@ describe("shutdownHandler", () => {
     await shutdownHandler({ close: async () => { throw new Error("gone"); } }, (code) => exits.push(code))();
     expect(exits).toEqual([0]);
   });
+});
+
+describe("server boot", () => {
+  it("a bad SPEND_CAP_CENTS stops the boot before any database, S3 or Redis check", async () => {
+    const env = { ...process.env, SPEND_CAP_CENTS: "lots", DATABASE_URL: "postgres://127.0.0.1:1/none", S3_ENDPOINT: "http://127.0.0.1:1", REDIS_URL: "redis://127.0.0.1:1" };
+    const out = await new Promise<{ code: number | null; stderr: string }>((resolve) => {
+      execFile(join("node_modules", ".bin", "tsx"), ["backend/server/index.ts"], { env, timeout: 60_000 }, (err, _stdout, stderr) =>
+        resolve({ code: err ? (typeof err.code === "number" ? err.code : -1) : 0, stderr }));
+    });
+    expect(out.code).not.toBe(0);
+    expect(out.stderr).toContain("SPEND_CAP_CENTS must be a whole number of cents"); // not "ECONNREFUSED" from whichever check ran first
+  }, 60_000);
 });
 
 describe("listenHost", () => {

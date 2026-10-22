@@ -1,4 +1,6 @@
 import { existsSync, mkdtempSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -15,6 +17,18 @@ describe("FsStorage", () => {
     const s = new FsStorage(root);
     expect(s.describe()).toBe(`fs:${root}`);
     expect(s.workPath("audio/p1.wav")).toBe(join(root, "work", "audio", "p1.wav")); // same disk as the store: put is a rename
+  });
+});
+
+describe("S3Storage timeouts", () => {
+  it("a store that takes the connection but never answers fails the request instead of hanging it", async () => {
+    const server = createServer(() => {}); // reads each request, answers none (a wedged MinIO)
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const s = new S3Storage({ endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, bucket: "b", accessKeyId: "k", secretAccessKey: "s",
+      workDir: mkdtempSync(join(tmpdir(), "s3-work-")), requestTimeoutMs: 200 });
+    await expect(s.stat("a.bin")).rejects.toMatchObject({ name: "TimeoutError" }); // the file route answers 500 instead of never
+    server.closeAllConnections();
+    server.close();
   });
 });
 

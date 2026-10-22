@@ -18,12 +18,14 @@ export class S3Storage implements Storage {
   private client: S3Client;
   private bucket: string;
 
-  constructor(private o: { endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string; region?: string; workDir: string }) {
+  constructor(private o: { endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string; region?: string; workDir: string; requestTimeoutMs?: number }) {
     this.bucket = o.bucket;
     this.client = new S3Client({
       endpoint: o.endpoint, region: o.region ?? "auto", forcePathStyle: true,
       credentials: { accessKeyId: o.accessKeyId, secretAccessKey: o.secretAccessKey },
-      requestHandler: { connectionTimeout: 5000 }, // a black-holed host fails the boot check instead of hanging it
+      // A black-holed host fails the boot check, and a wedged store fails a request (retried twice), instead of hanging them.
+      // The request timeout runs until the response headers (an upload part's whole body), never through a streamed read.
+      requestHandler: { connectionTimeout: 5000, requestTimeout: o.requestTimeoutMs ?? 60_000, throwOnRequestTimeout: true },
     });
   }
 
