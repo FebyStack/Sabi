@@ -7,11 +7,12 @@ services:
       POSTGRES_USER: captions
       POSTGRES_PASSWORD: captions
       POSTGRES_DB: captions
-    ports: ["5432:5432"]
-    volumes: ["${DATA_DIR}/postgres:/var/lib/postgresql/data"]
+    ports: ["5433:5432"] # 5432 on this Mac is a Homebrew postgresql@18 service
+    # In the SabiDev APFS image (same SSD): on the ExFAT DATA_DIR macOS adds ._ files the entrypoint can't chown, so a restart fails.
+    volumes: ["${HOME}/SabiDev/docker/postgres:/var/lib/postgresql/data"]
 
   minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest # minio/minio is gone from Docker Hub; Chainguard builds MinIO from source
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY}
