@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "whisperX sidecar: word-timestamped transcription over HTTP"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-  "whisperx>=3.3",
+  "whisperx>=3.8.6",
   "fastapi>=0.115",
   "uvicorn>=0.30",
   "python-multipart>=0.0.9",
