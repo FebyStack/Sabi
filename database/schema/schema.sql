@@ -43,3 +43,25 @@ CREATE TABLE IF NOT EXISTS assets (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS assets_project_idx ON assets (project_id);
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS meta JSONB;                -- B-roll provenance: source, attribution, generation, prompt/query
+
+-- One row per paid generation (spec row 20). No FK and no prompt text: rows outlive deleted projects and hold no user content.
+CREATE TABLE IF NOT EXISTS credit_ledger (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT,                                       -- solo now (spec row 3)
+  project_id  TEXT,
+  provider    TEXT NOT NULL,
+  model       TEXT NOT NULL,
+  media       TEXT NOT NULL CHECK (media IN ('image', 'video')),
+  cost_cents  INTEGER NOT NULL CHECK (cost_cents >= 0),
+  job_kind    TEXT NOT NULL,
+  actor       TEXT NOT NULL CHECK (actor IN ('web', 'agent')),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS credit_ledger_created_idx ON credit_ledger (created_at);
+
+-- Boot facts about this database: 'storage' = where its files live (fs:<DATA_DIR> or s3:<bucket>).
+CREATE TABLE IF NOT EXISTS sabi_meta (
+  key    TEXT PRIMARY KEY,
+  value  TEXT NOT NULL
+);

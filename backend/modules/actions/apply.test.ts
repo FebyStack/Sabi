@@ -2,6 +2,7 @@ import request from "supertest";
 import { readyProject, untilStatus } from "../../shared/apiTestHelpers";
 import { makeTestDeps } from "../../shared/testing";
 import type { Asset, Overlay, Project } from "../../../shared/types";
+import { editorProject } from "../../../shared/editing/fixtures";
 import { applyActions, referencedAssetIds } from "./apply";
 
 let project: Project;
@@ -172,5 +173,57 @@ describe("applyActions: overlays, brand, motion graphics", () => {
     const [ph0, ph1] = project.phrases;
     expect(applyActions(p, [{ type: "retimePhraseRange", phraseId: ph1.id, startMs: ph0.endMs - 50, endMs: ph1.endMs }])).toEqual({ error: "overlap", id: ph1.id });
     expect(applyActions(p, [{ type: "setShotBounds", shotId: "shot-0", startMs: 100 }])).toEqual({ error: "out_of_range", id: "shot-0" });
+  });
+});
+
+describe("addOverlay and provenance", () => {
+  const p = editorProject();
+  const gen: Asset = { id: "gen", projectId: "p1", kind: "image", key: "broll/gen.png", mimeType: "image/png", sizeBytes: 1, width: 1080, height: 1920, createdAt: "t",
+    meta: { source: "generated", generationInfo: { provider: "fal", model: "fal-ai/flux/schnell", prompt: "a sunrise", costCents: 1 }, prompt: "a sunrise" } };
+  const attribution = { author: "Vid Eo", url: "https://www.pexels.com/video/1" };
+  const clip: Asset = { id: "clip", projectId: "p1", kind: "video", key: "broll/clip.mp4", mimeType: "video/mp4", sizeBytes: 1, durationMs: 4000, createdAt: "t",
+    meta: { source: "stock", attribution, query: "coffee pour" } };
+  const sub: Asset = { id: "srt", projectId: "p1", kind: "subtitle", key: "r.srt", mimeType: "text/plain", sizeBytes: 1, createdAt: "t" };
+  const ctx = { assets: new Map([gen, clip, sub].map((a) => [a.id, a])) };
+  const thb = editorProject({ editPlan: { ...p.editPlan!, shots: p.editPlan!.shots.map((s) => (s.id === "shot-2" ? { ...s, kind: "Talking Head & B-Roll" as const } : s)) } });
+
+  it("addOverlay places an asset inside a B-Roll shot", () => {
+    const out = applyActions(p, [{ type: "addOverlay", assetId: "gen", startMs: 9500, endMs: 11500 }], ctx);
+    if ("error" in out) throw new Error(out.error);
+    expect(out.rerender).toBe(true);
+    expect(out.patch.overlays).toHaveLength(2);
+    expect(out.patch.overlays![1]).toEqual({
+      id: "ov-1", shotId: "shot-1", assetId: "gen", media: "image", source: "generated", startMs: 9500, endMs: 11500, placement: "full", transition: "fade",
+      enabled: true, query: "", prompt: "a sunrise", intent: "", generationInfo: { provider: "fal", model: "fal-ai/flux/schnell", prompt: "a sunrise", costCents: 1 },
+    });
+    const top = applyActions(thb, [{ type: "addOverlay", assetId: "clip", startMs: 13000, endMs: 16000, transition: "none" }], ctx);
+    if ("error" in top) throw new Error(top.error);
+    expect(top.patch.overlays![1]).toMatchObject({ shotId: "shot-2", placement: "top", transition: "none", media: "video", durationMs: 4000, source: "stock", attribution, query: "coffee pour", prompt: "" });
+    const full = applyActions(thb, [{ type: "addOverlay", assetId: "clip", startMs: 13000, endMs: 16000, placement: "full" }], ctx);
+    expect(full).toMatchObject({ patch: { overlays: [expect.anything(), expect.objectContaining({ placement: "full" })] } });
+  });
+
+  it("addOverlay refuses a range outside one B-roll shot", () => {
+    const add = (startMs: number, endMs: number, assetId = "gen", proj = p) => applyActions(proj, [{ type: "addOverlay", assetId, startMs, endMs }], ctx);
+    expect(add(13000, 15000)).toEqual({ error: "not_in_broll_shot" }); // a Talking Head shot
+    expect(add(3000, 5000)).toEqual({ error: "not_in_broll_shot" }); // spans the Hook and the B-Roll shot
+    expect(add(11000, 11000)).toEqual({ error: "out_of_range" });
+    expect(add(20000, 22000, "gen", thb)).toEqual({ error: "out_of_range" }); // past the 21 s source
+    expect(add(8000, 10000)).toEqual({ error: "overlap" }); // ov-0 is 5000–9000 and on
+    expect(add(8000, 10000, "gen", editorProject({ overlays: p.overlays.map((o) => ({ ...o, enabled: false })) }))).not.toHaveProperty("error");
+    expect(add(9500, 11500, "srt")).toEqual({ error: "bad_asset", id: "srt" });
+    expect(referencedAssetIds([{ type: "addOverlay", assetId: "gen", startMs: 0, endMs: 1 }])).toEqual(["gen"]);
+  });
+
+  it("replaceOverlay copies the asset's provenance", () => {
+    const out = applyActions(p, [{ type: "replaceOverlay", overlayId: "ov-0", assetId: "gen" }], ctx);
+    if ("error" in out) throw new Error(out.error);
+    const o = out.patch.overlays![0];
+    expect(o).toMatchObject({ assetId: "gen", source: "generated", prompt: "a sunrise", query: "sunrise kitchen", generationInfo: { model: "fal-ai/flux/schnell" } });
+    expect(o.attribution).toBeUndefined(); // the old Pexels credit does not follow a generated image
+    const long = { ...gen, id: "long", meta: { source: "generated" as const, prompt: "x".repeat(700) } };
+    const cut = applyActions(p, [{ type: "replaceOverlay", overlayId: "ov-0", assetId: "long" }], { assets: new Map([["long", long]]) });
+    if ("error" in cut) throw new Error(cut.error);
+    expect(cut.patch.overlays![0].prompt).toHaveLength(600);
   });
 });

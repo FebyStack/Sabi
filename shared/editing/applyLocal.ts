@@ -9,7 +9,7 @@ import { scalePhrase, setEmphasis } from "./phrases";
 // optimistic edits and drag previews. Pure. Actions needing assets or the MG compiler stay on the server.
 export type LocalError = { error: "unknown_id" | "no_plan" | "no_captions" | "bad_burn_in" | "out_of_shot" | "out_of_range" | "overlap"; id?: string };
 export type LocalResult = { project: Project; rerender: boolean };
-export const SERVER_ONLY = new Set<Action["type"]>(["replaceOverlay", "setBrand", "addMotionGraphic"]);
+export const SERVER_ONLY = new Set<Action["type"]>(["replaceOverlay", "addOverlay", "setBrand", "addMotionGraphic"]);
 
 export const isLocalAction = (a: Action) =>
   !SERVER_ONLY.has(a.type) && !(a.type === "updateMotionGraphic" && (a.code !== undefined || a.props !== undefined));
@@ -37,7 +37,7 @@ export function applyLocalAction(project: Project, a: Action): LocalResult | Loc
     case "setTemplate": {
       if (a.captionTemplateId === p.captionTemplateId || !p.phrases.length) return done({ captionTemplateId: a.captionTemplateId });
       // The new layout re-flows the words now, so a still frame shows it before any render.
-      const phrases = carryEmoji(p.phrases, segmentCaptions(p.phrases.flatMap((x) => x.words), getCaptionTemplate(a.captionTemplateId).layout));
+      const phrases = carryEmoji(p.phrases, segmentCaptions(p.phrases.flatMap((x) => x.words), getCaptionTemplate(a.captionTemplateId).layout, p.language));
       return done({ captionTemplateId: a.captionTemplateId, phrases });
     }
     case "setBurnIn":

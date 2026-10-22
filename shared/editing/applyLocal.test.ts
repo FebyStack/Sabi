@@ -10,6 +10,12 @@ const ok = (project: Project, actions: Action[]) => {
 const shots = (p: Project) => p.editPlan!.shots.map((s) => [s.startMs, s.endMs]);
 
 describe("applyLocal", () => {
+  it("a template change re-flows Tagalog captions without stranding a particle", () => {
+    const words = "Pumunta kami sa palengke".split(" ").map((text, i) => ({ id: `w-${i}`, text, startMs: i * 300, endMs: i * 300 + 250 }));
+    const p = editorProject({ language: "tl", captionTemplateId: "clean", phrases: [{ id: "ph-0", startMs: 0, endMs: 1150, words, lineBreaksAfter: [] }] });
+    expect(ok(p, [{ type: "setTemplate", captionTemplateId: "bold" }]).project.phrases[0].lineBreaksAfter).toEqual([1]);
+  });
+
   const project = editorProject();
 
   it("setShotBounds moves the shared edge", () => {

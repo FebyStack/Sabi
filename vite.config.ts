@@ -15,5 +15,5 @@ export default defineConfig({
   worker: { format: "es" },
   build: { outDir: "../dist", emptyOutDir: true },
   // node_modules is a symlink to ~/Developer/.sabi-deps/<checkout> (PROJECT.md): allow it, or the bundled font files 403 in dev.
-  server: { port: 5173, proxy: { "/api": "http://localhost:3001" }, fs: { allow: [r("."), realpathSync(r("./node_modules"))] } },
+  server: { port: 5173, proxy: { "/api": "http://127.0.0.1:3001" }, fs: { allow: [r("."), realpathSync(r("./node_modules"))] } },
 });

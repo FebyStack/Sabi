@@ -4,6 +4,7 @@ import { projectWithSource, readyProject, untilStatus } from "../../shared/apiTe
 import { FakeLlm } from "../../shared/llm";
 import { FakeRenderer } from "../../shared/renderer";
 import { makeTestDeps } from "../../shared/testing";
+import { FakeTranscriber } from "../../shared/transcriber";
 import type { Project, ProjectEvent } from "../../../shared/types";
 
 const untilPlanned = async (a: ReturnType<typeof createApp>, id: string) => {
@@ -24,6 +25,18 @@ async function planned(body: object = {}) {
 }
 
 describe("edit plan api", () => {
+  it("plan uses tagalog fillers when the project language is tl", async () => {
+    const words = [
+      { id: "w-0", text: "Tapos", startMs: 0, endMs: 400 }, { id: "w-1", text: "ano,", startMs: 900, endMs: 1200 }, { id: "w-2", text: "pumunta", startMs: 1700, endMs: 2100 },
+    ];
+    const deps = makeTestDeps({ transcriber: new FakeTranscriber({ language: "tl", words }) });
+    const { a, project } = await readyProject(deps);
+    await request(a).post(`/api/projects/${project.id}/plan`).send({});
+    const done = await untilPlanned(a, project.id);
+    expect(done.editPlan!.cuts).toContainEqual(expect.objectContaining({ reason: "filler", text: "ano," }));
+    expect((deps.llm as FakeLlm).calls[0].system).toContain("Taglish"); // the planner got the language too
+  });
+
   it("plans, translates and re-renders", async () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);

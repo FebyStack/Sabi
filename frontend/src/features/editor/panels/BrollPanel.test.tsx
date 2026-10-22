@@ -15,7 +15,7 @@ const project = (patch: Partial<Project> = {}) => ({
   id: "p", mediaSource: "stock", warnings: [], creditsUsedCents: 0, motionGraphics: [], editPlan: { cuts: [], shots },
   overlays: [ov("ov-0", "shot-1", 4300, 9300), ov("ov-1", "shot-0", 300, 2300)], ...patch,
 }) as unknown as Project;
-const panel = (p: Project) => renderToStaticMarkup(<BrollPanel project={p} busy={false} onAdd={() => {}} commit={async () => {}} onSeek={() => {}} />);
+const panel = (p: Project) => renderToStaticMarkup(<BrollPanel project={p} busy={false} onAdd={() => {}} onGenerate={() => {}} commit={async () => {}} onSeek={() => {}} />);
 
 describe("BrollPanel", () => {
   it("overlayRows labels overlays with their shot and flags stale ones", () => {
@@ -68,4 +68,14 @@ describe("BrollPanel", () => {
     expect(panel(project({ editPlan: null, overlays: [] }))).toContain("Plan the edit first");
   });
 
+
+  it("each overlay has a New… button", () => {
+    const html = panel(project());
+    expect(html.match(/aria-label="New media for [^"]+"[^>]*>New…</g)).toHaveLength(2);
+  });
+
+  it("says when the monthly cap stopped generation", () => {
+    expect(panel(project({ warnings: ["over_cap"] }))).toMatch(/Monthly spending cap reached — see <a href="\/usage"[^>]*>Usage<\/a>\./);
+  });
 });
+

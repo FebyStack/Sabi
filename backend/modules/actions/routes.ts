@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { ApplyActionsInput, api } from "../../../shared/contract";
 import type { AppDeps } from "../../shared/deps";
-import { projectLoader } from "../../shared/routes";
+import { JobBusy } from "../../shared/jobs";
+import { actorOf, projectLoader } from "../../shared/routes";
 import { StaleVersion } from "../projects/repository";
 import { startCaptionJob } from "../pipeline/pipeline";
 import { applyActions, referencedAssetIds } from "./apply";
@@ -18,7 +19,7 @@ export function actionsRouter(deps: AppDeps) {
     if (!project) return;
     const { baseVersion, actions, render } = parsed.data;
     if (baseVersion !== project.updatedAt) return res.status(409).json({ error: "stale", currentVersion: project.updatedAt });
-    const job = deps.jobs.active(project.id);
+    const job = await deps.jobs.active(project.id);
     if (job) return res.status(409).json({ error: "busy", job });
     const loaded = await Promise.all(referencedAssetIds(actions).map((id) => deps.assets.get(id)));
     const out = applyActions(project, actions, { assets: new Map(loaded.flatMap((a) => (a ? [[a.id, a] as const] : []))) });
@@ -34,8 +35,14 @@ export function actionsRouter(deps: AppDeps) {
     }
     deps.bus.publish(project.id, { type: "project", status: updated.status }); // open web tabs refetch, so a later web edit starts from Claude's
     if (!render || !out.rerender) return res.json({ project: updated, applied: actions.length });
-    const started = startCaptionJob(deps, updated, { transcribe: false, resegment: false });
-    res.status(202).json({ project: updated, applied: actions.length, jobId: started.id });
+    try {
+      const started = await startCaptionJob(deps, updated, { transcribe: false, resegment: false }, actorOf(req));
+      res.status(202).json({ project: updated, applied: actions.length, jobId: started.id });
+    } catch (err) {
+      if (!(err instanceof JobBusy)) throw err;
+      // Another job slipped in after the check above: the edits stand, the MP4 is now behind them.
+      res.json({ project: await deps.projects.update(project.id, { outputs: { ...updated.outputs, stale: true } }), applied: actions.length });
+    }
   });
 
   return r;

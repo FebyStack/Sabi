@@ -14,7 +14,8 @@ export const ShotKind = z.enum(SHOT_KINDS);
 
 export const WordSchema = z.object({ id: z.string(), text: z.string(), startMs: z.number(), endMs: z.number(), confidence: z.number().optional(), emphasis: EmphasisKind.optional() });
 export const PhraseSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), words: z.array(WordSchema).min(1), lineBreaksAfter: z.array(z.number()), emoji: z.string().max(16).optional() });
-export const TranscriptSchema = z.object({ language: z.string(), words: z.array(WordSchema) });
+// estimatedWords: words of segments whisperX could not align at all, so their timings were spread (absent when none).
+export const TranscriptSchema = z.object({ language: z.string(), words: z.array(WordSchema), estimatedWords: z.number().int().nonnegative().optional() });
 
 export const CutSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), reason: z.enum(["pause", "filler"]), text: z.string(), shouldTrim: z.boolean() });
 export const ShotSchema = z.object({ id: z.string(), kind: ShotKind, startMs: z.number(), endMs: z.number() });
@@ -124,7 +125,8 @@ export const ProjectSchema = z.object({
 });
 
 export const SetSourceInput = z.object({ assetId: z.string().min(1) });
-export const RunInput = z.object({ language: z.string().min(2).max(8).optional() });
+// language: force the spoken language; null = auto-detect again; absent = the project's last language.
+export const RunInput = z.object({ language: z.string().min(2).max(8).nullable().optional() });
 export const RenderInput = z.object({ scale: z.union([z.literal(1), z.literal(2)]).optional() }); // 2 = 4K; absent = the last export's resolution
 export const PlanInput = z
   .object({ languages: z.array(TranslationLanguage).max(3).default([]), burnInLanguage: TranslationLanguage.nullable().default(null) })
@@ -132,6 +134,13 @@ export const PlanInput = z
 export const BrollInput = z.object({
   regenerate: z.boolean().default(false), overlayId: z.string().optional(), query: z.string().max(200).optional(), prompt: z.string().max(600).optional(),
 });
+// What one fal generation is ledgered at, in whole cents (flux/schnell's $0.003 rounds up); the web shows it before spending.
+export const GENERATION_COST_CENTS = { image: 1, video: 25 } as const;
+// One asset on demand (spec row 19): a fal generation from a prompt, or Pexels candidates for a query; overlayId swaps that overlay's media.
+export const GenerateInput = z.object({
+  source: MediaSource, media: OverlayMedia,
+  prompt: z.string().trim().min(1).max(600).optional(), query: z.string().trim().min(1).max(200).optional(), overlayId: z.string().optional(),
+}).refine((v) => (v.source === "generate" ? !!v.prompt : !!v.query), { message: "prompt_or_query" });
 // Typed edits the agent (MCP) applies atomically; the same edits the web UI makes one at a time.
 export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("setTitle"), title: z.string().min(1).max(200) }),
@@ -145,6 +154,8 @@ export const ActionSchema = z.discriminatedUnion("type", [
     endMs: z.number().int().positive().optional(), placement: OverlayPlacement.optional(), transition: OverlayTransition.optional() }),
   z.object({ type: z.literal("removeOverlay"), overlayId: z.string() }),
   z.object({ type: z.literal("replaceOverlay"), overlayId: z.string(), assetId: z.string().min(1) }),
+  z.object({ type: z.literal("addOverlay"), assetId: z.string().min(1), startMs: z.number().int().nonnegative(), endMs: z.number().int().positive(),
+    placement: OverlayPlacement.optional(), transition: OverlayTransition.optional() }),
   z.object({ type: z.literal("setBrand"), brand: BrandKitSchema.nullable() }),
   z.object({ type: z.literal("addMotionGraphic"), ...MotionGraphicInput.shape }),
   z.object({ type: z.literal("updateMotionGraphic"), mgId: z.string(), ...MotionGraphicPatch.shape }),
@@ -172,6 +183,11 @@ export const CreateProjectInput = z.object({
 export const HealthSchema = z.object({ ok: z.literal(true), time: z.string() });
 
 export const AssetKind = z.enum(["video", "audio", "image", "render", "subtitle"]);
+// Where B-roll media came from; overlays copy it when an asset is placed (absent = uploaded).
+export const AssetMetaSchema = z.object({
+  source: OverlaySource, attribution: AttributionSchema.optional(), generationInfo: GenerationInfoSchema.optional(),
+  prompt: z.string().optional(), query: z.string().optional(),
+});
 export const AssetSchema = z.object({
   id: z.string(),
   projectId: z.string().nullable(),
@@ -182,6 +198,7 @@ export const AssetSchema = z.object({
   durationMs: z.number().optional(),
   width: z.number().optional(),
   height: z.number().optional(),
+  meta: AssetMetaSchema.optional(),
   createdAt: z.string(),
 });
 
@@ -198,6 +215,9 @@ export const UploadStartInput = z.object({
   sizeBytes: z.number().int().positive(),
 });
 
+export const Actor = z.enum(["web", "agent"]); // who started a job: the web app, or the agent over MCP (attribution, not auth)
+export const ACTOR_HEADER = "x-sabi-actor";
+export const JobResultSchema = z.object({ assetIds: z.array(z.string()) });
 export const JobStateSchema = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -206,6 +226,22 @@ export const JobStateSchema = z.object({
   progress: z.number(),
   stage: z.string().optional(),
   error: z.string().optional(),
+  result: JobResultSchema.optional(),
+});
+
+// Paid-generation spend (spec rows 19–20). Months are UTC calendar months; a deleted project's rows keep their id and lose their title.
+const Cents = z.number().int().nonnegative();
+export const CatalogSchema = z.object({
+  models: z.array(z.object({ id: z.string(), provider: z.enum(["fal", "pexels"]), media: OverlayMedia, costCents: Cents, available: z.boolean() })),
+  spend: z.object({ monthCents: Cents, capCents: Cents }), // capCents 0 = no cap
+});
+export const UsageRowSchema = z.object({
+  id: z.string(), createdAt: z.string(), model: z.string(), media: OverlayMedia, costCents: Cents, jobKind: z.enum(["broll", "generate"]), actor: Actor,
+  projectId: z.string().nullable(), projectTitle: z.string().nullable(),
+});
+export const UsageSchema = z.object({
+  capCents: Cents, monthCents: Cents,
+  months: z.array(z.object({ month: z.string(), totalCents: Cents, rows: z.array(UsageRowSchema) })), // newest first
 });
 
 export const ProjectEventSchema = z.discriminatedUnion("type", [
@@ -222,6 +258,8 @@ export const api = {
   projectRun: (id: string) => `/api/projects/${id}/run`,
   projectPlan: (id: string) => `/api/projects/${id}/plan`,
   projectBroll: (id: string) => `/api/projects/${id}/broll`,
+  projectGenerate: (id: string) => `/api/projects/${id}/generate`,
+  projectAssets: (id: string) => `/api/projects/${id}/assets`,
   projectFrame: (id: string) => `/api/projects/${id}/frame`,
   projectJob: (id: string) => `/api/projects/${id}/job`,
   projectActions: (id: string) => `/api/projects/${id}/actions`,
@@ -230,4 +268,6 @@ export const api = {
   upload: (uploadId: string) => `/api/assets/uploads/${uploadId}`,
   uploadDone: (uploadId: string) => `/api/assets/uploads/${uploadId}/done`,
   assetFile: (id: string) => `/api/assets/${id}/file`,
+  catalog: "/api/catalog",
+  usage: "/api/usage",
 } as const;

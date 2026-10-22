@@ -5,12 +5,13 @@ import { Link, useLocation, useParams } from "react-router";
 import { mapTime } from "@shared/editing/cuts";
 import { enabledCuts } from "@shared/editing/renderProps";
 import { FPS } from "@shared/remotion/CaptionVideo";
-import type { Action, BrollInput, PlanInput, Project, RenderInput } from "@shared/types";
+import type { Action, BrollInput, GenerateInput, PlanInput, Project, RenderInput } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { track } from "@/features/consent/analytics";
-import { addBroll, assetFileUrl, getProject, planProject, renderProject, runProject, setSource } from "@/features/projects/api/projects";
+import { addBroll, assetFileUrl, generateAsset, getProject, planProject, renderProject, runProject, setSource } from "@/features/projects/api/projects";
 import { UploadDropzone } from "@/features/projects/components/UploadDropzone";
+import { jobErrorText } from "@/features/projects/hooks/projectEvents";
 import { useProjectEvents } from "@/features/projects/hooks/useProjectEvents";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { previewOf } from "./actions/preview";
@@ -54,9 +55,10 @@ export default function EditorPage() {
   const { commit, undo, redo, retry, dismissConflict, pending } = useProjectActions(id, store);
   const refresh = () => qc.invalidateQueries({ queryKey: ["project", id] });
   const source = useMutation({ mutationFn: (assetId: string) => setSource(id, assetId), onSuccess: refresh });
-  const run = useMutation({ mutationFn: () => runProject(id), onSuccess: refresh });
+  const run = useMutation({ mutationFn: (language?: string | null) => runProject(id, language), onSuccess: refresh });
   const plan = useMutation({ mutationFn: (input: PlanInput) => planProject(id, input), onSuccess: refresh });
   const broll = useMutation({ mutationFn: (input: BrollInput) => addBroll(id, input), onSuccess: refresh });
+  const generate = useMutation({ mutationFn: (input: GenerateInput) => generateAsset(id, input), onSuccess: refresh });
   const render = useMutation({ mutationFn: (input: RenderInput) => renderProject(id, input), onSuccess: () => { exporting.current = true; void refresh(); } });
   const [uploadPct, setUploadPct] = useState<number | null>(null);
   const playerRef = useRef<PlayerRef>(null);
@@ -65,9 +67,11 @@ export default function EditorPage() {
   const onFrame = useCallback((frame: number) => store.set({ playheadMs: (frame / FPS) * 1000 }), [store]);
 
   if (!p || !shown) return <main className="p-4 text-ink-muted">{project.isError ? "Project not found." : "Loading…"}</main>;
-  const mutations = [run, plan, broll, render, source];
-  const busy = RUNNING.includes(p.status) || pending || mutations.some((m) => m.isPending);
-  const failure = events.error ?? mutations.find((m) => m.error)?.error?.message ?? (p.status === "failed" ? "see server logs" : null);
+  const mutations = [run, plan, broll, render, source, generate];
+  // A generate job changes no status: the job events say the project is busy.
+  const busy = RUNNING.includes(p.status) || events.running || pending || mutations.some((m) => m.isPending);
+  const error = events.error ?? mutations.find((m) => m.error)?.error?.message;
+  const failure = error ? jobErrorText(error) : p.status === "failed" ? "see server logs" : null;
   const sourceUrl = p.sourceAssetId ? assetFileUrl(p.sourceAssetId) : null;
   const durationMs = p.sourceDurationMs ?? sourceDuration(p);
   const cuts = enabledCuts(p);
@@ -82,7 +86,7 @@ export default function EditorPage() {
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-4">
         <Header p={p} />
         <UploadDropzone projectId={id} onUploaded={(a) => source.mutate(a.id)} onProgress={setUploadPct} />
-        {progress && <StageProgress view={progress} />}
+        {progress && <StageProgress view={progress} queued={events.queued} />}
         {failure && <Notice tone="error">Failed: {failure}</Notice>}
       </main>
     );
@@ -100,7 +104,7 @@ export default function EditorPage() {
         <Button size="sm" aria-label="Undo" disabled={!s.canUndo || busy} onClick={() => void undo()}>↶</Button>
         <Button size="sm" aria-label="Redo" disabled={!s.canRedo || busy} onClick={() => void redo()}>↷</Button>
       </span>
-      {progress && <div className="basis-full"><StageProgress view={progress} /></div>}
+      {progress && <div className="basis-full"><StageProgress view={progress} queued={events.queued} /></div>}
     </div>
   );
   const banner = (
@@ -113,17 +117,18 @@ export default function EditorPage() {
         {failure && <Notice tone="error">Failed: {failure}</Notice>}
       </div>
       {p.warnings.includes("no_speech") && <Notice tone="warn">No speech detected in this clip.</Notice>}
+      {p.warnings.includes("timing_estimated") && <Notice tone="warn">Word timing is approximate for part of this clip (no alignment model for its language, or alignment failed).</Notice>}
       {s.selection && <SelectionBar project={p} selected={s.selection} commit={edit} onAdd={(input) => broll.mutate(input)}
         confirming={s.deleting} onConfirming={(deleting) => store.set({ deleting })} />}
     </div>
   );
   const panels: Record<typeof panelTab, React.ReactNode> = {
     timeline: !s.selection && <p className="text-sm text-ink-muted">Tap a block to edit it; drag its edges to trim; pinch to zoom.</p>,
-    captions: <CaptionsPanel project={p} store={store} commit={edit} busy={busy} onGenerate={() => run.mutate()} />,
+    captions: <CaptionsPanel project={p} store={store} commit={edit} busy={busy} onGenerate={(language) => run.mutate(language)} />,
     broll: (
       <div className="space-y-6">
         {p.transcript && p.phrases.length > 0 && <PlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} commit={edit} onSeek={seek} />}
-        <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} onAdd={(input) => broll.mutate(input)} commit={edit} onSeek={seek} />
+        <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} onAdd={(input) => broll.mutate(input)} onGenerate={(input) => generate.mutate(input)} commit={edit} onSeek={seek} />
       </div>
     ),
     style: <StylePanel project={p} commit={edit} busy={busy} />,

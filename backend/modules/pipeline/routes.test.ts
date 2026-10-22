@@ -1,5 +1,5 @@
 import request from "supertest";
-import { readyProject, untilStatus } from "../../shared/apiTestHelpers";
+import { holdJob, readyProject, untilStatus } from "../../shared/apiTestHelpers";
 import { FakeRenderer } from "../../shared/renderer";
 import { makeTestDeps } from "../../shared/testing";
 
@@ -35,4 +35,25 @@ describe("pipeline routes", () => {
     expect((await request(a).patch(`/api/projects/${project.id}/plan`).send({ cuts: [] })).status).toBe(404);
     expect((await request(a).patch(`/api/projects/${project.id}`).send({ mediaSource: "stock" })).status).toBe(404);
   });
+
+  it("two quick renders: the second gets 409 busy", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const [one, two] = await Promise.all([1, 2].map(() => request(a).post(`/api/projects/${project.id}/render`).send({})));
+    expect([one.status, two.status].sort()).toEqual([202, 409]);
+    expect([one.body, two.body].find((b) => b.error)).toMatchObject({ error: "busy", job: { kind: "captions" } });
+    await untilStatus(a, project.id, "ready");
+  });
+
+  it("a job whose project was deleted while queued fails not_found", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const release = await holdJob(deps, "someone-else"); // the machine is busy with another project's job
+    const { body } = await request(a).post(`/api/projects/${project.id}/render`).send({});
+    expect((await deps.jobs.active(project.id))?.state).toBe("QUEUED");
+    await deps.projects.remove(project.id);
+    release();
+    await vi.waitFor(async () => expect(await deps.jobs.get(project.id, body.jobId)).toMatchObject({ state: "FAILED", error: "not_found" }));
+  });
 });
+

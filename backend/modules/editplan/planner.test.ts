@@ -1,3 +1,4 @@
+import { PLAN_SYSTEM } from "../../../ai/llm/prompts";
 import { segmentCaptions } from "../../../shared/captions/segment";
 import { getCaptionTemplate } from "../../../shared/captions/templates";
 import type { Phrase } from "../../../shared/types";
@@ -13,6 +14,36 @@ const many = (n: number): Phrase[] => Array.from({ length: n }, (_, k) => {
   const p = phrases[k % phrases.length], off = Math.floor(k / phrases.length) * 21000;
   return { ...p, id: `ph-${k}`, startMs: p.startMs + off, endMs: p.endMs + off,
     words: p.words.map((w) => ({ ...w, id: `${w.id}-${k}`, startMs: w.startMs + off, endMs: w.endMs + off })) };
+});
+
+describe("planEdit in Tagalog", () => {
+  const say = (text: string, from: number) => text.split(" ").map((t, i) => ({ id: `w-${from + i}`, text: t, startMs: (from + i) * 300, endMs: (from + i) * 300 + 250 }));
+  // A second phrase only so the batch schema allows three emphasis entries (2 per phrase).
+  const tlPhrases: Phrase[] = [
+    { id: "ph-0", startMs: 0, endMs: 1150, words: say("Ito ang pinakamahalagang bagay", 0), lineBreaksAfter: [] },
+    { id: "ph-1", startMs: 1200, endMs: 1750, words: say("Oo nga", 4), lineBreaksAfter: [] },
+  ];
+  const llm = () => plan([{ from: 0, kind: "Talking Head" }], [
+    { phrase: 0, word: "ang", kind: "keyword" }, { phrase: 0, word: "bagay", kind: "noun" }, { phrase: 0, word: "pinakamahalagang", kind: "keyword" },
+  ]);
+  const emphasised = (out: { phrases: Phrase[] }) => out.phrases[0].words.filter((w) => w.emphasis).map((w) => [w.text, w.emphasis]);
+
+  it("drops emphasis on Tagalog function words", async () => {
+    // the dropped "ang" does not use up one of the phrase's two slots
+    expect(emphasised(await planEdit(llm(), tlPhrases, 2000, "tl"))).toEqual([["pinakamahalagang", "keyword"], ["bagay", "noun"]]);
+  });
+
+  it("sends the Tagalog note to the model", async () => {
+    const l = llm();
+    await planEdit(l, tlPhrases, 2000, "tl");
+    expect(l.calls[0].system).toContain("Taglish");
+  });
+
+  it("english plans are unchanged", async () => {
+    const l = llm();
+    expect(emphasised(await planEdit(l, tlPhrases, 2000, "en"))).toEqual([["ang", "keyword"], ["bagay", "noun"]]);
+    expect(l.calls[0].system).toBe(PLAN_SYSTEM);
+  });
 });
 
 describe("planEdit", () => {

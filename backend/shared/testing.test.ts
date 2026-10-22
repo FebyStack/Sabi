@@ -25,4 +25,16 @@ describe("makeMemoryDeps", () => {
     expect(deps.stock).toBeNull();
     expect(deps.generator).toBeNull();
   });
+
+  it("only real fal spend reaches the ledger file", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "md-"));
+    const row = { id: "r", projectId: "p", provider: "fal" as const, model: "m", media: "image" as const, costCents: 1, jobKind: "generate" as const, actor: "web" as const, createdAt: "2026-10-22T00:00:00.000Z" };
+    vi.stubEnv("FAKE_AI", "1");
+    await makeMemoryDeps(dir).ledger.record(row); // the fake generator costs nothing: memory only
+    vi.stubEnv("FAKE_AI", "");
+    expect(await makeMemoryDeps(dir).ledger.since(new Date(0))).toEqual([]);
+    await makeMemoryDeps(dir).ledger.record(row);
+    expect(await makeMemoryDeps(dir).ledger.since(new Date(0))).toEqual([row]); // real keys: the file, across restarts
+  });
 });
+

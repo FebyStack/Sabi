@@ -1,16 +1,20 @@
 import { ApplyActionsResult, AssetSchema, ProjectSchema, api } from "@shared/contract";
-import type { ApplyActionsInput, Asset, BrollInput, PlanInput, RenderInput } from "@shared/types";
+import type { ApplyActionsInput, Asset, BrollInput, GenerateInput, PlanInput, RenderInput } from "@shared/types";
 import { json } from "@/services/http";
 
 export const getProject = (id: string) => json<unknown>(api.project(id)).then(ProjectSchema.parse);
 export const setSource = (id: string, assetId: string) =>
   json<unknown>(api.projectSource(id), { method: "POST", body: JSON.stringify({ assetId }) }).then(ProjectSchema.parse);
-export const runProject = (id: string, language?: string) =>
-  json<{ jobId: string }>(api.projectRun(id), { method: "POST", body: JSON.stringify(language ? { language } : {}) });
+// language: a code forces it, null re-detects, undefined keeps the project's last language.
+export const runProject = (id: string, language?: string | null) =>
+  json<{ jobId: string }>(api.projectRun(id), { method: "POST", body: JSON.stringify(language === undefined ? {} : { language }) });
 export const planProject = (id: string, input: PlanInput) =>
   json<{ jobId: string }>(api.projectPlan(id), { method: "POST", body: JSON.stringify(input) });
 export const addBroll = (id: string, input: BrollInput) =>
   json<{ jobId: string }>(api.projectBroll(id), { method: "POST", body: JSON.stringify(input) });
+// One asset on demand; with overlayId the job swaps it into that overlay (no render). 402 over_cap rejects with Error("over_cap").
+export const generateAsset = (id: string, input: GenerateInput) =>
+  json<{ jobId: string }>(api.projectGenerate(id), { method: "POST", body: JSON.stringify(input) });
 // Same write path as the editing agent; a 409 stale (someone else edited first) rejects with Error("stale").
 export const applyProjectActions = (id: string, input: ApplyActionsInput) =>
   json<unknown>(api.projectActions(id), { method: "POST", body: JSON.stringify(input) }).then(ApplyActionsResult.parse);

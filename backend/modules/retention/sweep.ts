@@ -3,8 +3,12 @@ import { removeProject } from "../projects/remove";
 
 // The banner's promise (spec rows 2, 18): projects not opened since `olderThan` go, files included; a running job is never touched.
 export async function sweepRetention(deps: AppDeps, olderThan: Date): Promise<string[]> {
-  const ids = (await deps.projects.staleIds(olderThan)).filter((id) => !deps.jobs.active(id));
-  for (const id of ids) await removeProject(deps, id);
+  const ids: string[] = [];
+  for (const id of await deps.projects.staleIds(olderThan)) {
+    if (await deps.jobs.active(id)) continue;
+    await removeProject(deps, id);
+    ids.push(id);
+  }
   return ids;
 }
 
