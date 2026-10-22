@@ -5,6 +5,7 @@ import { MAX_CLIP_MS, UPLOAD_LIMITS, UploadStartInput, api } from "../../../shar
 import type { Asset } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
 import { MAX_IMAGE_PX } from "../../shared/media";
+import { projectLoader } from "../../shared/routes";
 import { TooLarge, limitBytes } from "../../shared/streams";
 
 const kindOf = (mime: string): Asset["kind"] => (mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "image");
@@ -69,6 +70,12 @@ export function assetsRouter(deps: AppDeps) {
       key: up.key, mimeType: up.mimeType, sizeBytes: stored.size, ...info, createdAt: deps.now().toISOString(),
     });
     res.status(201).json(asset);
+  });
+
+  // Everything stored for one project (source, B-roll candidates with provenance, renders, subtitles); the MCP "assets" section reads it.
+  r.get<{ id: string }>(api.projectAssets(":id"), async (req, res) => {
+    const project = await projectLoader(deps)(req, res);
+    if (project) res.json(await deps.assets.listByProject(project.id));
   });
 
   r.get<{ id: string }>(api.assetFile(":id"), async (req, res) => {

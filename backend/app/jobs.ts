@@ -1,5 +1,6 @@
 import { brollJob } from "../modules/broll/job";
 import { planJob } from "../modules/editplan/routes";
+import { generateJob } from "../modules/generate/job";
 import { captionJob } from "../modules/pipeline/pipeline";
 import type { AppDeps } from "../shared/deps";
 
@@ -8,4 +9,5 @@ export function registerJobHandlers(deps: AppDeps): void {
   deps.jobs.handle("captions", captionJob(deps));
   deps.jobs.handle("plan", planJob(deps));
   deps.jobs.handle("broll", brollJob(deps));
+  deps.jobs.handle("generate", generateJob(deps));
 }

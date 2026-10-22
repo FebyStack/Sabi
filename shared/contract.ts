@@ -134,6 +134,11 @@ export const PlanInput = z
 export const BrollInput = z.object({
   regenerate: z.boolean().default(false), overlayId: z.string().optional(), query: z.string().max(200).optional(), prompt: z.string().max(600).optional(),
 });
+// One asset on demand (spec row 19): a fal generation from a prompt, or Pexels candidates for a query; overlayId swaps that overlay's media.
+export const GenerateInput = z.object({
+  source: MediaSource, media: OverlayMedia,
+  prompt: z.string().trim().min(1).max(600).optional(), query: z.string().trim().min(1).max(200).optional(), overlayId: z.string().optional(),
+}).refine((v) => (v.source === "generate" ? !!v.prompt : !!v.query), { message: "prompt_or_query" });
 // Typed edits the agent (MCP) applies atomically; the same edits the web UI makes one at a time.
 export const ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("setTitle"), title: z.string().min(1).max(200) }),
@@ -251,6 +256,8 @@ export const api = {
   projectRun: (id: string) => `/api/projects/${id}/run`,
   projectPlan: (id: string) => `/api/projects/${id}/plan`,
   projectBroll: (id: string) => `/api/projects/${id}/broll`,
+  projectGenerate: (id: string) => `/api/projects/${id}/generate`,
+  projectAssets: (id: string) => `/api/projects/${id}/assets`,
   projectFrame: (id: string) => `/api/projects/${id}/frame`,
   projectJob: (id: string) => `/api/projects/${id}/job`,
   projectActions: (id: string) => `/api/projects/${id}/actions`,

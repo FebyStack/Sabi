@@ -7,6 +7,7 @@ import { brollRouter } from "../modules/broll/routes";
 import { editPlanRouter } from "../modules/editplan/routes";
 import { eventsRouter } from "../modules/events/routes";
 import { framesRouter } from "../modules/frames/routes";
+import { generateRouter } from "../modules/generate/routes";
 import { pipelineRouter } from "../modules/pipeline/routes";
 import { projectsRouter } from "../modules/projects/routes";
 import { usageRouter } from "../modules/usage/routes";
@@ -51,6 +52,7 @@ export function createApp(deps: AppDeps) {
   app.use(framesRouter(deps));
   app.use(actionsRouter(deps));
   app.use(brollRouter(deps));
+  app.use(generateRouter(deps));
   app.use(usageRouter(deps));
 
   app.use("/api", (_req, res) => res.status(404).json({ error: "not_found" }));

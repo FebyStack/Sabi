@@ -41,3 +41,15 @@ export async function holdJob(deps: AppDeps, projectId: string, opts: { kind?: s
   await deps.jobs.enqueue(projectId, opts.kind ?? "hold", { input: {}, actor: "web", prevStatus: "ready" });
   return release;
 }
+
+// readyProject → plan (fake: shot-1 becomes "Talking Head & B-Roll") → a stock B-roll run: overlays ov-0 (shot-1) and ov-1 (shot-2).
+export async function brollProject(deps: AppDeps) {
+  const { a, project } = await readyProject(deps);
+  await request(a).post(`/api/projects/${project.id}/plan`).send({});
+  const planned = await untilStatus(a, project.id, "ready").then(async () => (await request(a).get(`/api/projects/${project.id}`)).body as Project);
+  await request(a).post(`/api/projects/${project.id}/actions`).send({ baseVersion: planned.updatedAt, actions: [
+    { type: "setShotKind", shotId: "shot-1", kind: "Talking Head & B-Roll" }, { type: "setMediaSource", mediaSource: "stock" }] });
+  await request(a).post(`/api/projects/${project.id}/broll`).send({});
+  await vi.waitFor(async () => expect((await request(a).get(`/api/projects/${project.id}`)).body.overlays).toHaveLength(2), { timeout: 5000 });
+  return { a, project: await untilStatus(a, project.id, "ready") };
+}
