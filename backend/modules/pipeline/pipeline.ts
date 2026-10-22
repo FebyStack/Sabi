@@ -41,7 +41,10 @@ export function startCaptionJob(deps: AppDeps, project: Project, opts: RunOption
         phrases = segmentCaptions(words, template.layout);
         if (!opts.transcribe) phrases = carryEmoji(project.phrases, phrases);
       }
-      const warnings = transcript && transcript.words.length === 0 ? ["no_speech"] : [];
+      const warnings = [
+        ...(transcript && transcript.words.length === 0 ? ["no_speech"] : []),
+        ...((transcript?.estimatedWords ?? 0) > 0 ? ["timing_estimated"] : []),
+      ];
       // A new transcript invalidates the plan (cuts, shots, translations all refer to the old words) and the B-roll placed on its shots.
       // Motion graphics and the brand kit are the agent's own work and stay.
       const cleared = opts.transcribe ? { editPlan: null, translations: [], burnInLanguage: null, overlays: [] } : {};

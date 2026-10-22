@@ -6,6 +6,7 @@ import { makeTestDeps } from "../../shared/testing";
 import { FakeTranscriber } from "../../shared/transcriber";
 import { projectWithSource, untilStatus } from "../../shared/apiTestHelpers";
 import type { Project } from "../../../shared/types";
+import sample from "../../shared/fixtures/transcript-sample.json";
 
 describe("caption pipeline", () => {
   it("runs upload → ready with three outputs", async () => {
@@ -60,6 +61,14 @@ describe("caption pipeline", () => {
     await request(a).post(`/api/projects/${project.id}/run`).send({});
     const failed = await untilStatus(a, project.id, "failed");
     expect(failed.status).toBe("failed");
+  });
+
+  it("pipeline warns timing_estimated", async () => {
+    const deps = makeTestDeps({ transcriber: new FakeTranscriber({ language: "tl", words: sample.words.slice(0, 5), estimatedWords: 2 }) });
+    const { a, project } = await projectWithSource(deps);
+    await request(a).post(`/api/projects/${project.id}/run`).send({});
+    const done = await untilStatus(a, project.id, "ready");
+    expect(done.warnings).toEqual(["timing_estimated"]);
   });
 
   it("pipeline marks no_speech", async () => {

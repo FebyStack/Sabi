@@ -113,6 +113,7 @@ export default function EditorPage() {
         {failure && <Notice tone="error">Failed: {failure}</Notice>}
       </div>
       {p.warnings.includes("no_speech") && <Notice tone="warn">No speech detected in this clip.</Notice>}
+      {p.warnings.includes("timing_estimated") && <Notice tone="warn">Word timing is approximate for part of this clip (no alignment model for its language, or alignment failed).</Notice>}
       {s.selection && <SelectionBar project={p} selected={s.selection} commit={edit} onAdd={(input) => broll.mutate(input)}
         confirming={s.deleting} onConfirming={(deleting) => store.set({ deleting })} />}
     </div>
