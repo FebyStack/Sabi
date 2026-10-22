@@ -44,7 +44,9 @@ services:
       FAL_KEY: ${FAL_KEY}
       PEXELS_KEY: ${PEXELS_KEY}
       RETENTION_DAYS: ${RETENTION_DAYS:-30}
-    ports: ["3001:3001"]
+      HOST: 0.0.0.0 # reachable inside the compose network; published on 127.0.0.1 below
+      SPEND_CAP_CENTS: ${SPEND_CAP_CENTS:-} # empty = the $20 default
+    ports: ["127.0.0.1:3001:3001"]
     depends_on: [postgres, minio, redis]
 
   web:
@@ -55,5 +57,5 @@ services:
       args: # analytics is compiled into the web bundle; empty = off
         VITE_POSTHOG_KEY: ${VITE_POSTHOG_KEY:-}
         VITE_POSTHOG_HOST: ${VITE_POSTHOG_HOST:-}
-    ports: ["8080:80"]
+    ports: ["127.0.0.1:8080:80"]
     depends_on: [api]

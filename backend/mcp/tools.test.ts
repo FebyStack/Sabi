@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { createApp } from "../app/app";
 import { holdJob, readyProject } from "../shared/apiTestHelpers";
 import type { AppDeps } from "../shared/deps";
+import { FakeGenerator } from "../shared/generator";
 import { FakeLlm } from "../shared/llm";
 import { FakeRenderer } from "../shared/renderer";
 import { makeTestDeps } from "../shared/testing";
@@ -373,6 +374,15 @@ describe("sabi mcp tools", () => {
     const res = await callTool(api, "apply_actions", { projectId: p.id, baseVersion: p.updatedAt, actions: [{ type: "addOverlay", assetId: "gen-1", startMs: shot.startMs, endMs: shot.startMs + 1000 }] });
     expect(res.isError, res.text).toBeFalsy();
     expect((await api.getProject(p.id)).overlays.at(-1)).toMatchObject({ assetId: "gen-1", source: "generated", prompt: "kettle", shotId: shot.id });
+  });
+
+  it("generate_assets explains a fal timeout (charged) apart from a missing key", async () => {
+    deps.generator = new FakeGenerator(() => new Error("generator_timeout"));
+    const res = await callTool(api, "generate_assets", { projectId: project.id, source: "generate", media: "video", prompt: "steam" });
+    expect(res.isError).toBe(true);
+    expect(res.text).toBe("generate job FAILED: fal.ai did not finish in time; it was still charged (see model_catalog). Try once more later, or use stock");
+    deps.generator = null;
+    expect((await callTool(api, "generate_assets", { projectId: project.id, source: "generate", media: "image", prompt: "x" })).text).toBe("503 generator_unavailable");
   });
 });
 

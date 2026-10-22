@@ -27,7 +27,7 @@ export class BullJobRunner implements JobRunner {
   private handlers = new Map<string, JobHandler>();
   private adding: Promise<unknown> = Promise.resolve(); // enqueue's busy check and add are one step in this process
 
-  constructor(url: string, private bus: EventBus, opts: { queue?: string; lockMs?: number } = {}) {
+  constructor(private url: string, private bus: EventBus, opts: { queue?: string; lockMs?: number } = {}) {
     const connection = { url, maxRetriesPerRequest: null };
     const name = opts.queue ?? "sabi-jobs";
     this.queue = new Queue<Data>(name, { connection, defaultJobOptions: { attempts: 1, removeOnComplete: KEEP, removeOnFail: KEEP } });
@@ -82,9 +82,19 @@ export class BullJobRunner implements JobRunner {
     return state ? toState(job, state) : null;
   }
 
+  // Deleting a job only appends a delete to Redis's append-only log; the write with the prompt stays on disk until the log is
+  // rewritten, so a deleted project's jobs end with a rewrite (BullMQ 6's client wrapper has no raw command: a short connection).
   async forget(projectId: string) {
-    const done = await this.queue.getJobs(["completed", "failed"], 0, -1);
-    await Promise.all(done.filter((j) => j?.data.projectId === projectId).map((j) => j.remove()));
+    const done = (await this.queue.getJobs(["completed", "failed"], 0, -1)).filter((j) => j?.data.projectId === projectId);
+    if (!done.length) return;
+    await Promise.all(done.map((j) => j.remove()));
+    const { Redis } = await import("ioredis");
+    const admin = new Redis(this.url, { maxRetriesPerRequest: 1 });
+    try {
+      await admin.bgrewriteaof().catch(() => {}); // "already in progress" is fine: the next delete rewrites again
+    } finally {
+      admin.disconnect();
+    }
   }
 
   private emit(job: JobState) { this.bus.publish(job.projectId, { type: "job", job }); }

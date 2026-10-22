@@ -64,8 +64,8 @@ export const brollJob = (deps: AppDeps): JobHandler => async ({ projectId, data,
     const resolve = async (spec: Spec, opts: { page?: number; skipUrl?: string } = {}): Promise<Resolved | null> => {
       if (generate) {
         try {
-          const g = await chargeGeneration(deps, { projectId: project.id, prompt: spec.prompt, media: spec.media, ...DIMS[project.aspectRatio], jobKind: "broll", actor: data.actor });
-          credits += g.costCents; // spent at fal even if the file turns out unusable
+          const g = await chargeGeneration(deps, { projectId: project.id, prompt: spec.prompt, media: spec.media, ...DIMS[project.aspectRatio],
+            jobKind: "broll", actor: data.actor, onCharged: (c) => { credits += c; } }); // billed once fal accepts it, even if nothing usable comes back
           const generationInfo = { provider: "fal" as const, model: g.model, prompt: spec.prompt, costCents: g.costCents };
           const asset = await importAsset(g.url, g.media, { source: "generated", generationInfo, prompt: spec.prompt });
           return { ...fromAsset(asset), source: "generated", generationInfo };

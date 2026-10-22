@@ -72,6 +72,7 @@ Agent-written Remotion components drawn between the B-roll and the captions. Rea
 - `400 no_captions` — `run_job captions` first. `400 unknown_id` — the id came from a stale view; re-inspect.
 - `400 bad_code {detail}` — the motion-graphic code broke a rule in `motion-graphics.md`; fix what `detail` names. `400 bad_asset` — the asset is missing or the wrong kind (logos and image props need an image). `400 out_of_range` — an MG must end inside the source, a shot edge broke the 500 ms / fixed-ends rule, or a phrase got shorter than 200 ms. `400 overlap` — a phrase range ran into its neighbour.
 - `wait_job` → `broll FAILED: stock_unavailable` / `generator_unavailable` — the key for the project's media source is not set on the API; switch with `setMediaSource` or ask the user to set it. Warnings `broll_not_found:beat-n` / `no_broll_shots` mean a beat got no media / there is no B-roll shot; `over_cap` means the cap stopped fal and those beats used Pexels.
+- `fal.ai did not finish in time; it was still charged …` (`generator_timeout`) — fal accepted and billed the generation but it ran past the deadline (10 min for a video, 3 for an image). It is in the ledger and counts toward the cap; don't retry in a loop — try once more later or use stock. (`generator_unavailable` is different: no key, or fal refused, nothing billed.)
 - `interrupted by an API restart (nothing was charged twice); run it again` — the API restarted mid-job; a paid job is never re-run on its own. Re-inspect, then run it again if it is still wanted.
 
 ## Tagalog & Taglish

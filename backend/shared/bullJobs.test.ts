@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Redis } from "ioredis";
 import { BullJobRunner } from "./bullJobs";
 import { MemoryEventBus } from "./events";
 import { runnerContract } from "./jobRunnerContract";
@@ -44,4 +45,22 @@ describe.skipIf(!url)("BullJobRunner", { timeout: 30_000 }, () => {
     expect(await r.get("p1", job.id)).toBeNull(); // job data (prompts) is gone from Redis
     await r.close();
   });
+
+  it("forget rewrites Redis's append-only log, so a deleted project's prompts leave the disk", async () => {
+    const admin = new Redis(url!);
+    const rewrites = async () => Number((await admin.info("persistence")).match(/aof_rewrites:(\d+)/)?.[1] ?? 0);
+    const r = new BullJobRunner(url!, new MemoryEventBus(), { queue: queue() });
+    r.handle("ok", async () => {});
+    await r.start();
+    const job = await r.enqueue("p2", "ok", { input: { prompt: "a private prompt" }, actor: "agent", prevStatus: "ready" });
+    await vi.waitFor(async () => expect((await r.get("p2", job.id))?.state).toBe("COMPLETE"));
+    await vi.waitFor(async () => expect((await admin.info("persistence")).includes("aof_rewrite_in_progress:0")).toBe(true));
+    const before = await rewrites();
+    await r.forget("p2");
+    await vi.waitFor(async () => expect(await rewrites()).toBeGreaterThan(before), { timeout: 10_000 }); // the log no longer holds the old write
+    await r.forget("nobody"); // nothing removed: no rewrite needed
+    await r.close();
+    admin.disconnect();
+  });
 });
+

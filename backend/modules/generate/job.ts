@@ -30,8 +30,8 @@ export const generateJob = (deps: AppDeps): JobHandler => async ({ projectId, da
     report(10, "generate");
     if (input.source === "generate") {
       const prompt = input.prompt!;
-      const g = await chargeGeneration(deps, { projectId, prompt, media: input.media, ...DIMS[project.aspectRatio], jobKind: "generate", actor: data.actor });
-      costCents = g.costCents;
+      const g = await chargeGeneration(deps, { projectId, prompt, media: input.media, ...DIMS[project.aspectRatio], jobKind: "generate", actor: data.actor,
+        onCharged: (c) => { costCents += c; } });
       report(60, "import");
       const generationInfo = { provider: "fal" as const, model: g.model, prompt, costCents: g.costCents };
       assets.push(await importAsAsset(deps, { projectId, url: g.url, media: g.media, meta: { source: "generated", generationInfo, prompt } }));

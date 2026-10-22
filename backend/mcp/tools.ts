@@ -37,6 +37,7 @@ const capLine = (monthCents: number, capCents: number) => `monthly cap reached: 
 const JOB_ERRORS: Record<string, string> = {
   interrupted: "interrupted by an API restart (nothing was charged twice); run it again",
   over_cap: "monthly cap reached — raise SPEND_CAP_CENTS on the API",
+  generator_timeout: "fal.ai did not finish in time; it was still charged (see model_catalog). Try once more later, or use stock",
 };
 const jobError = (error: string) => JOB_ERRORS[error] ?? error;
 // One line per stored media asset: id, kind, where it came from, size, its prompt or search words, credit.

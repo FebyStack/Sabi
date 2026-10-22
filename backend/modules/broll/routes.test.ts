@@ -209,5 +209,14 @@ describe("b-roll api", () => {
     await untilJob(a, project.id, "COMPLETE");
     expect((await deps.ledger.since(new Date(0))).map((r) => r.actor)).toEqual(["agent", "agent"]);
   });
+
+  it("a fal video that times out is still ledgered and counted, and the beat falls back to stock", async () => {
+    const deps = makeTestDeps({ generator: new FakeGenerator((r) => (r.media === "video" ? new Error("generator_timeout") : "https://media.test/one.png")) });
+    const { a, project } = await plannedProject(deps, "generate");
+    const done = await broll(a, project.id);
+    expect(done.overlays.map((o) => [o.source, o.media])).toEqual([["generated", "image"], ["stock", "video"]]);
+    expect((await deps.ledger.since(new Date(0))).map((r) => r.costCents).sort((x, y) => x - y)).toEqual([1, 25]);
+    expect(done.creditsUsedCents).toBe(26); // fal billed the video even though nothing came back
+  });
 });
 

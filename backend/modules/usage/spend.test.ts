@@ -52,4 +52,20 @@ describe("chargeGeneration", () => {
     }]);
     expect(JSON.stringify(rows)).not.toContain("rice fields");
   });
+
+  it("a generation fal accepted and then timed out is still ledgered, and the cap sees it", async () => {
+    const deps = makeTestDeps({ generator: new FakeGenerator(() => new Error("generator_timeout")), spendCapCents: 30 });
+    const charged: number[] = [];
+    await expect(chargeGeneration(deps, { ...req, media: "video", onCharged: (c) => charged.push(c) })).rejects.toThrow("generator_timeout");
+    expect(charged).toEqual([25]);
+    expect(await deps.ledger.since(new Date(0))).toMatchObject([{ costCents: 25, media: "video", jobKind: "generate", actor: "agent" }]);
+    await expect(chargeGeneration(deps, { ...req, media: "video" })).rejects.toBeInstanceOf(OverCap); // 25 + 25 > 30: the retry is refused
+  });
+
+  it("a request fal refused is not ledgered", async () => {
+    const deps = makeTestDeps({ generator: new FakeGenerator(() => new Error("generator_unavailable")) });
+    await expect(chargeGeneration(deps, req)).rejects.toThrow("generator_unavailable");
+    expect(await deps.ledger.since(new Date(0))).toEqual([]);
+  });
 });
+

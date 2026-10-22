@@ -21,5 +21,8 @@ export function reduceProjectEvents(state: EventsState, e: ProjectEvent): Events
 const ERRORS: Record<string, string> = {
   interrupted: "Interrupted by a restart — run it again.",
   over_cap: "Monthly spending cap reached — see Usage.",
+  generator_unavailable: "fal.ai isn't set up: add FAL_KEY to the API, or switch B-roll to Stock only.",
+  stock_unavailable: "Pexels isn't set up: add PEXELS_KEY to the API.",
+  generator_timeout: "fal.ai took too long; the attempt was still charged. Try again, or use stock.",
 };
 export const jobErrorText = (error: string) => ERRORS[error] ?? error;

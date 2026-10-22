@@ -40,5 +40,11 @@ describe("reduceProjectEvents", () => {
     expect(jobErrorText("over_cap")).toBe("Monthly spending cap reached — see Usage.");
     expect(jobErrorText("transcriber_unavailable")).toBe("transcriber_unavailable");
   });
+
+  it("jobErrorText names the missing key and a fal timeout", () => {
+    expect(jobErrorText("generator_unavailable")).toBe("fal.ai isn't set up: add FAL_KEY to the API, or switch B-roll to Stock only.");
+    expect(jobErrorText("stock_unavailable")).toBe("Pexels isn't set up: add PEXELS_KEY to the API.");
+    expect(jobErrorText("generator_timeout")).toBe("fal.ai took too long; the attempt was still charged. Try again, or use stock.");
+  });
 });
 

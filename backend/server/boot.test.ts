@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { FsStorage } from "../shared/storage";
 import { MemoryEventBus } from "../shared/events";
 import { MemoryJobRunner } from "../shared/jobs";
-import { createJobRunner, createStorage, shutdownHandler } from "./boot";
+import { createJobRunner, createStorage, listenHost, shutdownHandler } from "./boot";
 
 describe("createStorage", () => {
   it("uses files under DATA_DIR without S3_ENDPOINT (or with an empty one)", async () => {
@@ -44,6 +44,14 @@ describe("shutdownHandler", () => {
     const exits: number[] = [];
     await shutdownHandler({ close: async () => { throw new Error("gone"); } }, (code) => exits.push(code))();
     expect(exits).toEqual([0]);
+  });
+});
+
+describe("listenHost", () => {
+  it("answers this Mac only unless HOST says otherwise (Docker sets 0.0.0.0 inside its own network)", () => {
+    expect(listenHost({})).toBe("127.0.0.1"); // a LAN client could forge Host: localhost, so it must not reach the port at all
+    expect(listenHost({ HOST: " " })).toBe("127.0.0.1");
+    expect(listenHost({ HOST: "0.0.0.0" })).toBe("0.0.0.0");
   });
 });
 

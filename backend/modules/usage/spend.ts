@@ -26,17 +26,22 @@ export async function assertUnderCap(deps: Pick<AppDeps, "ledger" | "now" | "spe
   if (month + costCents > deps.spendCapCents) throw new OverCap(month, deps.spendCapCents);
 }
 
-// The only way to call fal: the cap first, then the generation, then its ledger row as soon as fal answers
-// (fal has charged even if the file later fails to import).
+// The only way to call fal: the cap first, then the generation, whose ledger row is written the moment fal accepts the paid
+// request — a generation that then times out or fails to import was still billed, and the cap must see it. onCharged lets the
+// caller count it on the project too.
 export async function chargeGeneration(deps: AppDeps, req: {
   projectId: string; prompt: string; media: OverlayMedia; width: number; height: number; jobKind: "broll" | "generate"; actor: Actor;
+  onCharged?(costCents: number): void;
 }): Promise<GeneratedMedia> {
   if (!deps.generator) throw new Error("generator_unavailable");
   await assertUnderCap(deps, FAL_MODELS[req.media].costCents);
-  const g = await deps.generator.generate({ prompt: req.prompt, media: req.media, width: req.width, height: req.height });
-  await deps.ledger.record({
-    id: deps.id(), projectId: req.projectId, provider: "fal", model: g.model, media: g.media, costCents: g.costCents,
-    jobKind: req.jobKind, actor: req.actor, createdAt: deps.now().toISOString(),
+  return deps.generator.generate({ prompt: req.prompt, media: req.media, width: req.width, height: req.height }, {
+    onCharged: async ({ model, costCents }) => {
+      await deps.ledger.record({
+        id: deps.id(), projectId: req.projectId, provider: "fal", model, media: req.media, costCents,
+        jobKind: req.jobKind, actor: req.actor, createdAt: deps.now().toISOString(),
+      });
+      req.onCharged?.(costCents);
+    },
   });
-  return g;
 }

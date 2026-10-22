@@ -46,3 +46,7 @@ export const shutdownHandler = (renderer: { close?(): Promise<void> }, exit: (co
   await renderer.close?.().catch(() => {});
   exit(0);
 };
+
+// The Host check (createApp) stops browsers, not a LAN machine that sends "Host: localhost" itself: listen on this Mac only.
+// Docker sets HOST=0.0.0.0 (nginx and the render browser reach the api over its network) and publishes the port on 127.0.0.1.
+export const listenHost = (env: NodeJS.ProcessEnv) => env.HOST?.trim() || "127.0.0.1";

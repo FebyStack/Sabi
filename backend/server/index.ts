@@ -15,7 +15,7 @@ import { applySchema, createPool, ensureStorageMatches } from "../shared/pg";
 import { RemotionRenderer } from "../shared/renderer";
 import { PexelsStock } from "../shared/stock";
 import { WhisperXTranscriber } from "../shared/transcriber";
-import { createJobRunner, createStorage, shutdownHandler } from "./boot";
+import { createJobRunner, createStorage, listenHost, shutdownHandler } from "./boot";
 
 const port = Number(process.env.PORT ?? 3001);
 const url = process.env.DATABASE_URL;
@@ -57,7 +57,7 @@ const deps: AppDeps = {
 };
 const demo = await seedDemo(deps).catch((err) => { console.error("demo seed failed", err); return null; }); // only into an empty database
 if (demo) console.log(`seeded demo project ${demo.id}`);
-createApp(deps).listen(port, () => console.log(`api (postgres) on http://localhost:${port}, files in ${storage.describe()}, jobs ${process.env.REDIS_URL ? "in Redis" : "in memory"}`));
+createApp(deps).listen(port, listenHost(process.env), () => console.log(`api (postgres) on http://localhost:${port}, files in ${storage.describe()}, jobs ${process.env.REDIS_URL ? "in Redis" : "in memory"}`));
 await jobs.start?.(); // after createApp registered the handlers
 startRetention(deps);
 const warmStart = Date.now(); // bundle + browser now, so the first render or frame does not pay for them
