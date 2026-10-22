@@ -147,6 +147,8 @@ export const ActionSchema = z.discriminatedUnion("type", [
     endMs: z.number().int().positive().optional(), placement: OverlayPlacement.optional(), transition: OverlayTransition.optional() }),
   z.object({ type: z.literal("removeOverlay"), overlayId: z.string() }),
   z.object({ type: z.literal("replaceOverlay"), overlayId: z.string(), assetId: z.string().min(1) }),
+  z.object({ type: z.literal("addOverlay"), assetId: z.string().min(1), startMs: z.number().int().nonnegative(), endMs: z.number().int().positive(),
+    placement: OverlayPlacement.optional(), transition: OverlayTransition.optional() }),
   z.object({ type: z.literal("setBrand"), brand: BrandKitSchema.nullable() }),
   z.object({ type: z.literal("addMotionGraphic"), ...MotionGraphicInput.shape }),
   z.object({ type: z.literal("updateMotionGraphic"), mgId: z.string(), ...MotionGraphicPatch.shape }),
@@ -174,6 +176,11 @@ export const CreateProjectInput = z.object({
 export const HealthSchema = z.object({ ok: z.literal(true), time: z.string() });
 
 export const AssetKind = z.enum(["video", "audio", "image", "render", "subtitle"]);
+// Where B-roll media came from; overlays copy it when an asset is placed (absent = uploaded).
+export const AssetMetaSchema = z.object({
+  source: OverlaySource, attribution: AttributionSchema.optional(), generationInfo: GenerationInfoSchema.optional(),
+  prompt: z.string().optional(), query: z.string().optional(),
+});
 export const AssetSchema = z.object({
   id: z.string(),
   projectId: z.string().nullable(),
@@ -184,6 +191,7 @@ export const AssetSchema = z.object({
   durationMs: z.number().optional(),
   width: z.number().optional(),
   height: z.number().optional(),
+  meta: AssetMetaSchema.optional(),
   createdAt: z.string(),
 });
 

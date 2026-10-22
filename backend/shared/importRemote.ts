@@ -1,6 +1,6 @@
 import { Readable } from "node:stream";
 import type { ReadableStream as WebStream } from "node:stream/web";
-import type { OverlayMedia } from "../../shared/types";
+import type { Asset, AssetMeta, OverlayMedia } from "../../shared/types";
 import type { AppDeps } from "./deps";
 import { MAX_IMAGE_PX, type MediaInfo } from "./media";
 import { limitBytes } from "./streams";
@@ -40,4 +40,16 @@ export async function importRemote(
     await deps.storage.remove(key);
     throw bad();
   }
+}
+
+// importRemote + the asset row, with where it came from (stock attribution, or the generation and its prompt).
+export async function importAsAsset(
+  deps: Pick<AppDeps, "storage" | "media" | "id" | "fetch" | "assets" | "now">, req: { projectId: string; url: string; media: OverlayMedia; meta: AssetMeta },
+): Promise<Asset> {
+  const { key, mimeType, info } = await importRemote(deps, req.url, { expect: req.media });
+  const stored = await deps.storage.stat(key);
+  return deps.assets.create({
+    id: deps.id(), projectId: req.projectId, kind: req.media, key, mimeType, sizeBytes: stored?.size ?? 0, width: info.width, height: info.height,
+    ...(req.media === "video" ? { durationMs: info.durationMs } : {}), meta: req.meta, createdAt: deps.now().toISOString(),
+  });
 }

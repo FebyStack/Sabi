@@ -56,6 +56,7 @@ describe("b-roll api", () => {
     expect((deps.renderer as FakeRenderer).calls.at(-1)!.inputProps.overlays).toHaveLength(2);
     const asset = (await request(a).get(`/api/assets/${done.overlays[0].assetId}/file`));
     expect(asset.headers["content-type"]).toContain("image/png");
+    expect((await deps.assets.get(done.overlays[0].assetId))?.meta).toEqual({ source: "stock", attribution: IMG1.attribution, query: "stock smoothie." });
   });
 
   it("generate mode uses the generator and charges credits", async () => {
@@ -67,6 +68,7 @@ describe("b-roll api", () => {
     expect(done.overlays[1].durationMs).toBeGreaterThan(0);
     expect(done.overlays[1].generationInfo).toMatchObject({ provider: "fal", costCents: 25, prompt: expect.stringMatching(/^photo of me, that is making my bed/) });
     expect(done.creditsUsedCents).toBe(26);
+    expect((await deps.assets.get(done.overlays[1].assetId))?.meta).toEqual({ source: "generated", generationInfo: done.overlays[1].generationInfo, prompt: done.overlays[1].prompt });
   });
 
   it("generation failure falls back to stock", async () => {

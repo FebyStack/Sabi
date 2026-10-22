@@ -43,3 +43,4 @@ CREATE TABLE IF NOT EXISTS assets (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS assets_project_idx ON assets (project_id);
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS meta JSONB;                -- B-roll provenance: source, attribution, generation, prompt/query

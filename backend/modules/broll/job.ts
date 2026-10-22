@@ -2,10 +2,10 @@ import type { z } from "zod";
 import type { BrollInput } from "../../../shared/contract";
 import { deriveBeats } from "../../../shared/editing/beats";
 import { DIMS } from "../../../shared/editing/renderProps";
-import type { Actor, Asset, JobState, Overlay, OverlayMedia, Project, ProjectStatus } from "../../../shared/types";
+import type { Actor, Asset, AssetMeta, JobState, Overlay, OverlayMedia, Project, ProjectStatus } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
 import type { JobHandler } from "../../shared/jobs";
-import { importRemote } from "../../shared/importRemote";
+import { importAsAsset } from "../../shared/importRemote";
 import { nextId } from "../actions/apply";
 import { renderOutputs } from "../pipeline/pipeline";
 import { labelBeats } from "./labeler";
@@ -43,14 +43,7 @@ export const brollJob = (deps: AppDeps): JobHandler => async ({ projectId, data,
     const warnings: string[] = [];
     const orientation = project.aspectRatio === "9:16" ? "portrait" : "landscape";
 
-    const importAsset = async (url: string, media: OverlayMedia): Promise<Asset> => {
-      const { key, mimeType, info } = await importRemote(deps, url, { expect: media });
-      const stored = await deps.storage.stat(key);
-      return deps.assets.create({
-        id: deps.id(), projectId: project.id, kind: media, key, mimeType, sizeBytes: stored?.size ?? 0, width: info.width, height: info.height,
-        ...(media === "video" ? { durationMs: info.durationMs } : {}), createdAt: deps.now().toISOString(),
-      });
-    };
+    const importAsset = (url: string, media: OverlayMedia, meta: AssetMeta) => importAsAsset(deps, { projectId: project.id, url, media, meta });
     const fromAsset = (a: Asset): Pick<Resolved, "assetId" | "media" | "durationMs"> =>
       ({ assetId: a.id, media: a.kind as OverlayMedia, ...(a.kind === "video" && a.durationMs ? { durationMs: a.durationMs } : {}) });
 
@@ -62,7 +55,7 @@ export const brollJob = (deps: AppDeps): JobHandler => async ({ projectId, data,
       let results = await search(spec.query);
       if (!results.length && spec.intent && spec.intent !== spec.query) results = await search(spec.intent);
       for (const r of results.slice(0, MAX_TRIES)) {
-        const asset = await importAsset(r.url, r.media).catch(() => null);
+        const asset = await importAsset(r.url, r.media, { source: "stock", attribution: r.attribution, query: spec.query }).catch(() => null);
         if (asset) return { ...fromAsset(asset), source: "stock", attribution: r.attribution };
       }
       return null;
@@ -72,8 +65,9 @@ export const brollJob = (deps: AppDeps): JobHandler => async ({ projectId, data,
         try {
           const g = await deps.generator!.generate({ prompt: spec.prompt, media: spec.media, ...DIMS[project.aspectRatio] });
           credits += g.costCents; // spent at fal even if the file turns out unusable
-          const asset = await importAsset(g.url, g.media);
-          return { ...fromAsset(asset), source: "generated", generationInfo: { provider: "fal", model: g.model, prompt: spec.prompt, costCents: g.costCents } };
+          const generationInfo = { provider: "fal" as const, model: g.model, prompt: spec.prompt, costCents: g.costCents };
+          const asset = await importAsset(g.url, g.media, { source: "generated", generationInfo, prompt: spec.prompt });
+          return { ...fromAsset(asset), source: "generated", generationInfo };
         } catch { /* fal failed for this beat: Pexels, never the reverse */ }
       }
       return fromStock(spec, opts);
