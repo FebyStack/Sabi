@@ -4,7 +4,7 @@ import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sd
 import type { SabiApi } from "./client";
 import { TOOL_NAMES, callTool, toolSpec } from "./tools";
 
-// Maps each tool's ToolResult onto MCP content (image first, then the text line). No model calls here, ever.
+// Maps each tool's ToolResult onto MCP content (images first, then the text). No model calls here, ever.
 export function createSabiMcpServer(api: SabiApi, { heartbeatMs = 5000 } = {}): McpServer {
   const server = new McpServer({ name: "sabi", version: "0.1.0" });
   for (const name of TOOL_NAMES) {
@@ -19,7 +19,7 @@ export function createSabiMcpServer(api: SabiApi, { heartbeatMs = 5000 } = {}): 
         const r = await callTool(api, name, input);
         return {
           content: [
-            ...(r.image ? [{ type: "image" as const, data: r.image.data.toString("base64"), mimeType: r.image.mimeType }] : []),
+            ...(r.images ?? []).map((img) => ({ type: "image" as const, data: img.data.toString("base64"), mimeType: img.mimeType })),
             { type: "text" as const, text: r.text },
           ],
           ...(r.isError ? { isError: true } : {}),

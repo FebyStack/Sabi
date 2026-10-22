@@ -9,7 +9,7 @@ import { createSabiMcpServer } from "./server";
 import { TOOL_NAMES } from "./tools";
 
 describe("sabi mcp server", () => {
-  it("lists nine tools and round-trips inspect_project over InMemoryTransport", async () => {
+  it("lists eleven tools and round-trips inspect_project over InMemoryTransport", async () => {
     const deps = makeTestDeps();
     const { project } = await readyProject(deps);
     const http = createApp(deps).listen(0);
@@ -21,7 +21,8 @@ describe("sabi mcp server", () => {
 
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
-    expect(tools).toHaveLength(9);
+    expect(tools).toHaveLength(11);
+    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(["model_catalog", "generate_assets"]));
     expect(tools.map((t) => t.name)).toContain("upload_asset");
 
     const res = await client.callTool({ name: "inspect_project", arguments: { projectId: project.id } });

@@ -32,7 +32,8 @@ Timing and caption detail (source ms):
 Layer actions (source time, like everything inspect prints):
 - `setMediaSource {mediaSource: generate|stock}` — where the next `run_job broll` gets media (stock = Pexels only, never fal).
 - `setOverlay {overlayId, enabled?, startMs?, endMs?, placement?: full|top, transition?: fade|none}` — the range must stay inside its shot (`400 out_of_shot`).
-- `removeOverlay {overlayId}` · `replaceOverlay {overlayId, assetId}` — an image or video asset from `upload_asset`.
+- `removeOverlay {overlayId}` · `replaceOverlay {overlayId, assetId}` — an image or video asset (from `generate_assets` or `upload_asset`); the overlay takes its source, credit and prompt.
+- `addOverlay {assetId, startMs, endMs, placement?, transition?}` — a new overlay anywhere inside one `B-Roll` (default `full`) or `Talking Head & B-Roll` (default `top`) shot; `400 not_in_broll_shot` otherwise, `400 overlap` over an overlay that is on.
 - `setBrand {brand: {palette: {primary, accent, text, background}, fontFamily, logoAssetId?, grade?} | null}` — the whole kit at once; `null` = template colours, no grade.
 - `addMotionGraphic {name, code, startMs, endMs, box?, props?}` · `updateMotionGraphic {mgId, …any of those, enabled?}` · `removeMotionGraphic {mgId}` — read `motion-graphics.md` in this skill folder before writing one.
 
@@ -40,6 +41,7 @@ Layer actions (source time, like everything inspect prints):
 
 - Overlays are drawn only over shots whose kind is `B-Roll` (full frame) or `Talking Head & B-Roll` (top band, above the captions). Flip a shot with `setShotKind`; inspect marks the overlays of other shots `stale`, and the next `run_job broll` replaces them.
 - Toggle or retime: `setOverlay`. Another pick for one overlay: `run_job {kind: "broll", overlayId, query?}` (stock: next results page; generate: a new fal image). Redo all: `run_job {kind: "broll", regenerate: true}`.
+- **One asset on demand** (no re-render): `model_catalog` once per session (what is available, cost, this month vs the cap) → `generate_assets {projectId, source: "stock", media, query}` (up to 3 free Pexels candidates, shown inline) or `{source: "generate", media, prompt}` (one fal image 1¢, or a video 25¢ that takes 1–3 min) → pick one → `apply_actions addOverlay` or `replaceOverlay` → `render_frame` on it → `run_job render` when the user is happy. Prefer stock unless the user asks for generated media or stock has nothing fitting. Earlier results: `inspect_project {section: "assets"}` (each asset and where it is used).
 - The user's own picture or clip: `upload_asset {projectId, path}` → `replaceOverlay {overlayId, assetId}`.
 - Stock overlays carry a Pexels attribution; keep it (the panel shows "Photo: <author> / Pexels").
 
@@ -58,7 +60,7 @@ Agent-written Remotion components drawn between the B-roll and the captions. Rea
 - Summary first; never page through every phrase "just to look". Search instead.
 - At most 4 `render_frame` calls per turn (each is an image in context).
 - `run_job plan` recomputes cuts and shots (manual toggles are lost) and needs local Ollama: run it before fine edits, not after.
-- `run_job broll` in generate mode spends fal.ai credits (≈ $0.01 an image, $0.25 the one video beat); the summary's `credits` line shows the total. Prefer stock while exploring.
+- fal.ai costs money: 1¢ an image, 25¢ a video, whether from `run_job broll` in generate mode or `generate_assets`; the summary's `credits` line is the project's total. A monthly cap (default $20, `SPEND_CAP_CENTS` on the API) stops every fal call past it — `monthly cap reached: …` means stop generating and tell the user; never loop on generations hoping one looks right (one, look, then decide). Prefer stock while exploring.
 
 ## When something fails
 
@@ -69,7 +71,8 @@ Agent-written Remotion components drawn between the B-roll and the captions. Rea
 - `Sabi API not reachable …` — tell the user to start the API: `FAKE_AI=1 npm run dev:lite` (launch config `api-lite-fake`) or `npm run dev:lite`.
 - `400 no_captions` — `run_job captions` first. `400 unknown_id` — the id came from a stale view; re-inspect.
 - `400 bad_code {detail}` — the motion-graphic code broke a rule in `motion-graphics.md`; fix what `detail` names. `400 bad_asset` — the asset is missing or the wrong kind (logos and image props need an image). `400 out_of_range` — an MG must end inside the source, a shot edge broke the 500 ms / fixed-ends rule, or a phrase got shorter than 200 ms. `400 overlap` — a phrase range ran into its neighbour.
-- `wait_job` → `broll FAILED: stock_unavailable` / `generator_unavailable` — the key for the project's media source is not set on the API; switch with `setMediaSource` or ask the user to set it. Warnings `broll_not_found:beat-n` / `no_broll_shots` mean a beat got no media / there is no B-roll shot.
+- `wait_job` → `broll FAILED: stock_unavailable` / `generator_unavailable` — the key for the project's media source is not set on the API; switch with `setMediaSource` or ask the user to set it. Warnings `broll_not_found:beat-n` / `no_broll_shots` mean a beat got no media / there is no B-roll shot; `over_cap` means the cap stopped fal and those beats used Pexels.
+- `interrupted by an API restart (nothing was charged twice); run it again` — the API restarted mid-job; a paid job is never re-run on its own. Re-inspect, then run it again if it is still wanted.
 
 ## Tagalog & Taglish
 

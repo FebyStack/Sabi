@@ -9,10 +9,10 @@ import { deriveBeats } from "../../shared/editing/beats";
 import { keptSegments, mapTime } from "../../shared/editing/cuts";
 import { staleOverlays } from "../../shared/editing/overlays";
 import { enabledCuts } from "../../shared/editing/renderProps";
-import type { JobState, Project } from "../../shared/types";
+import type { Asset, Catalog, JobState, Project } from "../../shared/types";
 import { SabiHttpError, SabiUnreachable, type SabiApi } from "./client";
 
-export type ToolResult = { text: string; image?: { data: Buffer; mimeType: "image/png" }; isError?: boolean };
+export type ToolResult = { text: string; images?: { data: Buffer; mimeType: string }[]; isError?: boolean };
 
 const RUNNING = ["transcribing", "planning", "generating", "rendering"];
 const MIME: Record<string, string> = { ".mp4": "video/mp4", ".mov": "video/quicktime", ".mp3": "audio/mpeg", ".wav": "audio/wav" };
@@ -20,6 +20,9 @@ const ASSET_MIME: Record<string, string> = { ".png": "image/png", ".jpg": "image
 const CAPTION_BAND_Y = 0.72; // a motion-graphic box reaching below this sits on the captions
 const LIST_CAP = 30; // summary lists stay inside the token budget; the plan section has everything
 const POLL_MS = 1000;
+const GENERATE_WAIT_MS = 600_000; // a Kling video takes 1–3 min
+const INLINE_IMAGES = 3;
+const INLINE_MAX_BYTES = 5 * 1024 ** 2;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const mmss = (ms: number) => `${Math.floor(ms / 60_000)}:${pad(Math.floor((ms % 60_000) / 1000))}`;
@@ -28,6 +31,21 @@ const capped = (lines: string[], more: string) => (lines.length > LIST_CAP ? [..
 const outputMs = (p: Project) => keptSegments(p.sourceDurationMs ?? 0, enabledCuts(p)).reduce((ms, s) => ms + s.endMs - s.startMs, 0);
 const jobLine = (j: JobState) => `${j.kind} job ${j.state} ${Math.round(j.progress)}%${j.stage ? ` (${j.stage})` : ""}`;
 const fail = (text: string): ToolResult => ({ text, isError: true });
+const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+const monthLine = (s: Catalog["spend"]) => `this month ${usd(s.monthCents)}${s.capCents ? ` of ${usd(s.capCents)}` : " (no cap)"}`;
+const capLine = (monthCents: number, capCents: number) => `monthly cap reached: ${usd(monthCents)} of ${usd(capCents)} — raise SPEND_CAP_CENTS on the API`;
+const JOB_ERRORS: Record<string, string> = {
+  interrupted: "interrupted by an API restart (nothing was charged twice); run it again",
+  over_cap: "monthly cap reached — raise SPEND_CAP_CENTS on the API",
+};
+const jobError = (error: string) => JOB_ERRORS[error] ?? error;
+// One line per stored media asset: id, kind, where it came from, size, its prompt or search words, credit.
+const assetLine = (a: Asset) => {
+  const label = a.meta?.prompt ?? a.meta?.query;
+  const credit = a.meta?.attribution ? ` (${a.kind === "video" ? "Video" : "Photo"}: ${a.meta.attribution.author} / Pexels)` : "";
+  const secs = a.kind === "video" && a.durationMs ? ` ${(a.durationMs / 1000).toFixed(1)}s` : "";
+  return `${a.id} ${a.kind} ${a.meta?.source ?? "uploaded"} ${a.width ?? "?"}×${a.height ?? "?"}${secs}${label ? ` "${label}"` : ""}${credit}`;
+};
 
 // Paths come from the conversation: only the user's home tree, resolved through symlinks.
 async function underHome(path: string) {
@@ -122,6 +140,19 @@ function brollSection(p: Project) {
   ].join("\n");
 }
 
+// Image/video assets of the project (not its source, not renders) and where each is used, so earlier generate_assets results can be found.
+async function assetsSection(api: SabiApi, p: Project) {
+  const media = (await api.listAssets(p.id)).filter((a) => (a.kind === "image" || a.kind === "video") && a.id !== p.sourceAssetId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const uses = (id: string) => [
+    ...p.overlays.filter((o) => o.assetId === id).map((o) => o.id),
+    ...p.motionGraphics.flatMap((m) => m.props.filter((x) => x.type === "image" && x.value === id).map((x) => `${m.id} prop ${x.key}`)),
+    ...(p.brand?.logoAssetId === id ? ["logo"] : []),
+  ];
+  const lines = media.map((a) => `${assetLine(a)} · ${uses(a.id).join(", ") || "unused"}`);
+  return [...(lines.length ? capped(lines, "newest first") : ["no B-roll media yet (generate_assets, upload_asset or run_job broll)"]), `baseVersion: ${p.updatedAt}`].join("\n");
+}
+
 function outputsSection(p: Project) {
   const o = p.outputs;
   return [
@@ -146,10 +177,10 @@ const TOOLS = {
   inspect_project: {
     description: "Inspect a project. Default: a compact summary ending with baseVersion (pass it to apply_actions). " +
       'section "phrases" pages caption phrases (offset/limit); search finds words by regex with their times; "plan" lists all cuts and shots; ' +
-      '"broll" lists beats, overlays, motion graphics and the brand kit; "outputs" lists rendered assets.',
+      '"broll" lists beats, overlays, motion graphics and the brand kit; "assets" lists stored images/videos and where each is used; "outputs" lists rendered assets.',
     inputSchema: {
       projectId,
-      section: z.enum(["summary", "phrases", "plan", "broll", "outputs"]).default("summary"),
+      section: z.enum(["summary", "phrases", "plan", "broll", "assets", "outputs"]).default("summary"),
       search: z.string().min(1).optional().describe("case-insensitive regex over caption words"),
       offset: z.number().int().min(0).default(0),
       limit: z.number().int().min(1).max(200).default(40),
@@ -160,6 +191,7 @@ const TOOLS = {
       if (i.section === "phrases") return { text: phrasesPage(p, i.offset, i.limit) };
       if (i.section === "plan") return { text: planSection(p) };
       if (i.section === "broll") return { text: brollSection(p) };
+      if (i.section === "assets") return { text: await assetsSection(api, p) };
       if (i.section === "outputs") return { text: outputsSection(p) };
       return { text: summary(p) };
     },
@@ -173,12 +205,12 @@ const TOOLS = {
     },
     run: async (api: SabiApi, i: { projectId: string; timestampMs: number; width: number }): Promise<ToolResult> => {
       const { data, ms } = await api.frame(i.projectId, i.timestampMs, i.width);
-      return { image: { data, mimeType: "image/png" }, text: `frame at ${mmssd(ms)} (output timeline)` };
+      return { images: [{ data, mimeType: "image/png" }], text: `frame at ${mmssd(ms)} (output timeline)` };
     },
   },
   apply_actions: {
     description: "Apply typed edits atomically (all or nothing): setTitle, editPhrase, setCut, setShotKind, setTemplate, setBurnIn, " +
-      "setMediaSource, setOverlay, removeOverlay, replaceOverlay, setBrand, addMotionGraphic, updateMotionGraphic, removeMotionGraphic, " +
+      "setMediaSource, setOverlay, removeOverlay, replaceOverlay, addOverlay, setBrand, addMotionGraphic, updateMotionGraphic, removeMotionGraphic, " +
       "setShotBounds, retimePhraseRange, setWordEmphasis, setPhraseEmoji, setCaptionStyle (see the sabi-editor skill). " +
       "Pass the baseVersion from your last inspect_project; render:true also starts a re-render (otherwise verify with render_frame first).",
     inputSchema: {
@@ -236,7 +268,7 @@ const TOOLS = {
         const running = job?.state === "QUEUED" || job?.state === "PROCESSING";
         if (!running && !RUNNING.includes(p.status)) {
           // A failed plan restores the previous status, so the job's own state is the only sign it failed.
-          const outcome = job ? `; last job ${job.kind} ${job.state}${job.error ? `: ${job.error}` : ""}` : "";
+          const outcome = job ? `; last job ${job.kind} ${job.state}${job.error ? `: ${jobError(job.error)}` : ""}` : "";
           const text = `status ${p.status} after ${secs}s${outcome}${p.warnings.length ? `; warnings: ${p.warnings.join(", ")}` : ""}`;
           return p.status === "failed" || job?.state === "FAILED" ? fail(text) : { text };
         }
@@ -244,6 +276,63 @@ const TOOLS = {
         if (Date.now() - t0 >= i.timeoutMs) return fail(`still ${p.status} after ${secs}s${stage}; call wait_job again`);
         await new Promise((r) => setTimeout(r, POLL_MS));
       }
+    },
+  },
+  model_catalog: {
+    description: "List the media models (fal.ai generation, Pexels stock): cost per asset, whether the API can use them, and this month's spend against the cap.",
+    inputSchema: {},
+    run: async (api: SabiApi) => {
+      const c = await api.catalog();
+      const key = { fal: "FAL_KEY", pexels: "PEXELS_KEY" } as const;
+      return { text: [
+        ...c.models.map((m) => `${m.id} · ${m.media} · ${m.costCents ? `${m.costCents}¢` : "free"} · ${m.available ? "available" : `unavailable (set ${key[m.provider]} on the API)`}`),
+        monthLine(c.spend),
+      ].join("\n") };
+    },
+  },
+  generate_assets: {
+    description: 'Make B-roll media without re-rendering: source "generate" + prompt = one fal.ai image (1¢) or video (25¢, 1–3 min); ' +
+      'source "stock" + query = up to 3 free Pexels candidates. Waits, shows images, prints asset ids; place one with apply_actions addOverlay or replaceOverlay.',
+    inputSchema: {
+      projectId,
+      source: z.enum(["generate", "stock"]),
+      media: z.enum(["image", "video"]),
+      prompt: z.string().trim().min(1).max(600).optional().describe("generate only: what to draw"),
+      query: z.string().trim().min(1).max(200).optional().describe("stock only: search words"),
+    },
+    run: async (api: SabiApi, i: { projectId: string; source: "generate" | "stock"; media: "image" | "video"; prompt?: string; query?: string }): Promise<ToolResult> => {
+      let jobId: string;
+      try {
+        ({ jobId } = await api.generate(i.projectId, { source: i.source, media: i.media, prompt: i.prompt, query: i.query }));
+      } catch (e) {
+        if (e instanceof SabiHttpError && e.body.error === "over_cap") return fail(capLine(Number(e.body.monthCents), Number(e.body.capCents)));
+        throw e;
+      }
+      const t0 = Date.now();
+      let job = await api.getJobById(i.projectId, jobId);
+      while (job.state === "QUEUED" || job.state === "PROCESSING") {
+        if (Date.now() - t0 >= GENERATE_WAIT_MS) return fail(`still ${jobLine(job)}; call wait_job, then inspect_project {section: "assets"}`);
+        await new Promise((r) => setTimeout(r, POLL_MS));
+        job = await api.getJobById(i.projectId, jobId);
+      }
+      if (job.state === "FAILED") {
+        if (job.error === "over_cap") { const { spend } = await api.catalog(); return fail(capLine(spend.monthCents, spend.capCents)); }
+        return fail(`generate job FAILED: ${jobError(job.error ?? "failed")}`);
+      }
+      const ids = job.result?.assetIds ?? [];
+      const byId = new Map((await api.listAssets(i.projectId)).map((a) => [a.id, a]));
+      const assets = ids.flatMap((id) => byId.get(id) ?? []);
+      const images = await Promise.all(assets.filter((a) => a.kind === "image" && a.sizeBytes <= INLINE_MAX_BYTES).slice(0, INLINE_IMAGES)
+        .map(async (a) => ({ data: await api.assetBytes(a.id), mimeType: a.mimeType })));
+      const cents = assets.reduce((n, a) => n + (a.meta?.generationInfo?.costCents ?? 0), 0);
+      const { spend } = await api.catalog();
+      const p = await api.getProject(i.projectId);
+      return { images, text: [
+        ...assets.map((a) => `asset ${assetLine(a)}`),
+        `${cents ? `spent ${cents}¢` : "spent nothing (Pexels is free)"} · ${monthLine(spend)}`,
+        "place one: apply_actions addOverlay {assetId, startMs, endMs} (inside a B-Roll shot) or replaceOverlay {overlayId, assetId}; then render_frame",
+        `baseVersion: ${p.updatedAt}`,
+      ].join("\n") };
     },
   },
   create_project: {
