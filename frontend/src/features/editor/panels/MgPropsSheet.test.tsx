@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Action, MotionGraphic } from "@shared/types";
-import { MgPropsSheet, propLabel } from "./MgPropsSheet";
+import { MgPropsSheet, propLabel, syncDraft } from "./MgPropsSheet";
 
 const elements: { props: Record<string, unknown> }[] = [];
 vi.mock("react/jsx-dev-runtime", async (orig) => {
@@ -27,7 +27,7 @@ const render = () => {
   return { html, commit };
 };
 const named = (name: string) => elements.find((e) => e.props.name === name)!.props;
-const withValue = (key: string, value: string | number | boolean) => mg.props.map((p) => (p.key === key ? { ...p, value } : p));
+const withValue = (key: string, value: string | number | boolean) => mg.props.map((p) => (p.key === key ? { ...p, value } : p)) as MotionGraphic["props"];
 
 describe("MgPropsSheet (spec row 25: the web edits MG props)", () => {
   afterEach(() => vi.useRealTimers());
@@ -56,6 +56,15 @@ describe("MgPropsSheet (spec row 25: the web edits MG props)", () => {
     expect(commit).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(commit).toHaveBeenCalledWith([{ type: "updateMotionGraphic", mgId: "mg-0", props: withValue("unitLabel", "of sleep") }]);
+  });
+
+  it("its own commits coming back keep what was typed since; any other change replaces the draft", () => {
+    const first = withValue("unitLabel", "hours of");
+    const typed = withValue("unitLabel", "hours of sleep"); // typed (and sent) while "hours of" was in flight
+    expect(syncDraft(typed, first, [first, typed])).toEqual({ draft: typed, ours: [first, typed] });
+    expect(syncDraft(typed, typed, [first, typed])).toEqual({ draft: typed, ours: [typed] });
+    const agent = withValue("value", 5); // the agent changed the MG meanwhile: its props win
+    expect(syncDraft(typed, agent, [first, typed])).toEqual({ draft: agent, ours: [] });
   });
 
   it("a switch commits at once", () => {

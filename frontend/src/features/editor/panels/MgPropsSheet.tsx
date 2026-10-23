@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Action, MotionGraphic } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
@@ -18,6 +18,15 @@ export const propLabel = (key: string) => {
   return words[0].toUpperCase() + words.slice(1);
 };
 
+const sameValues = (a: Prop[], b: Prop[]) => a.length === b.length && a.every((p, i) => p.key === b[i].key && p.value === b[i].value);
+
+// The draft after the MG changes on the server. One of this sheet's own drafts coming back keeps what was typed since;
+// anything else (the agent, a reload) replaces the draft. `ours` lists the drafts this sheet made, oldest first.
+export function syncDraft(draft: Prop[], server: Prop[], ours: Prop[][]): { draft: Prop[]; ours: Prop[][] } {
+  const i = ours.findIndex((o) => sameValues(o, server));
+  return i >= 0 ? { draft, ours: ours.slice(i) } : { draft: server, ours: [] };
+}
+
 // Numbers keep what is typed ("1.", "-") until it parses; the MG gets each valid value.
 function NumberInput({ name, value, disabled, onValue }: { name: string; value: number; disabled: boolean; onValue: (n: number) => void }) {
   const [text, setText] = useState(String(value));
@@ -35,11 +44,19 @@ export function MgPropsSheet({ mg, projectId, busy, commit, onClose }:
   const debounced = useDebouncedCommit(commit);
   const [draft, setDraft] = useState<Prop[]>(mg.props);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => setDraft(mg.props), [mg.props]);
+  const latest = useRef(draft);
+  latest.current = draft;
+  const ours = useRef<Prop[][]>([]);
+  useEffect(() => {
+    const r = syncDraft(latest.current, mg.props, ours.current);
+    ours.current = r.ours;
+    if (r.draft !== latest.current) setDraft(r.draft);
+  }, [mg.props]);
 
   const set = (key: string, value: Prop["value"], slow = false) => {
     const next = draft.map((p) => (p.key === key ? { ...p, value } : p)) as Prop[]; // the draft, so a pending edit survives the next
     setDraft(next);
+    ours.current.push(next);
     const actions: Action[] = [{ type: "updateMotionGraphic", mgId: mg.id, props: next }];
     if (slow) debounced(actions);
     else return commit(actions);

@@ -23,13 +23,14 @@ export function overlayRows(project: Project): { overlay: Overlay; shot: Shot | 
   });
 }
 
+// jobBusy: a job is running (not just a commit in flight). The props sheet types through its own commits.
 type Props = {
-  project: Project; busy: boolean; onAdd: (input: BrollInput) => void; onGenerate: (input: GenerateInput) => void;
+  project: Project; busy: boolean; jobBusy: boolean; onAdd: (input: BrollInput) => void; onGenerate: (input: GenerateInput) => void;
   commit: (actions: Action[]) => Promise<void>; onSeek: (ms: number) => void;
 };
 
 // B-roll and motion graphics, mobile-first; every edit is an action (timing lives on the timeline and its selection bar).
-export function BrollPanel({ project, busy, onAdd, onGenerate, commit, onSeek }: Props) {
+export function BrollPanel({ project, busy, jobBusy, onAdd, onGenerate, commit, onSeek }: Props) {
   const [replaceAll, setReplaceAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; action: Action } | null>(null);
@@ -119,7 +120,7 @@ export function BrollPanel({ project, busy, onAdd, onGenerate, commit, onSeek }:
         </>
       )}
       {project.creditsUsedCents > 0 && <p className="text-xs text-ink-muted">${(project.creditsUsedCents / 100).toFixed(2)} used</p>}
-      {editMg && <MgPropsSheet mg={editMg} projectId={project.id} busy={busy} commit={commit} onClose={() => setEditing(null)} />}
+      {editMg && <MgPropsSheet mg={editMg} projectId={project.id} busy={jobBusy} commit={commit} onClose={() => setEditing(null)} />}
       {renew && <NewOverlaySheet mediaSource={project.mediaSource} overlay={renew} busy={busy} onClose={() => setRenew(null)} onGenerate={onGenerate} />}
       <Sheet open={!!confirm} onClose={() => setConfirm(null)} title={confirm?.title ?? "Delete?"}>
         <p className="mb-4 text-sm text-ink-muted">This can't be undone.</p>
