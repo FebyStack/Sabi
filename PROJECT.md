@@ -31,7 +31,7 @@ Processes (terminal tabs, or `.claude/launch.json` entries `api-lite`, `dev`, `w
 - **Demo:** `database/seed/demo/` (1.7 MB: clip, two Pexels stills, MP4 at crf 26, SRT, VTT, `manifest.json`) is seeded on boot when there are no projects (dev:lite: every boot). Rebuild: finish a project, then `npm run demo:pack -- <projectId> [--api http://127.0.0.1:3001]`, then set the overlays' `source: "stock"` + `attribution` in the manifest.
 - **Privacy:** uploads and imported B-roll lose EXIF/GPS/location before they are stored (`Media.sanitize`: sharp re-encodes images upright, ffmpeg stream-copies audio/video without metadata; unreadable → `422 bad_media`). `RETENTION_DAYS` (default 30, `0` = off) — projects not opened for that long are deleted with their files, on boot and hourly (`retention: removed <n>` on stderr). Analytics: `VITE_POSTHOG_KEY` + `VITE_POSTHOG_HOST` at **build** time (compose build args), and only after the viewer clicks Allow in the first-visit banner (`localStorage` `sabi.consent` / `sabi.aid`); without keys the banner just says analytics is off.
 - `npm run transcribe:sample` — real whisperX on `ai/evaluation/fixtures/tagalog-sample.wav` (Febriel reading `tagalog-sample.txt`, 16 kHz mono; **not recorded yet**, so it skips): needs `npm run ai:whisperx` running; the first `tl` run downloads the 1.26 GB aligner into `HF_HOME`. Checks aligned `tl` timings and the all-estimated fallback for `ms` (no aligner).
-- `npm run render:sample` — real Remotion renders (needs Google Chrome; ~2 min; also 4K and a bundled display font): captions, cuts, a still, a top-band overlay, a brand-graded clip with an MG, a throwing MG (⚠ placeholder), an MG whose image fails to load (⚠ image) and an endless-loop MG (render fails in ~40 s); plus the MG sandbox (plan 6): frame-exact MG frames, a canary server no MG request reaches (fetch, XHR, WebSocket, beacon, img, CSS url, nested frame, navigation), image props drawn from bytes, a silent MG → ⚠ in 5 s, two MGs in a 4K export, still = MP4 frame, brand fonts inside the sandbox, and `renderStill`'s MG problems; the layer tests sample pixels with ffmpeg.
+- `npm run render:sample` — real Remotion renders (needs Google Chrome; ~2 min; also 4K and a bundled display font): captions, cuts, a still, a top-band overlay, a brand-graded clip with an MG, a throwing MG (⚠ placeholder), an MG whose image fails to load (⚠ image) and an endless-loop MG (render fails in ~40 s); plus the MG sandbox (plan 6): frame-exact MG frames, a canary server no MG request reaches (fetch, XHR, WebSocket, beacon, img, CSS url, nested frame, navigation), image props drawn from bytes, a silent MG → ⚠ in 5 s (in the MP4 and on its still), two MGs in a 4K export, still = MP4 frame, brand fonts inside the sandbox, and `renderStill`'s MG problems; the layer tests sample pixels with ffmpeg.
 - **MG sandbox page (plan 6):** `frontend/public/mg-sandbox.html` is generated and committed: `npm run build:mg-sandbox` after changing `shared/remotion/sandbox/`, `shared/remotion/mgRuntime.ts` or the React/Remotion versions (`backend/modules/mg/sandbox.test.ts` fails when it is stale), then restart the API (it bundles `frontend/public` into Remotion once per process). Vite (dev and preview) and nginx serve it with `Content-Security-Policy: sandbox allow-scripts; frame-ancestors 'self'`; the frames themselves carry `sandbox="allow-scripts"` (so a navigation can't land unsandboxed at Sabi's origin), and the page refuses to run at a real origin. **The Claude desktop browser pane cancels loads of iframes that carry a `sandbox` attribute** (`net::ERR_BLOCKED_BY_CLIENT`), so MGs show ⚠ there after 15 s: check MGs in Chrome/Safari or with `render_frame`.
 - **Editor CSP (plan 6, spec row 27):** `frontend/src/csp.ts`, injected first in `<head>` by the `sabi-csp` plugin in `vite.config.ts` (dev hashes the React refresh preamble; the build has no inline script). A new third-party origin (another analytics host, a CDN) needs a line there; `VITE_POSTHOG_HOST` is added to `connect-src` automatically.
 - **Renders use Remotion's own `chrome-headless-shell`** (v157, 570 MB, downloaded once on the first render into `~/Developer/.sabi-deps/.remotion`; `npm run deps` links every checkout's `node_modules/.remotion` there so worktrees share one copy; `REMOTION_BROWSER_EXECUTABLE` overrides). The installed Google Chrome was 4× slower: it waited on its frame clock for every screenshot (~10 fps whatever the concurrency, frame size or content). The renderer keeps **one browser per process** for every render and `GET /frame` still, and both servers **warm it at boot** (bundle into `$TMPDIR/sabi-remotion-bundle-<checkout hash>` + browser, ~1.2 s, logged as `renderer warm in …`). Measured 2026-10-22 on the 17 s demo (M4): export render 62 s → 14 s; a `/frame` still 0.5 s. Not worth it there: more than 5 tabs (content-bound at ~40 fps; remaining cost is video decode ~30 % and the brand grade ~15 %) and hardware encoding (VideoToolbox, +4 %, bitrate instead of crf).
@@ -87,6 +87,45 @@ Plan 5 (`docs/superpowers/plans/2026-10-22-agent-and-ops.md`, agent and ops; des
 - **Manual checks (2026-10-22):** FAKE_AI dev:lite + Vite at 375 px and desktop (chip, New… prompt sheet "1 ¢ on fal.ai" and Pexels search, swap without the agent notice, outputs stale, `/usage` rows, no console errors); dev:server on Postgres + MinIO + Redis (demo seeded into MinIO, Range 206/200/416, `/frame` from MinIO assets; a render killed at 70 % resumed after restart and finished in 74 s); `make up` rendered the demo through nginx in 17 s (1080×1920, emoji visible); the LAN address is refused.
 - **Not yet done:** real fal.ai / Pexels calls (no keys set) — first run: `PEXELS_KEY`, `generate_assets {source:"stock"}`; then `FAL_KEY`, one image (1 ¢) and watch `/usage`.
 - **Deferred review minors (plan 5):** a job BullMQ fails itself after stalling twice runs no handler (project stays "running" until the next boot); a lost job lock can make a finished paid job's second attempt say "interrupted"; the queue connection (`maxRetriesPerRequest: null`) hangs requests while Redis is down; the file route sends no ETag/Cache-Control; sanitize drops MP4 faststart; sanitize untested on Debian ffmpeg 5.1 (Docker); scratch never swept after a crash; Docker `WORK_DIR` is the container's `/tmp`; no compose healthchecks (cold `make up` can exit the api); `SPEND_CAP_CENTS` parsed after the S3/Redis boot checks; no S3 request timeout; the B-roll panel's Usage link is `<a>`; an AOF rewrite already in progress can keep a just-deleted project's prompts until the next one; `POST /source` has no busy check (a queued B-roll job can fail on the cleared plan).
-Next: merge plan 3c (PR #6), then plan 5 (PR #7); close PR #3 → record `ai/evaluation/fixtures/tagalog-sample.wav`, install the sidecar and run `npm run transcribe:sample` → real-speech + real-Ollama + real-Pexels/fal run (watch `/usage`).
+Plan 6 (`docs/superpowers/plans/2026-10-23-mg-sandbox.md`, MG sandbox; design `docs/superpowers/specs/2026-10-23-mg-sandbox-design.md`, spec rows 24–27) **done on branch `claude/unruffled-lehmann-2630ef`** (worktree `.claude/worktrees/unruffled-lehmann-2630ef`, built on #7), PR FebyStack/Sabi#9. 9 TDD tasks executed inline by Opus 5.5; ledger rulings are in the PR. Three automated security reviews fired during execution, and each was fixed:
+  - an origin guard;
+  - a `MessagePort` instead of `"*"`;
+  - the `sandbox` attribute everywhere.
 
-last Claude session: 2026-10-23 08:07
+  No DB migration.
+- **Final review (plan 6):** one fresh Fable whole-branch review found no Critical issues and 2 Important ones, both fixed with tests:
+  - Player draws had no backpressure, so a sandbox slower than the frame rate lagged and then died as silent. Now one draw is in flight at a time and the newest request wins.
+  - The props sheet's fields were disabled by every commit in flight, which dropped focus and keystrokes. Now only a job locks them, and the sheet's own commits coming back no longer reset what was typed.
+
+  Results:
+  - Suite: 520 passed / 43 skipped, plus 7 pytest.
+  - `render:sample`: 22/22 in 112 s. Sandbox overhead vs the pre-sandbox run: brand+MG +11.6 %, throwing MG +19.5 %, bad image −62 %, endless loop unchanged at ~38.5 s.
+- **Manual checks (2026-10-23):**
+  - Browser pane, header-only phase (FAKE_AI dev:lite + Vite):
+    - The editor CSP meta comes first and holds the preamble hash.
+    - The demo MG in the Player at 0:05 matched `/frame?t=5500`.
+    - At 375 px the props sheet committed and the Player redrew.
+    - A throwing MG gave `x-sabi-mg-problems`, and `render_frame` printed "⚠ mg-1 threw: boom 7 — fix the code; it draws its ⚠ label".
+  - Final build in chrome-headless-shell over CDP (FAKE_AI dev:lite + Vite):
+    - The Player drew the MG at 0:03, matching `/frame?t=3300`, with no CSP errors.
+    - It played 0:03→0:05 with no ⚠.
+    - With 600 ms network latency, typing during a commit kept focus, and "abcdef" reached the field and the server. The old code lost "def".
+- **Claude desktop browser pane:** it refuses iframes with `sandbox` (`ERR_BLOCKED_BY_CLIENT`), so MGs show ⚠ there after 15 s. Check MGs in Chrome or with `render_frame`. Safari has not been checked.
+- **Not yet done:** demo export timing with the sandbox (the app quit twice during dev:lite exports).
+- **PR #8 conflicts with this branch** in PROJECT.md and `backend/modules/frames/routes{,.test}.ts`. Whichever merges second resolves them: keep #8's flat scratch path `frames/${project.id}-${deps.id()}.png` and this branch's `mgProblems` destructuring and header.
+- **Deferred review minors (plan 6):**
+  - When the 5 s watchdog fires in a render, that frame could miss ⚠. It didn't reproduce in 3 still renders, which a test now pins. Fix: `flushSync(setDead)`.
+  - An image prop that fetches but doesn't decode reports its `blob:` URL, not the original.
+  - A missing brand logo logs an `image` problem under every MG.
+  - Failed image fetches stay cached until reload.
+  - MG iframes must never change sibling order: a moved iframe reloads, reads as "navigated" and shows ⚠ until reload. Nothing reorders today.
+  - `mgProblemsHeader`'s regex ends in a literal U+FFFF instead of `\uffff`.
+  - `flushSync` runs inside a layout effect in the sandbox `Img` (a dev-only warning).
+  - No CI check that `dist/index.html` starts `<head>` with the CSP meta.
+  - Suggested by the reviewer:
+    - add `RTCPeerConnection`/`RTCDataChannel` to the early-warning denylist;
+    - revive a dead Player sandbox when its range is re-entered;
+    - name the silent-MG test for what it breaks.
+Next: merge plan 3c (PR #6), then plan 5 (PR #7), then plan 6 (PR #9; see the #8 conflict note); close PR #3 → record `ai/evaluation/fixtures/tagalog-sample.wav`, install the sidecar and run `npm run transcribe:sample` → real-speech + real-Ollama + real-Pexels/fal run (watch `/usage`).
+
+last Claude session: 2026-10-23 11:20
