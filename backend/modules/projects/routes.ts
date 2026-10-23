@@ -33,7 +33,7 @@ export function projectsRouter(deps: AppDeps) {
   r.delete<{ id: string }>(api.project(":id"), async (req, res) => {
     const project = await projectLoader(deps)(req, res);
     if (!project) return;
-    if (deps.jobs.active(project.id)) return res.status(409).json({ error: "busy" });
+    if (await deps.jobs.active(project.id)) return res.status(409).json({ error: "busy" });
     await removeProject(deps, project.id);
     res.status(204).end();
   });

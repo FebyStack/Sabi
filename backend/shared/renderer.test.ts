@@ -1,7 +1,11 @@
 import { chmodSync, mkdirSync, mkdtempSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { CUT_FADE_MS, cutFadeFilter, outputCutTimesMs, ownBundleDir, sharedBrowser } from "./renderer";
+import { join, resolve } from "node:path";
+import { bundle } from "@remotion/bundler";
+import { CUT_FADE_MS, RemotionRenderer, cutFadeFilter, outputCutTimesMs, ownBundleDir, sharedBrowser } from "./renderer";
+
+vi.mock("@remotion/bundler", () => ({ bundle: vi.fn(async () => "http://serve") }));
+vi.mock("@remotion/renderer", () => ({ openBrowser: vi.fn(async () => ({ close: async () => {} })) }));
 
 type B = { id: number; close: () => Promise<void> };
 const opener = () => {
@@ -74,5 +78,13 @@ describe("audio fades at cuts", () => {
     expect(cutFadeFilter([1000, 2000, 4000])).toBe(
       "aeval='val(ch)*min(1,if(lt(t,3.000),if(lt(t,1.500),abs(t-1.000),abs(t-2.000)),abs(t-4.000))/0.015)':c=same");
     expect(cutFadeFilter([2500])).toBe("aeval='val(ch)*min(1,abs(t-2.500)/0.015)':c=same");
+  });
+});
+
+describe("RemotionRenderer", () => {
+  // The renderer's bundle serves frontend/public, where the MG sandbox page lives (spec row 24).
+  it("bundles with frontend/public as the public folder", async () => {
+    await new RemotionRenderer({ entry: "x.ts", bundleDir: join(mkdtempSync(join(tmpdir(), "rb-")), "bundle"), browserExecutable: null }).warm();
+    expect(bundle).toHaveBeenCalledWith(expect.objectContaining({ publicDir: resolve("frontend/public") }));
   });
 });

@@ -216,7 +216,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "uvicorn", specifier = ">=0.30" },
-    { name = "whisperx", specifier = ">=3.3" },
+    { name = "whisperx", specifier = ">=3.8.6" },
 ]
 
 [[package]]

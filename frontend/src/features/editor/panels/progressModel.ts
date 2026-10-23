@@ -12,6 +12,7 @@ const STEPS: [string, string[], Stage, number, number][] = [
   ["captions", ["extract-audio", "transcribe", "segment"], "transcribing", 0, 60],
   ["plan", ["plan", "translate"], "planning", 0, 70],
   ["broll", ["beats", "label", "fetch"], "generating", 0, 80],
+  ["generate", ["generate", "import"], "generating", 0, 100],
 ];
 const RENDER = ["render", "subtitles"];
 const BY_STATUS: Partial<Record<ProjectStatus, Stage>> = { transcribing: "transcribing", planning: "planning", generating: "generating", rendering: "rendering" };
@@ -24,5 +25,7 @@ export function stageView(input: { uploadPct: number | null; kind: string | null
   const step = STEPS.find(([k, stages]) => k === kind && stage && stages.includes(stage));
   if (step) return view(step[2], ((progress - step[3]) / (step[4] - step[3])) * 100);
   const byStatus = input.status && BY_STATUS[input.status];
-  return byStatus ? view(byStatus, 0) : null;
+  if (byStatus) return view(byStatus, 0);
+  const byKind = STEPS.find(([k]) => k === kind); // queued, no stage yet (a generate job leaves the status alone)
+  return byKind ? view(byKind[2], 0) : null;
 }

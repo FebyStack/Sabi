@@ -7,7 +7,7 @@ export interface ProjectRepository {
   get(id: string): Promise<Project | null>; // also bumps last_access (30-day retention key)
   create(p: Project): Promise<Project>;
   update(id: string, patch: Partial<Project>, opts?: { ifVersion?: string }): Promise<Project>; // ifVersion: compare-and-swap on updatedAt, else StaleVersion
-  failStuck(): Promise<number>; // on boot: no job survives a restart, so running statuses become failed
+  failStuck(exceptIds?: string[]): Promise<number>; // on boot: running statuses become failed, except projects whose queued job will resume
   remove(id: string): Promise<void>;
   staleIds(before: Date): Promise<string[]>; // last_access older than `before` (retention sweep)
 }
@@ -31,9 +31,9 @@ export class MemoryProjectRepository implements ProjectRepository {
   async create(p: Project) { this.rows.set(p.id, p); this.lastAccess.set(p.id, this.now()); return p; }
   async remove(id: string) { this.rows.delete(id); this.lastAccess.delete(id); }
   async staleIds(before: Date) { return [...this.lastAccess].filter(([, at]) => at < before).map(([id]) => id); }
-  async failStuck() {
+  async failStuck(exceptIds: string[] = []) {
     let n = 0;
-    for (const p of this.rows.values()) if (RUNNING.includes(p.status)) { p.status = "failed"; n++; }
+    for (const p of this.rows.values()) if (RUNNING.includes(p.status) && !exceptIds.includes(p.id)) { this.rows.set(p.id, { ...p, status: "failed" }); n++; }
     return n;
   }
   async update(id: string, patch: Partial<Project>, opts: { ifVersion?: string } = {}) {
@@ -107,8 +107,8 @@ export class PgProjectRepository implements ProjectRepository {
     const { rows } = await this.pool.query<{ id: string }>("SELECT id FROM projects WHERE last_access < $1", [before]);
     return rows.map((r) => r.id);
   }
-  async failStuck() {
-    const { rowCount } = await this.pool.query("UPDATE projects SET status = 'failed', updated_at = now() WHERE status = ANY($1)", [RUNNING]);
+  async failStuck(exceptIds: string[] = []) {
+    const { rowCount } = await this.pool.query("UPDATE projects SET status = 'failed', updated_at = now() WHERE status = ANY($1) AND NOT (id = ANY($2))", [RUNNING, exceptIds]);
     return rowCount ?? 0;
   }
   async update(id: string, patch: Partial<Project>, opts: { ifVersion?: string } = {}) {

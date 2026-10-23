@@ -1,5 +1,5 @@
 import request from "supertest";
-import { readyProject } from "../../shared/apiTestHelpers";
+import { holdJob, readyProject } from "../../shared/apiTestHelpers";
 import { makeTestDeps } from "../../shared/testing";
 
 describe("project delete", () => {
@@ -22,9 +22,7 @@ describe("project delete", () => {
   it("delete refuses a busy project", async () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);
-    let release!: () => void;
-    deps.jobs.enqueue(project.id, "plan", () => new Promise<void>((r) => { release = r; }));
-    await vi.waitFor(() => expect(deps.jobs.active(project.id)).not.toBeNull());
+    const release = await holdJob(deps, project.id, { kind: "plan" });
     const res = await request(a).delete(`/api/projects/${project.id}`);
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("busy");

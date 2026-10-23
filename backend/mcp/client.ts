@@ -3,8 +3,9 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream } from "node:stream/web";
-import { api } from "../../shared/contract";
-import type { ApplyActionsInput, ApplyActionsResult, Asset, BrollInput, JobState, PlanInput, Project, RenderInput } from "../../shared/types";
+import { z } from "zod";
+import { ACTOR_HEADER, MG_PROBLEMS_HEADER, MgProblemSchema, api } from "../../shared/contract";
+import type { ApplyActionsInput, ApplyActionsResult, Asset, BrollInput, Catalog, GenerateInput, JobState, PlanInput, Project, RenderInput } from "../../shared/types";
 
 export class SabiUnreachable extends Error {
   constructor(readonly baseUrl: string) { super(`Sabi API not reachable at ${baseUrl}`); }
@@ -17,15 +18,25 @@ export class SabiHttpError extends Error {
 const SLOW_MS = 300_000;
 
 // Thin HTTP client of the running API (never an in-process import): works against dev:lite and dev:server alike.
+const mgProblems = (raw: string | null) => {
+  try {
+    const r = z.array(MgProblemSchema).safeParse(JSON.parse(raw ?? "[]"));
+    return r.success ? r.data : [];
+  } catch {
+    return [];
+  }
+};
+
 export class SabiApi {
   private timeoutMs: number;
   constructor(readonly baseUrl: string, { timeoutMs = 2000 }: { timeoutMs?: number } = {}) { this.timeoutMs = timeoutMs; }
 
   private async req(path: string, init: RequestInit & { timeoutMs?: number | null } = {}) {
-    const { timeoutMs = this.timeoutMs, ...rest } = init;
+    const { timeoutMs = this.timeoutMs, headers, ...rest } = init;
     let res: Response;
     try {
-      res = await fetch(this.baseUrl + path, { ...rest, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined });
+      // Every request says it is the agent: the ledger attributes spend to "agent" (attribution, not auth).
+      res = await fetch(this.baseUrl + path, { ...rest, headers: { ...(headers as Record<string, string>), [ACTOR_HEADER]: "agent" }, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined });
     } catch {
       throw new SabiUnreachable(this.baseUrl);
     }
@@ -43,15 +54,20 @@ export class SabiApi {
   createProject(title: string) { return this.json<Project>(api.projects, "POST", { title }); }
   setSource(id: string, assetId: string) { return this.json<Project>(api.projectSource(id), "POST", { assetId }); }
   applyActions(id: string, input: ApplyActionsInput) { return this.json<ApplyActionsResult>(api.projectActions(id), "POST", input); }
-  run(id: string) { return this.json<{ jobId: string }>(api.projectRun(id), "POST", {}); }
+  run(id: string, input: { language?: string } = {}) { return this.json<{ jobId: string }>(api.projectRun(id), "POST", input); }
   plan(id: string, input: PlanInput) { return this.json<{ jobId: string }>(api.projectPlan(id), "POST", input); }
   render(id: string, input: RenderInput = {}) { return this.json<{ jobId: string }>(api.projectRender(id), "POST", input); }
   broll(id: string, input: BrollInput) { return this.json<{ jobId: string }>(api.projectBroll(id), "POST", input); }
+  generate(id: string, input: GenerateInput) { return this.json<{ jobId: string }>(api.projectGenerate(id), "POST", input); }
+  getJobById(id: string, jobId: string) { return this.json<JobState>(`${api.projectJob(id)}?id=${encodeURIComponent(jobId)}`); }
+  listAssets(id: string) { return this.json<Asset[]>(api.projectAssets(id)); }
+  catalog() { return this.json<Catalog>(api.catalog); }
+  async assetBytes(assetId: string) { return Buffer.from(await (await this.req(api.assetFile(assetId), { timeoutMs: SLOW_MS })).arrayBuffer()); }
 
-  // The API clamps t and w; the header carries the time actually drawn.
+  // The API clamps t and w; the headers carry the time actually drawn and what its motion graphics reported.
   async frame(id: string, t: number, w: number) {
     const res = await this.req(`${api.projectFrame(id)}?t=${Math.round(t)}&w=${Math.round(w)}`, { timeoutMs: SLOW_MS });
-    return { data: Buffer.from(await res.arrayBuffer()), ms: Number(res.headers.get("x-sabi-frame-ms")) };
+    return { data: Buffer.from(await res.arrayBuffer()), ms: Number(res.headers.get("x-sabi-frame-ms")), problems: mgProblems(res.headers.get(MG_PROBLEMS_HEADER)) };
   }
 
   // start → PUT (streamed) → done, through the same routes and limits as the browser upload.

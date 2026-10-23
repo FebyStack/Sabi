@@ -3,15 +3,22 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { editorProject } from "@shared/editing/fixtures";
 import type { Project } from "@shared/types";
+import { useProjectActions } from "./actions/useProjectActions";
 import EditorPage from "./EditorPage";
+import { BrollPanel } from "./panels/BrollPanel";
 import { PlanPanel } from "./panels/PlanPanel";
 import { initialEditorState, type EditorState } from "./store/editorStore";
 
-// Keys never reach the markup, so record what every JSX call keys.
+// Keys and props never reach the markup, so record what every JSX call keys and passes.
 const keyed: [unknown, string | null][] = [];
+const passed: [unknown, Record<string, unknown>][] = [];
 vi.mock("react/jsx-dev-runtime", async (orig) => {
   const o = await orig<{ jsxDEV: (...a: unknown[]) => unknown }>();
-  return { ...o, jsxDEV: (type: unknown, props: unknown, key: string | undefined, ...rest: unknown[]) => { keyed.push([type, key ?? null]); return o.jsxDEV(type, props, key, ...rest); } };
+  return { ...o, jsxDEV: (type: unknown, props: Record<string, unknown>, key: string | undefined, ...rest: unknown[]) => { keyed.push([type, key ?? null]); passed.push([type, props]); return o.jsxDEV(type, props, key, ...rest); } };
+});
+vi.mock("./actions/useProjectActions", async (orig) => {
+  const o = await orig<typeof import("./actions/useProjectActions")>();
+  return { ...o, useProjectActions: vi.fn(o.useProjectActions) };
 });
 const previewed: Project[] = [];
 vi.mock("./panels/CaptionPreview", () => ({ CaptionPreview: ({ project }: { project: Project }) => { previewed.push(project); return null; } })); // the Player needs a DOM
@@ -41,7 +48,10 @@ function page(p: Project, tab = "") {
 }
 
 describe("EditorPage", () => {
-  beforeEach(() => { keyed.length = 0; previewed.length = 0; initial.state = {}; initial.selectors.length = 0; vi.mocked(useMutation).mockReset(); });
+  beforeEach(() => {
+    keyed.length = 0; passed.length = 0; previewed.length = 0; initial.state = {}; initial.selectors.length = 0;
+    vi.mocked(useMutation).mockReset(); vi.mocked(useProjectActions).mockReset();
+  });
 
   it("keys the plan panel by project id, so its draft state resets on /p/A → /p/B", () => {
     page(project, "broll");
@@ -62,6 +72,10 @@ describe("EditorPage", () => {
     expect(html).toMatch(/<div data-toasts="" class="fixed [^"]*lg:static[^"]*">.*Project changed elsewhere/s);
   });
 
+  it("shows the approximate-timing warning", () => {
+    expect(page({ ...project, warnings: ["timing_estimated"] })).toContain("approximate");
+  });
+
   it("drag preview patches the preview project", () => {
     initial.state = { drag: { actions: [{ type: "setOverlay", overlayId: "ov-0", endMs: 11000 }] } };
     page(project);
@@ -73,6 +87,17 @@ describe("EditorPage", () => {
     expect(html).toContain("Refresh B-roll");
     expect(html).toContain('aria-label="Timeline"');
     expect(html).toContain('aria-label="Editor sections"');
+  });
+
+  it("a commit in flight locks the B-roll buttons but not the MG props sheet; a running job locks both", async () => {
+    const { useProjectActions: real } = await vi.importActual<typeof import("./actions/useProjectActions")>("./actions/useProjectActions");
+    vi.mocked(useProjectActions).mockImplementation((id, store) => ({ ...real(id, store), pending: true }));
+    page(project, "broll");
+    expect(passed.find(([t]) => t === BrollPanel)![1]).toMatchObject({ busy: true, jobBusy: false });
+    vi.mocked(useProjectActions).mockReset();
+    passed.length = 0;
+    page({ ...project, status: "rendering" }, "broll");
+    expect(passed.find(([t]) => t === BrollPanel)![1]).toMatchObject({ busy: true, jobBusy: true });
   });
 
   it("a selection shows the selection bar", () => {

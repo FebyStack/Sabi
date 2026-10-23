@@ -7,7 +7,8 @@ export const MIN_LAYER_MS = 500;
 export type OverlayProps = {
   id: string; src: string; media: OverlayMedia; startMs: number; endMs: number; placement: OverlayPlacement; transition: "fade" | "none"; durationMs?: number;
 };
-export type MotionGraphicProps = { id: string; compiled: string; startMs: number; endMs: number; box: Box; props: Record<string, string | number | boolean> };
+// images: the URLs of its image props, which the page hands to the MG's sandbox as bytes.
+export type MotionGraphicProps = { id: string; compiled: string; startMs: number; endMs: number; box: Box; props: Record<string, string | number | boolean>; images: string[] };
 
 // Drawn only over a B-roll shot that still holds it: a re-plan reuses shot ids at other times.
 const onLiveShot = (o: Overlay, shots: Shot[]) => {
@@ -44,6 +45,7 @@ export function motionGraphicTimeline(mgs: MotionGraphic[], cuts: Cut[], assetUr
     const range = toOutput(m.startMs, m.endMs, cuts);
     if (!range) return [];
     const props = Object.fromEntries(m.props.map((p) => [p.key, p.type === "image" ? assetUrl(p.value) : p.value]));
-    return [{ id: m.id, compiled: m.compiled, ...range, box: m.box, props }];
+    const images = m.props.flatMap((p) => (p.type === "image" ? [assetUrl(p.value)] : []));
+    return [{ id: m.id, compiled: m.compiled, ...range, box: m.box, props, images }];
   });
 }

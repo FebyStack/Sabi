@@ -1,4 +1,5 @@
 import type { AssetRepository } from "../modules/assets/repository";
+import type { CreditLedger } from "../modules/usage/ledger";
 import type { ProjectRepository } from "../modules/projects/repository";
 import type { EventBus } from "./events";
 import type { MediaGenerator } from "./generator";
@@ -24,6 +25,8 @@ export interface AppDeps {
   fetch: typeof fetch; // remote B-roll media (importRemote); injected so tests never reach the network
   stock: StockSearch | null; // null when PEXELS_KEY is unset
   generator: MediaGenerator | null; // null when FAL_KEY is unset
+  ledger: CreditLedger; // one row per paid generation (spec row 20)
+  spendCapCents: number; // monthly cap on paid generation, 0 = none (SPEND_CAP_CENTS)
   apiBaseUrl: string; // where Chromium (Remotion) fetches source media during renders
   allowedOrigins?: string[]; // non-localhost pages allowed to use the API (ALLOWED_ORIGINS), e.g. a phone on the LAN
   now: () => Date;
