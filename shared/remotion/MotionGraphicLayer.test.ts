@@ -45,14 +45,14 @@ describe("MotionGraphicLayer (the page side of an MG sandbox)", () => {
     expect(layer(mg({ endMs: 1010 }))).toBe("");
   });
 
-  // Renders: Remotion's bundle server sends no headers, so the frame is sandboxed by its attribute. The editor: the
-  // page's own CSP header sandboxes it (dev server, nginx), and the Claude desktop browser pane refuses frames that carry
-  // the attribute. Either way the page runs nothing unless its origin is opaque.
-  it("the sandbox attribute in renders, the page's sandbox header in the editor", () => {
+  // The attribute keeps every navigation of the frame sandboxed: without it an MG could navigate its frame to another
+  // same-origin page that has no sandbox header and run there as the editor (security review, 2026-10-23).
+  it("the frame is sandboxed by its attribute in the editor and in renders", () => {
     at.frame = 45;
-    at.rendering = true;
-    expect(layer(mg())).toContain('sandbox="allow-scripts"');
+    for (const rendering of [true, false]) {
+      at.rendering = rendering;
+      expect(layer(mg())).toContain('sandbox="allow-scripts"');
+    }
     at.rendering = false;
-    expect(layer(mg())).not.toContain("sandbox=");
   });
 });
