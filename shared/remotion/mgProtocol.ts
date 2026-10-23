@@ -29,12 +29,16 @@ export function parseFromSandbox(data: unknown): FromSandbox | null {
 
 // One MG's sandbox as the page sees it. Draws wait for "ready"; a sandbox that never starts, or leaves a frame
 // unanswered, dies (the page then draws ⚠) so a render never hangs on it.
+// One draw is in flight at a time. A request made meanwhile waits, and a newer one replaces it (both settle once it is
+// drawn): renders ask for one frame at a time anyway, and the Player, which never waits, stays at most a frame behind.
 export class MgChannel {
   readonly ready: Promise<void>;
   private settleReady!: () => void;
+  private started = false;
   private isDead = false;
   private seq = 0;
-  private pending = new Map<number, { done: () => void; timer: ReturnType<typeof setTimeout> }>();
+  private inFlight: { seq: number; done: (() => void)[]; timer: ReturnType<typeof setTimeout> } | null = null;
+  private next: { frame: number | null; item: MgItem; done: (() => void)[] } | null = null;
   private startTimer: ReturnType<typeof setTimeout>;
 
   constructor(private post: (m: ToSandbox) => void, private onSilent: (detail: string) => void) {
@@ -47,35 +51,44 @@ export class MgChannel {
   receive(m: FromSandbox): void {
     if (m.t === "ready") {
       clearTimeout(this.startTimer);
+      this.started = true;
       this.settleReady();
-    } else if (m.t === "drawn") this.settle(m.seq);
+      this.pump();
+    } else if (m.t === "drawn" && m.seq === this.inFlight?.seq) {
+      clearTimeout(this.inFlight.timer);
+      const { done } = this.inFlight;
+      this.inFlight = null;
+      for (const d of done) d();
+      this.pump();
+    }
   }
 
-  async draw(frame: number | null, item: MgItem): Promise<void> {
-    await this.ready;
-    if (this.isDead) return;
-    const seq = ++this.seq;
+  draw(frame: number | null, item: MgItem): Promise<void> {
+    if (this.isDead) return Promise.resolve();
     return new Promise((done) => {
-      this.pending.set(seq, { done, timer: setTimeout(() => this.die(`no answer for ${MG_FRAME_MS / 1000} s`), MG_FRAME_MS) });
-      this.post({ t: "draw", seq, frame, item });
+      this.next = { frame, item, done: [...(this.next?.done ?? []), done] };
+      this.pump();
     });
   }
 
   kill(): void { this.die(null); }
 
-  private settle(seq: number) {
-    const p = this.pending.get(seq);
-    if (!p) return;
-    clearTimeout(p.timer);
-    this.pending.delete(seq);
-    p.done();
+  private pump() {
+    if (!this.started || this.isDead || this.inFlight || !this.next) return;
+    const { frame, item, done } = this.next;
+    this.next = null;
+    const seq = ++this.seq;
+    this.inFlight = { seq, done, timer: setTimeout(() => this.die(`no answer for ${MG_FRAME_MS / 1000} s`), MG_FRAME_MS) };
+    this.post({ t: "draw", seq, frame, item });
   }
 
   private die(detail: string | null) {
     if (this.isDead) return;
     this.isDead = true;
     clearTimeout(this.startTimer);
-    for (const seq of [...this.pending.keys()]) this.settle(seq);
+    if (this.inFlight) clearTimeout(this.inFlight.timer);
+    for (const d of [...(this.inFlight?.done ?? []), ...(this.next?.done ?? [])]) d();
+    this.inFlight = this.next = null;
     this.settleReady();
     if (detail) this.onSilent(detail);
   }

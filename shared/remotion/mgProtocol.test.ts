@@ -61,6 +61,45 @@ describe("MgChannel", () => {
     expect(posted).toHaveLength(1);
   });
 
+  it("a sandbox slower than the frame rate gets one draw at a time, always the newest, and stays alive", async () => {
+    // The Player asks for a frame every 33 ms and never waits; this sandbox needs 100 ms per draw, one after another.
+    const posted: ToSandbox[] = [];
+    const silent = vi.fn();
+    let free = 0;
+    const ch: MgChannel = new MgChannel((m) => {
+      posted.push(m);
+      if (m.t !== "draw") return;
+      free = Math.max(Date.now(), free) + 100;
+      setTimeout(() => ch.receive({ t: "drawn", seq: m.seq }), free - Date.now());
+    }, silent);
+    ch.receive({ t: "ready" });
+    for (let f = 0; f < 300; f++) {
+      void ch.draw(f, item);
+      await vi.advanceTimersByTimeAsync(33);
+    }
+    await vi.advanceTimersByTimeAsync(200);
+    expect(silent).not.toHaveBeenCalled();
+    const frames = posted.map((m) => (m.t === "draw" ? m.frame! : -1));
+    expect(frames.at(-1)).toBe(299);
+    expect(frames.length).toBeLessThan(110); // about one per 100 ms, not one per frame
+    expect(frames).toEqual([...frames].sort((a, b) => a - b));
+  });
+
+  it("a newer request replaces a waiting one; both settle once it is drawn", async () => {
+    const { posted, ch } = open();
+    ch.receive({ t: "ready" });
+    const a = settled(ch.draw(1, item));
+    const b = settled(ch.draw(2, item));
+    const c = settled(ch.draw(3, item));
+    ch.receive({ t: "drawn", seq: 1 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect([a.done, b.done, c.done]).toEqual([true, false, false]);
+    expect(posted.map((m) => m.t === "draw" && m.frame)).toEqual([1, 3]);
+    ch.receive({ t: "drawn", seq: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect([b.done, c.done]).toEqual([true, true]);
+  });
+
   it("kill settles pending draws without onSilent", async () => {
     const { silent, ch } = open();
     ch.receive({ t: "ready" });
