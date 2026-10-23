@@ -276,6 +276,20 @@ describe.skipIf(process.env.RUN_RENDER !== "1")("RemotionRenderer", () => {
     expect(r).toBeLessThan(60);
   }, 900_000);
 
+  it("a silent MG's still shows ⚠ (the frame its watchdog fires on)", async () => {
+    const inputProps: CaptionVideoProps = {
+      videoSrc, sourceKind: "video", template: getCaptionTemplate("clean"), width: 1080, height: 1920, phrases: [], durationMs: 1000,
+      brand: templateLook(getCaptionTemplate("clean")), overlays: [],
+      motionGraphics: [mgp('const Component = () => { Promise.allSettled = () => new Promise(() => {}); return null; };')],
+    };
+    const png = join(dir, "mg-silent-still.png");
+    const { mgProblems } = await renderer.renderStill({ compositionId: "CaptionVideo", inputProps, timestampMs: 500, width: 1080, outPath: png });
+    expect(mgProblems).toContainEqual({ mg: "mg-0", kind: "silent", detail: "no answer for 5 s" });
+    const [r, g] = [...execFileSync("ffmpeg", ["-v", "error", "-i", png, "-vf", "crop=2:2:6:6", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])].slice(0, 3);
+    expect(r).toBeGreaterThan(150);
+    expect(g).toBeLessThan(60);
+  }, 900_000);
+
   it("renderStill returns the MG problems", async () => {
     const inputProps: CaptionVideoProps = {
       videoSrc, sourceKind: "video", template: getCaptionTemplate("clean"), width: 1080, height: 1920, phrases: [], durationMs: 1000,
