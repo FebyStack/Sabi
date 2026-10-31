@@ -53,5 +53,5 @@ export class FakeTranscriber implements Transcriber {
     this.languages.push(opts.language);
     return structuredClone(this.transcript);
   }
-  async health() { return "ok" as const; }
+  async health(): Promise<"ok" | "down"> { return "ok"; }
 }

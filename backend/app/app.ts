@@ -12,6 +12,7 @@ import { pipelineRouter } from "../modules/pipeline/routes";
 import { projectsRouter } from "../modules/projects/routes";
 import { usageRouter } from "../modules/usage/routes";
 import type { AppDeps } from "../shared/deps";
+import { servicesProbe } from "./health";
 import { registerJobHandlers } from "./jobs";
 
 // Pages on this machine (Vite, the Remotion renderer). Browsers send Origin on cross-site writes; Node clients (MCP, curl) send none.
@@ -43,7 +44,8 @@ export function createApp(deps: AppDeps) {
   });
   app.use(express.json({ limit: "1mb" }));
 
-  app.get(api.health, (_req, res) => res.json({ ok: true, time: deps.now().toISOString() }));
+  const services = servicesProbe(deps);
+  app.get(api.health, async (_req, res) => res.json({ ok: true, time: deps.now().toISOString(), services: await services() }));
   app.use(projectsRouter(deps));
   app.use(assetsRouter(deps));
   app.use(eventsRouter(deps));

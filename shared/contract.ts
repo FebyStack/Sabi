@@ -183,7 +183,12 @@ export const CreateProjectInput = z.object({
   mediaSource: MediaSource.default("generate"),
 });
 
-export const HealthSchema = z.object({ ok: z.literal(true), time: z.string() });
+// Spec row 32: what the web hints at before a click. stock/generator are key presence only.
+export const ServicesSchema = z.object({
+  whisperx: z.enum(["ok", "down"]), ollama: z.enum(["ok", "down", "model_missing"]), ollamaModel: z.string(),
+  stock: z.enum(["ok", "unset"]), generator: z.enum(["ok", "unset"]),
+});
+export const HealthSchema = z.object({ ok: z.literal(true), time: z.string(), services: ServicesSchema });
 
 export const AssetKind = z.enum(["video", "audio", "image", "render", "subtitle"]);
 // Where B-roll media came from; overlays copy it when an asset is placed (absent = uploaded).

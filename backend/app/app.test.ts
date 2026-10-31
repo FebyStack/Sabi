@@ -1,7 +1,7 @@
 import request from "supertest";
 import { createApp, parseAllowedOrigins } from "./app";
 import { makeTestDeps } from "../shared/testing";
-import { PlanInput } from "../../shared/contract";
+import { HealthSchema, PlanInput } from "../../shared/contract";
 
 const app = () => createApp(makeTestDeps());
 
@@ -9,7 +9,8 @@ describe("api", () => {
   it("health", async () => {
     const res = await request(app()).get("/api/health");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, time: "2026-01-01T00:00:00.000Z" });
+    expect(res.body).toEqual({ ok: true, time: "2026-01-01T00:00:00.000Z", services: { whisperx: "ok", ollama: "ok", ollamaModel: "fake", stock: "ok", generator: "ok" } });
+    expect(HealthSchema.safeParse(res.body).success).toBe(true);
   });
 
   it("creates, lists and gets a project", async () => {
