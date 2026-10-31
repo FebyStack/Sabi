@@ -48,8 +48,9 @@ def transcribe(file: UploadFile = File(...), language: str | None = Form(default
         path = tmp.name
     try:
         audio = whisperx.load_audio(path)
+        model = asr()  # outside the catch: a bad WHISPERX_MODEL/COMPUTE also raises ValueError, and that is a 500, not the language
         try:
-            result = asr().transcribe(audio, batch_size=8, language=language)
+            result = model.transcribe(audio, batch_size=8, language=language)
         except ValueError as err:  # faster-whisper: unknown language code
             raise HTTPException(status_code=400, detail="unknown_language") from err
         lang = result.get("language") or language or "en"
