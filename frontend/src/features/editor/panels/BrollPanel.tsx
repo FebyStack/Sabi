@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { staleOverlays } from "@shared/editing/overlays";
 import type { Action, BrollInput, GenerateInput, MediaSource, Overlay, Project, Shot } from "@shared/types";
 import { Button } from "@/components/ui/Button";
@@ -67,7 +68,7 @@ export function BrollPanel({ project, busy, jobBusy, onAdd, onGenerate, commit, 
       )}
       {project.warnings.includes("no_broll_shots") && <Notice tone="warn">Mark shots as B-Roll in the edit plan first.</Notice>}
       {notFound > 0 && <Notice tone="warn">No media found for {notFound} beat(s).</Notice>}
-      {project.warnings.includes("over_cap") && <Notice tone="warn">Monthly spending cap reached — see <a href="/usage" className="underline">Usage</a>.</Notice>}
+      {project.warnings.includes("over_cap") && <Notice tone="warn">Monthly spending cap reached — see <Link to="/usage" className="underline">Usage</Link>.</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
 
       {rows.length > 0 && (

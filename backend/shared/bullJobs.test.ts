@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { connect, createServer, type AddressInfo, type Socket } from "node:net";
 import { Redis } from "ioredis";
 import { BullJobRunner } from "./bullJobs";
 import { MemoryEventBus } from "./events";
@@ -7,6 +8,25 @@ import { runnerContract } from "./jobRunnerContract";
 // Real Redis from `make db`; opt in with REDIS_TEST_URL (npm run test:infra). Each case gets its own queue.
 const url = process.env.REDIS_TEST_URL;
 const queue = () => `sabi-test-${randomUUID().slice(0, 8)}`;
+const data = { input: {}, actor: "web" as const, prevStatus: "ready" as const };
+
+// Redis behind a TCP proxy: down() cuts every connection and refuses new ones, as a stopped Redis does; up() lets them back.
+async function cuttableRedis(target: string) {
+  const { hostname, port } = new URL(target);
+  const sockets = new Set<Socket>();
+  const server = createServer((client) => {
+    const upstream = connect(Number(port), hostname);
+    for (const s of [client, upstream]) { sockets.add(s); s.on("error", () => {}); s.on("close", () => sockets.delete(s)); }
+    client.pipe(upstream).pipe(client);
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const local = (server.address() as AddressInfo).port;
+  return {
+    url: `redis://127.0.0.1:${local}`,
+    down: () => new Promise<void>((r) => { server.close(() => r()); for (const s of sockets) s.destroy(); }),
+    up: () => new Promise<void>((r) => server.listen(local, "127.0.0.1", r)),
+  };
+}
 
 describe.skipIf(!url)("BullJobRunner", { timeout: 30_000 }, () => {
   runnerContract(async (bus) => {
@@ -17,7 +37,6 @@ describe.skipIf(!url)("BullJobRunner", { timeout: 30_000 }, () => {
 
   it("a job interrupted by a dead worker comes back as attempt 2", async () => {
     const name = queue();
-    const data = { input: {}, actor: "web" as const, prevStatus: "ready" as const };
     const a = new BullJobRunner(url!, new MemoryEventBus(), { queue: name, lockMs: 1000 });
     const attempts: number[] = [];
     let started!: () => void;
@@ -33,6 +52,51 @@ describe.skipIf(!url)("BullJobRunner", { timeout: 30_000 }, () => {
     await vi.waitFor(async () => expect((await b.last("p1"))?.state).toBe("COMPLETE"), { timeout: 15_000 });
     expect(attempts).toEqual([1, 2]);
     await b.close();
+  });
+
+  it("a job that dies twice is failed by BullMQ without its handler; onAbandoned hears of it (a handler's own failure it doesn't)", async () => {
+    const name = queue();
+    const dying = async () => { // a worker whose API dies mid-job
+      const r = new BullJobRunner(url!, new MemoryEventBus(), { queue: name, lockMs: 1000 });
+      const running = new Promise<void>((started) => r.handle("slow", async () => { started(); await new Promise(() => {}); }));
+      await r.start();
+      return { r, running };
+    };
+    const a = await dying();
+    await a.r.enqueue("p1", "slow", data);
+    await a.running;
+    await a.r.close({ force: true });
+    const b = await dying(); // attempt 2 dies too
+    await b.running;
+    await b.r.close({ force: true });
+    const c = new BullJobRunner(url!, new MemoryEventBus(), { queue: name, lockMs: 1000 });
+    const ran: number[] = [];
+    const abandoned: [string, string][] = [];
+    c.handle("slow", async ({ attempt }) => { ran.push(attempt); });
+    c.handle("boom", async () => { throw new Error("boom"); });
+    c.onAbandoned(async (projectId, d) => { abandoned.push([projectId, d.prevStatus]); });
+    await c.start();
+    await vi.waitFor(async () => expect(await c.last("p1")).toMatchObject({ state: "FAILED", error: "job stalled more than allowable limit" }), { timeout: 20_000 });
+    expect(ran).toEqual([]); // no handler ran, so nothing put the project back
+    await vi.waitFor(() => expect(abandoned).toEqual([["p1", "ready"]]));
+    await c.enqueue("p2", "boom", data);
+    await vi.waitFor(async () => expect((await c.last("p2"))?.state).toBe("FAILED"));
+    expect(abandoned).toEqual([["p1", "ready"]]); // a handler that throws cleans up after itself
+    await c.close();
+  });
+
+  it("while Redis is down, queue reads fail within seconds instead of hanging; they work again once it is back", async () => {
+    const redis = await cuttableRedis(url!);
+    const r = new BullJobRunner(redis.url, new MemoryEventBus(), { queue: queue() });
+    await r.start();
+    expect(await r.active("p1")).toBeNull();
+    await redis.down();
+    const t0 = Date.now();
+    await expect(r.active("p1")).rejects.toThrow(); // an API request answers 500 instead of waiting forever
+    expect(Date.now() - t0).toBeLessThan(10_000);
+    await redis.up();
+    await vi.waitFor(async () => expect(await r.active("p1")).toBeNull(), { timeout: 15_000 });
+    await r.close();
   });
 
   it("forget removes the project's finished jobs", async () => {
@@ -59,6 +123,35 @@ describe.skipIf(!url)("BullJobRunner", { timeout: 30_000 }, () => {
     await r.forget("p2");
     await vi.waitFor(async () => expect(await rewrites()).toBeGreaterThan(before), { timeout: 10_000 }); // the log no longer holds the old write
     await r.forget("nobody"); // nothing removed: no rewrite needed
+    await r.close();
+    admin.disconnect();
+  });
+
+  it("Redis keeps no RDB snapshots (compose: --save \"\"), so the AOF rewrite after a delete is the only copy to clean", async () => {
+    const admin = new Redis(url!);
+    expect(await admin.config("GET", "save")).toEqual(["save", ""]); // a dump.rdb would keep a deleted project's prompts until the next save
+    expect((await admin.info("persistence")).includes("aof_enabled:1")).toBe(true); // AOF alone persists the queue
+    admin.disconnect();
+  });
+
+  it("a rewrite already running at forget took its snapshot before the delete: forget waits for it and rewrites again", async () => {
+    const admin = new Redis(url!);
+    const rewrites = async () => Number((await admin.info("persistence")).match(/aof_rewrites:(\d+)/)?.[1] ?? 0); // counted when one starts
+    const r = new BullJobRunner(url!, new MemoryEventBus(), { queue: queue() });
+    r.handle("ok", async () => {});
+    await r.start();
+    const job = await r.enqueue("p3", "ok", { input: { prompt: "a private prompt" }, actor: "agent", prevStatus: "ready" });
+    await vi.waitFor(async () => expect((await r.get("p3", job.id))?.state).toBe("COMPLETE"));
+    await vi.waitFor(async () => expect((await admin.info("persistence")).includes("aof_rewrite_in_progress:0")).toBe(true));
+    const before = await rewrites();
+    try {
+      await admin.config("SET", "rdb-key-save-delay", "10000"); // 10 ms per key: the rewrite below runs for a second or more
+      await admin.bgrewriteaof(); // e.g. another project's delete a moment ago; its snapshot still holds p3's prompt
+    } finally {
+      await admin.config("SET", "rdb-key-save-delay", "0"); // the running rewrite keeps its own copy of the setting
+    }
+    await r.forget("p3");
+    await vi.waitFor(async () => expect(await rewrites()).toBeGreaterThanOrEqual(before + 2), { timeout: 20_000 });
     await r.close();
     admin.disconnect();
   });

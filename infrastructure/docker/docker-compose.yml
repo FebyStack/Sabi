@@ -11,6 +11,8 @@ services:
     ports: ["127.0.0.1:5433:5432"] # 5432 on this Mac is a Homebrew postgresql@18 service
     # In the SabiDev APFS image (same SSD): on the ExFAT DATA_DIR macOS adds ._ files the entrypoint can't chown, so a restart fails.
     volumes: ["${HOME}/SabiDev/docker/postgres:/var/lib/postgresql/data"]
+    # Healthy once it takes TCP (the first-run init server listens on the socket only). The api's boot checks need all three.
+    healthcheck: { test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "captions", "-d", "captions"], interval: 2s, timeout: 3s, retries: 30 }
 
   minio:
     image: cgr.dev/chainguard/minio:latest # minio/minio is gone from Docker Hub; Chainguard builds MinIO from source
@@ -20,13 +22,16 @@ services:
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
     ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: ["${DATA_DIR}/minio:/data"]
+    healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 2s, timeout: 3s, retries: 30 }
 
-  # BullMQ jobs (spec row 22). noeviction: a queue must never lose keys under memory pressure.
+  # BullMQ jobs (spec row 22). noeviction: a queue must never lose keys under memory pressure. The AOF alone persists: no RDB
+  # snapshots (--save ""), since a dump.rdb would keep a deleted project's prompts until its next save.
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    command: ["redis-server", "--appendonly", "yes", "--save", "", "--maxmemory-policy", "noeviction"]
     ports: ["127.0.0.1:6379:6379"] # no password: localhost-only, like the API itself
     volumes: ["${HOME}/SabiDev/docker/redis:/data"] # APFS image, like Postgres: the entrypoint's chown fails on ExFAT's ._ files
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 2s, timeout: 3s, retries: 30 }
 
   api:
     build: { context: ../.., dockerfile: infrastructure/docker/Dockerfile, target: api }
@@ -46,8 +51,13 @@ services:
       RETENTION_DAYS: ${RETENTION_DAYS:-30}
       HOST: 0.0.0.0 # reachable inside the compose network; published on 127.0.0.1 below
       SPEND_CAP_CENTS: ${SPEND_CAP_CENTS:-} # empty = the $20 default
+      WORK_DIR: /work # scratch (a sabi-work folder inside) on the SSD: renders and S3 copies are big, the Docker VM disk is the Mac's
+    volumes: ["${DATA_DIR}/docker-work:/work"]
     ports: ["127.0.0.1:3001:3001"]
-    depends_on: [postgres, minio, redis]
+    depends_on: # its boot checks (database, bucket, Redis) exit on a service that isn't answering yet: a cold `make up` waits
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      redis: { condition: service_healthy }
 
   web:
     build:

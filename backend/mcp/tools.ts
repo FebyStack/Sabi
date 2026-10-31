@@ -44,6 +44,7 @@ const monthLine = (s: Catalog["spend"]) => `this month ${usd(s.monthCents)}${s.c
 const capLine = (monthCents: number, capCents: number) => `monthly cap reached: ${usd(monthCents)} of ${usd(capCents)} — raise SPEND_CAP_CENTS on the API`;
 const JOB_ERRORS: Record<string, string> = {
   interrupted: "interrupted by an API restart (nothing was charged twice); run it again",
+  already_ran: `it ran, but an API restart lost its result; check inspect_project {section: "assets"} before running it again (it may have spent credits)`,
   over_cap: "monthly cap reached — raise SPEND_CAP_CENTS on the API",
   generator_timeout: "fal.ai did not finish in time; it was still charged (see model_catalog). Try once more later, or use stock",
 };

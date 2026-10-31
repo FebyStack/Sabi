@@ -47,6 +47,43 @@ describe.skipIf(!hasFfprobe)("FfmpegMedia.probe", () => {
 // Spec row 2: what a phone puts in a file (GPS, a location, the camera) never reaches storage; the picture still shows upright.
 describe.skipIf(!hasFfprobe)("FfmpegMedia.sanitize", () => {
   const tags = (file: string) => JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format_tags:stream_tags:stream_side_data=rotation", "-of", "json", file], { encoding: "utf8" }));
+  const topBoxes = (file: string) => { // an MP4/MOV's top-level boxes, in file order
+    const b = readFileSync(file);
+    const types: string[] = [];
+    for (let i = 0; i + 8 <= b.length;) {
+      const size = b.readUInt32BE(i) === 1 ? Number(b.readBigUInt64BE(i + 8)) : b.readUInt32BE(i) || b.length - i;
+      types.push(b.toString("latin1", i + 4, i + 8));
+      i += size;
+    }
+    return types;
+  };
+  const clip = (out: string) => execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30", "-f", "lavfi", "-i", "sine", "-t", "1", "-c:v", "libx264", "-c:a", "aac", out]);
+
+  it("an MP4 or MOV comes out with its index ahead of the media (faststart), so playback starts before the whole file arrives", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sanitize-"));
+    for (const ext of ["mp4", "mov"]) {
+      const raw = join(dir, `raw.${ext}`), clean = join(dir, `clean.${ext}`);
+      clip(raw);
+      expect(topBoxes(raw).indexOf("moov"), ext).toBeGreaterThan(topBoxes(raw).indexOf("mdat")); // ffmpeg writes the index last
+      await new FfmpegMedia().sanitize(raw, clean, "av");
+      const boxes = topBoxes(clean);
+      expect(boxes.indexOf("moov"), ext).toBeGreaterThan(-1);
+      expect(boxes.indexOf("moov"), ext).toBeLessThan(boxes.indexOf("mdat"));
+    }
+  });
+
+  it("mp3 and wav keep their format", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sanitize-"));
+    for (const [ext, codec] of [["mp3", "mp3"], ["wav", "pcm_s16le"]]) {
+      const raw = join(dir, `raw.${ext}`), clean = join(dir, `clean.${ext}`);
+      execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "sine", "-t", "1", "-metadata", "artist=SABI-ARTIST", raw]);
+      await new FfmpegMedia().sanitize(raw, clean, "av");
+      const s = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name", "-of", "json", clean], { encoding: "utf8" }));
+      expect(s.streams.map((x: { codec_name: string }) => x.codec_name), ext).toEqual([codec]);
+      expect(readFileSync(clean).includes("SABI-ARTIST"), ext).toBe(false);
+      expect((await new FfmpegMedia().probe(clean, "av")).durationMs, ext).toBeGreaterThan(900);
+    }
+  });
 
   it("a GPS-tagged rotated JPEG is stored upright without EXIF", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sanitize-"));
@@ -78,9 +115,14 @@ describe.skipIf(!hasFfprobe)("FfmpegMedia.sanitize", () => {
   it("a located rotated MOV keeps its rotation and loses its location", async () => {
     const dir = mkdtempSync(join(tmpdir(), "sanitize-"));
     const plain = join(dir, "plain.mov"), raw = join(dir, "raw.mov"), clean = join(dir, "clean.mov");
-    execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30", "-f", "lavfi", "-i", "sine", "-t", "1", "-c:v", "libx264", "-c:a", "aac", plain]);
-    execFileSync("ffmpeg", ["-v", "error", "-y", "-display_rotation", "90", "-i", plain, "-c", "copy", "-metadata", "location=+14.5995+120.9842/",
-      "-metadata", "com.apple.quicktime.location.ISO6709=+14.5995+120.9842+010.000/", "-movflags", "use_metadata_tags", raw]);
+    clip(plain);
+    const located = ["-c", "copy", "-metadata", "location=+14.5995+120.9842/", "-metadata", "com.apple.quicktime.location.ISO6709=+14.5995+120.9842+010.000/", "-movflags", "use_metadata_tags", raw];
+    try {
+      execFileSync("ffmpeg", ["-v", "error", "-y", "-display_rotation", "90", "-i", plain, ...located], { stdio: "pipe" });
+    } catch (err) { // ffmpeg before 6.1 (Debian 12's 5.1, the api image) has no -display_rotation: the legacy tag does it there
+      if (!String((err as { stderr?: Buffer }).stderr).includes("display_rotation")) throw err;
+      execFileSync("ffmpeg", ["-v", "error", "-y", "-i", plain, "-metadata:s:v:0", "rotate=90", ...located]);
+    }
     expect(readFileSync(raw).includes("+14.5995")).toBe(true);
     await new FfmpegMedia().sanitize(raw, clean, "av");
     expect(readFileSync(clean).includes("+14.5995")).toBe(false);

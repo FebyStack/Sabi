@@ -1,6 +1,8 @@
-import { existsSync, mkdtempSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DeleteBucketCommand, DeleteObjectsCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { S3Storage } from "./s3Storage";
@@ -15,6 +17,32 @@ describe("FsStorage", () => {
     const s = new FsStorage(root);
     expect(s.describe()).toBe(`fs:${root}`);
     expect(s.workPath("audio/p1.wav")).toBe(join(root, "work", "audio", "p1.wav")); // same disk as the store: put is a rename
+  });
+
+  it("a stale scratch file it can't delete doesn't stop the sweep (or the boot)", async () => {
+    const s = new FsStorage(mkdtempSync(join(tmpdir(), "fs-store-")));
+    const hoursAgo = new Date(Date.now() - 2 * 3_600_000);
+    const locked = s.workPath("locked/old.bin"), other = s.workPath("other.bin");
+    for (const f of [locked, other]) { writeFileSync(f, "x"); utimesSync(f, hoursAgo, hoursAgo); }
+    chmodSync(dirname(locked), 0o555); // its folder is read-only: unlinking fails (EACCES) unless we run as root
+    try {
+      await expect(s.sweepWork()).resolves.toBeUndefined();
+    } finally {
+      chmodSync(dirname(locked), 0o755);
+    }
+    expect(existsSync(other)).toBe(false);
+  });
+});
+
+describe("S3Storage timeouts", () => {
+  it("a store that takes the connection but never answers fails the request instead of hanging it", async () => {
+    const server = createServer(() => {}); // reads each request, answers none (a wedged MinIO)
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const s = new S3Storage({ endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, bucket: "b", accessKeyId: "k", secretAccessKey: "s",
+      workDir: mkdtempSync(join(tmpdir(), "s3-work-")), requestTimeoutMs: 200 });
+    await expect(s.stat("a.bin")).rejects.toMatchObject({ name: "TimeoutError" }); // the file route answers 500 instead of never
+    server.closeAllConnections();
+    server.close();
   });
 });
 

@@ -45,15 +45,17 @@ export class FfmpegMedia implements Media {
   }
   // Images: sharp turns the pixels upright from the EXIF orientation and writes no metadata (EXIF, GPS, XMP) unless asked.
   // Audio/video: a stream copy (no re-encode) without global/stream metadata, chapters or cover art; rotation is side data and stays.
+  // MP4/MOV get their index (moov) ahead of the media, so a browser or the render starts playing before the whole file arrives.
   async sanitize(input: string, output: string, kind: ProbeKind) {
+    const ext = extname(output).toLowerCase();
     if (kind === "image") {
       const { default: sharp } = await import("sharp");
       const img = sharp(input, { limitInputPixels: MAX_IMAGE_PX ** 2 }).rotate();
-      const ext = extname(output).toLowerCase();
       await (ext === ".png" ? img.png() : ext === ".webp" ? img.webp({ quality: 92 }) : img.jpeg({ quality: 92 })).toFile(output);
       return;
     }
-    await run("ffmpeg", ["-v", "error", "-y", ...safe("av"), "-i", input, "-map", "0:V?", "-map", "0:a?", "-map_metadata", "-1", "-map_chapters", "-1", "-c", "copy", output]);
+    const faststart = ext === ".mp4" || ext === ".mov" ? ["-movflags", "+faststart"] : [];
+    await run("ffmpeg", ["-v", "error", "-y", ...safe("av"), "-i", input, "-map", "0:V?", "-map", "0:a?", "-map_metadata", "-1", "-map_chapters", "-1", "-c", "copy", ...faststart, output]);
   }
 }
 

@@ -37,6 +37,7 @@ describe("reduceProjectEvents", () => {
 
   it("jobErrorText explains restarts and the cap", () => {
     expect(jobErrorText("interrupted")).toBe("Interrupted by a restart — run it again.");
+    expect(jobErrorText("already_ran")).toBe("It ran, but a restart lost its result — check the B-roll before running it again.");
     expect(jobErrorText("over_cap")).toBe("Monthly spending cap reached — see Usage.");
     expect(jobErrorText("transcriber_unavailable")).toBe("transcriber_unavailable");
   });
