@@ -97,12 +97,15 @@ export const brollJob = (deps: AppDeps): JobHandler => async ({ projectId, data,
       if (!beats.length) warnings.push("no_broll_shots");
       else {
         report(20, "label");
-        const labeled = await labelBeats(deps.llm, beats, project.phrases, { allowVideo: generate });
+        // The one video beat (25 ¢) only on regenerate or when none exists: a plain refresh never buys a second one (spec row 31).
+        const allowVideo = generate && (input.regenerate || !project.overlays.some((o) => o.media === "video"));
+        const labeled = await labelBeats(deps.llm, beats, project.phrases, { allowVideo });
         for (const [n, b] of labeled.entries()) {
           report(20 + (60 * n) / labeled.length, "fetch");
           const shot = shots.find((s) => s.id === b.shotId)!;
+          // Kept whatever the new label says: Ollama changing its mind about a beat must not re-fetch (or re-pay for) it.
           const keep = !input.regenerate && project.overlays.find((o) =>
-            o.shotId === b.shotId && o.media === b.media && o.startMs >= shot.startMs && o.endMs <= shot.endMs);
+            o.shotId === b.shotId && o.startMs >= shot.startMs && o.endMs <= shot.endMs);
           if (keep) { overlays.push(keep); continue; }
           const got = await resolve(b);
           if (!got) { warnings.push(`broll_not_found:${b.id}`); continue; }

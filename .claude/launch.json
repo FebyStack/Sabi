@@ -6,6 +6,6 @@
     { "name": "api-lite-fake", "runtimeExecutable": "env", "runtimeArgs": ["FAKE_AI=1", "npm", "run", "dev:lite"], "port": 3001 },
     { "name": "api", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:server"], "port": 3001 },
     { "name": "whisperx", "runtimeExecutable": "npm", "runtimeArgs": ["run", "ai:whisperx"], "port": 8010 },
-    { "name": "ollama", "runtimeExecutable": "npm", "runtimeArgs": ["run", "ai:ollama"], "port": 11434 }
+    { "name": "ollama", "runtimeExecutable": "sh", "runtimeArgs": ["-c", "OLLAMA_BIN=\"${OLLAMA_BIN:-$HOME/SabiDev/bin/ollama-dist/ollama}\" npm run ai:ollama"], "port": 11434 }
   ]
 }

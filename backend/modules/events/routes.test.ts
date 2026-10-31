@@ -41,6 +41,38 @@ describe("project events (SSE)", () => {
     server.close();
   });
 
+  it("replays a failed last job only while the project itself is failed (a reload still says why), never a finished one", async () => {
+    const deps = makeTestDeps();
+    const app = createApp(deps);
+    const server = app.listen(0);
+    const port = (server.address() as AddressInfo).port;
+    const project = async (status: string) => {
+      const p = (await request(app).post("/api/projects").send({ title: status })).body;
+      await deps.projects.update(p.id, { status: status as never });
+      return p.id as string;
+    };
+    deps.jobs.handle("boom", async () => { throw new Error("transcriber_unavailable"); });
+    deps.jobs.handle("quick", async () => {});
+    const failed = await project("failed"), restored = await project("ready"), done = await project("ready");
+    await deps.jobs.enqueue(failed, "boom", { input: {}, actor: "web", prevStatus: "ready" });
+    await deps.jobs.enqueue(restored, "boom", { input: {}, actor: "web", prevStatus: "ready" }); // e.g. a failed plan: status back to ready
+    await deps.jobs.enqueue(done, "quick", { input: {}, actor: "web", prevStatus: "ready" });
+    for (const id of [failed, restored, done]) await vi.waitFor(async () => expect(["FAILED", "COMPLETE"]).toContain((await deps.jobs.last(id))?.state));
+    // A stream with nothing to replay never flushes its headers, so the whole request races a short timer.
+    const firstFrame = (id: string) => {
+      const ctrl = new AbortController();
+      const frame = fetch(`http://127.0.0.1:${port}/api/projects/${id}/events`, { signal: ctrl.signal }).then((res) => readFrames(res, 1)).catch(() => []);
+      return Promise.race([frame, new Promise<string[]>((r) => setTimeout(() => r([]), 300))]).finally(() => ctrl.abort());
+    };
+
+    const replayed = await firstFrame(failed);
+    expect(replayed[0]).toContain('"state":"FAILED"');
+    expect(replayed[0]).toContain('"error":"transcriber_unavailable"');
+    expect(await firstFrame(restored)).toEqual([]); // the project moved on: no stale "Failed: …" on every reload
+    expect(await firstFrame(done)).toEqual([]); // a COMPLETE job would re-fire "done" side effects
+    server.close();
+  });
+
   it("GET /job?id= returns that job after another finished", async () => {
     const deps = makeTestDeps();
     const a = createApp(deps);

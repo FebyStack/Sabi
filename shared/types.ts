@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type {
-  Actor, ActionSchema, ApplyActionsInput, AssetMetaSchema, CatalogSchema, GenerateInput, JobResultSchema, UsageRowSchema, UsageSchema, BrandFont, CaptionStyleSchema, RenderInput, ApplyActionsResult, AspectRatio, AssetSchema, BeatSchema, BoxSchema, BrandKitSchema, MgProblemSchema, MotionGraphicInput, MotionGraphicPatch, MotionGraphicPropSchema, MotionGraphicSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
+  Actor, ActionSchema, HealthSchema, ServicesSchema, ApplyActionsInput, AssetMetaSchema, CatalogSchema, GenerateInput, JobResultSchema, UsageRowSchema, UsageSchema, BrandFont, CaptionStyleSchema, RenderInput, ApplyActionsResult, AspectRatio, AssetSchema, BeatSchema, BoxSchema, BrandKitSchema, MgProblemSchema, MotionGraphicInput, MotionGraphicPatch, MotionGraphicPropSchema, MotionGraphicSchema, BrollInput, OverlayMedia, OverlayPlacement, OverlaySchema, CreateProjectInput, CutSchema, EditPlanSchema, EmphasisKind, JobStateSchema, MediaSource, PhraseSchema, PlanInput,
   ProjectEventSchema, ProjectSchema, ProjectStatus, ShotKind, ShotSchema, TranscriptSchema, TranslationLanguage, TranslationSchema, WordSchema,
 } from "./contract";
 
@@ -11,6 +11,8 @@ export type JobResult = z.infer<typeof JobResultSchema>;
 export type MgProblem = z.infer<typeof MgProblemSchema>;
 export type Actor = z.infer<typeof Actor>;
 export type Catalog = z.infer<typeof CatalogSchema>;
+export type Services = z.infer<typeof ServicesSchema>;
+export type Health = z.infer<typeof HealthSchema>;
 export type GenerateInput = z.input<typeof GenerateInput>;
 export type Usage = z.infer<typeof UsageSchema>;
 export type UsageRow = z.infer<typeof UsageRowSchema>;

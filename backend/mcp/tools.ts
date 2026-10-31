@@ -4,13 +4,13 @@ import { homedir } from "node:os";
 import { dirname, extname, join, sep } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
-import { ActionSchema, MAX_ACTIONS, TranslationLanguage } from "../../shared/contract";
+import { ActionSchema, MAX_ACTIONS, SpokenLanguage, TranslationLanguage } from "../../shared/contract";
 import { deriveBeats } from "../../shared/editing/beats";
 import { keptSegments, mapTime } from "../../shared/editing/cuts";
 import { staleOverlays } from "../../shared/editing/overlays";
 import { enabledCuts } from "../../shared/editing/renderProps";
 import type { Asset, Catalog, JobState, MgProblem, Project } from "../../shared/types";
-import { SabiHttpError, SabiUnreachable, type SabiApi } from "./client";
+import { SabiHttpError, SabiTimeout, SabiUnreachable, type SabiApi } from "./client";
 
 export type ToolResult = { text: string; images?: { data: Buffer; mimeType: string }[]; isError?: boolean };
 
@@ -47,6 +47,14 @@ const JOB_ERRORS: Record<string, string> = {
   already_ran: `it ran, but an API restart lost its result; check inspect_project {section: "assets"} before running it again (it may have spent credits)`,
   over_cap: "monthly cap reached — raise SPEND_CAP_CENTS on the API",
   generator_timeout: "fal.ai did not finish in time; it was still charged (see model_catalog). Try once more later, or use stock",
+  disk_low: "under 2 GiB free on this Mac's temp or scratch volume — free space (npm run doctor), then run it again",
+  transcriber_unavailable: "whisperX is not answering (not running, or it failed: see its log) — ask the user to start it (npm run ai:whisperx) or check its tab",
+  transcriber_timeout: "whisperX did not finish in 30 min — try a shorter clip or check the sidecar's log",
+  transcriber_rejected: "whisperX refused the spoken language — run_job captions with another Whisper code, or none to auto-detect",
+  llm_unavailable: "Ollama is not answering (not running, or it failed: see its log) — ask the user to start it (npm run ai:ollama) or check its tab",
+  llm_timeout: "Ollama did not answer in 10 min — try again, or a smaller OLLAMA_MODEL",
+  llm_model_missing: "Ollama has no OLLAMA_MODEL to run — ask the user to ollama pull it",
+  llm_invalid_output: "Ollama's answers never fit the plan format — run_job plan again",
 };
 const jobError = (error: string) => JOB_ERRORS[error] ?? error;
 // One line per stored media asset: id, kind, where it came from, size, its prompt or search words, credit.
@@ -140,7 +148,7 @@ function brollSection(p: Project) {
   return [
     "beats:", ...(beats.length ? beats.map((x) => `  ${x.id} ${x.shotId} ${x.placement} ${mmssd(x.startMs)}–${mmssd(x.endMs)}`) : [p.editPlan ? "  none (no B-Roll shots)" : "  none (run_job plan)"]),
     "overlays:", ...(p.overlays.length ? p.overlays.map((o) => `  ${o.id} ${o.shotId} ${o.media} ${o.source} ${o.placement} ${mmssd(o.startMs)}–${mmssd(o.endMs)} ${o.enabled ? "on" : "off"}` +
-      ` "${o.query}"${o.attribution ? ` (Photo: ${o.attribution.author} / Pexels)` : ""}${stale.has(o.id) ? " stale" : ""}`) : ["  none (run_job broll)"]),
+      ` "${o.query}"${o.attribution ? ` (${o.media === "video" ? "Video" : "Photo"}: ${o.attribution.author} / Pexels)` : ""}${stale.has(o.id) ? " stale" : ""}`) : ["  none (run_job broll)"]),
     "motion graphics:", ...(p.motionGraphics.length ? p.motionGraphics.map((m) => `  ${m.id} "${m.name}" ${mmssd(m.startMs)}–${mmssd(m.endMs)} box ${m.box.x},${m.box.y} ${m.box.w}×${m.box.h}` +
       ` ${m.enabled ? "on" : "off"} props: ${m.props.map((x) => x.key).join(",") || "none"}${m.box.y + m.box.h > CAPTION_BAND_Y ? " ⚠ overlaps captions" : ""}`) : ["  none"]),
     b ? `brand: primary ${b.palette.primary} accent ${b.palette.accent} text ${b.palette.text} background ${b.palette.background} font ${b.fontFamily} logo ${b.logoAssetId ?? "none"} grade ${b.grade}`
@@ -246,7 +254,7 @@ const TOOLS = {
     inputSchema: {
       projectId,
       kind: z.enum(["captions", "plan", "render", "broll"]),
-      language: TranslationLanguage.optional().describe('captions only: the spoken language, e.g. "tl" for Tagalog/Taglish, instead of auto-detect'),
+      language: SpokenLanguage.optional().describe('captions only: the spoken language (a Whisper code), e.g. "tl" for Tagalog/Taglish, instead of auto-detect'),
       languages: z.array(TranslationLanguage).max(3).optional().describe("plan only: translated subtitle tracks"),
       burnInLanguage: TranslationLanguage.nullable().optional().describe("plan only: burn this translation into the MP4"),
       regenerate: z.boolean().optional().describe("broll only: replace every overlay instead of keeping matching ones"),
@@ -256,7 +264,7 @@ const TOOLS = {
       scale: z.union([z.literal(1), z.literal(2)]).optional().describe("render only: 2 = 4K, 1 = 1080p (default: the last export's resolution)"),
     },
     run: async (api: SabiApi, i: {
-      projectId: string; kind: "captions" | "plan" | "render" | "broll"; language?: z.infer<typeof TranslationLanguage>; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;
+      projectId: string; kind: "captions" | "plan" | "render" | "broll"; language?: z.infer<typeof SpokenLanguage>; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;
       regenerate?: boolean; overlayId?: string; query?: string; prompt?: string; scale?: 1 | 2;
     }) => {
       const { jobId } = i.kind === "captions" ? await api.run(i.projectId, i.language ? { language: i.language } : {})
@@ -279,7 +287,8 @@ const TOOLS = {
         if (!running && !RUNNING.includes(p.status)) {
           // A failed plan restores the previous status, so the job's own state is the only sign it failed.
           const outcome = job ? `; last job ${job.kind} ${job.state}${job.error ? `: ${jobError(job.error)}` : ""}` : "";
-          const text = `status ${p.status} after ${secs}s${outcome}${p.warnings.length ? `; warnings: ${p.warnings.join(", ")}` : ""}`;
+          // The version just read: the next apply_actions can use it without a fresh inspect_project.
+          const text = `status ${p.status} after ${secs}s${outcome}${p.warnings.length ? `; warnings: ${p.warnings.join(", ")}` : ""}\nbaseVersion: ${p.updatedAt}`;
           return p.status === "failed" || job?.state === "FAILED" ? fail(text) : { text };
         }
         const stage = job ? `; ${jobLine(job)}` : "";
@@ -420,6 +429,7 @@ export async function callTool(api: SabiApi, name: ToolName, input: unknown): Pr
     return await (tool.run as (api: SabiApi, i: unknown) => Promise<ToolResult>)(api, parsed);
   } catch (e) {
     if (e instanceof SabiUnreachable) return fail(UNREACHABLE(e.baseUrl));
+    if (e instanceof SabiTimeout) return fail(`Sabi API did not answer in ${e.timeoutMs / 1000} s at ${e.baseUrl} — it may be warming the renderer or running a job; try again`);
     if (e instanceof SabiHttpError) {
       const { error, job, ...rest } = e.body as { error?: string; job?: JobState };
       if (error === "busy") return fail(`busy: ${job ? jobLine(job) : "a job is running"}; call wait_job, then re-run inspect_project`);

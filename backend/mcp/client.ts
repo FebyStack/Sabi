@@ -10,6 +10,10 @@ import type { ApplyActionsInput, ApplyActionsResult, Asset, BrollInput, Catalog,
 export class SabiUnreachable extends Error {
   constructor(readonly baseUrl: string) { super(`Sabi API not reachable at ${baseUrl}`); }
 }
+// The API is up but slow (warming the renderer, a busy event loop): wait and retry, don't tell the user to start it.
+export class SabiTimeout extends Error {
+  constructor(readonly baseUrl: string, readonly timeoutMs: number) { super(`Sabi API did not answer in ${timeoutMs} ms at ${baseUrl}`); }
+}
 export class SabiHttpError extends Error {
   constructor(readonly status: number, readonly body: { error?: string; [k: string]: unknown }) { super(`${status} ${body.error ?? "error"}`); }
 }
@@ -37,8 +41,8 @@ export class SabiApi {
     try {
       // Every request says it is the agent: the ledger attributes spend to "agent" (attribution, not auth).
       res = await fetch(this.baseUrl + path, { ...rest, headers: { ...(headers as Record<string, string>), [ACTOR_HEADER]: "agent" }, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined });
-    } catch {
-      throw new SabiUnreachable(this.baseUrl);
+    } catch (err) {
+      throw timeoutMs && (err as Error).name === "TimeoutError" ? new SabiTimeout(this.baseUrl, timeoutMs) : new SabiUnreachable(this.baseUrl);
     }
     if (!res.ok) throw new SabiHttpError(res.status, await res.json().catch(() => ({ error: res.statusText })));
     return res;

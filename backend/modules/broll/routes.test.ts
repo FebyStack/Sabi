@@ -5,7 +5,8 @@ import type { AppDeps } from "../../shared/deps";
 import { FakeGenerator } from "../../shared/generator";
 import { FakeRenderer } from "../../shared/renderer";
 import { FakeStock } from "../../shared/stock";
-import { IMG1, IMG2, VID1, makeTestDeps } from "../../shared/testing";
+import { FakeLlm } from "../../shared/llm";
+import { IMG1, IMG2, VID1, fakeLlmResponder, makeTestDeps } from "../../shared/testing";
 import { staleOverlays } from "../../../shared/editing/overlays";
 import type { Action, JobState, MediaSource, Project } from "../../../shared/types";
 
@@ -116,6 +117,44 @@ describe("b-roll api", () => {
     const fresh = await broll(a, project.id, { regenerate: true });
     expect(fresh.overlays.map((o) => o.id)).toEqual(["ov-2", "ov-3"]);
     expect(fresh.overlays.map((o) => o.assetId)).not.toEqual(first.overlays.map((o) => o.assetId));
+  });
+
+  it("a refresh keeps an image beat even when Ollama now wants a video; only regenerate pays for one", async () => {
+    let flip = false;
+    const llm = new FakeLlm((req) => {
+      const out = fakeLlmResponder(req) as { labels?: { i: number; wantsVideo: boolean }[] };
+      if (out.labels) out.labels = out.labels.map((l) => ({ ...l, wantsVideo: flip && l.i === 0 }));
+      return out;
+    });
+    const deps = makeTestDeps({ llm });
+    const { a, project } = await plannedProject(deps, "generate");
+    const first = await broll(a, project.id);
+    expect(first.overlays.map((o) => o.media)).toEqual(["image", "image"]);
+    expect(first.creditsUsedCents).toBe(2);
+    flip = true;
+    const again = await broll(a, project.id);
+    expect(again.overlays.map((o) => [o.id, o.assetId, o.media])).toEqual(first.overlays.map((o) => [o.id, o.assetId, o.media]));
+    expect(again.creditsUsedCents).toBe(2);
+    expect((deps.generator as FakeGenerator).calls).toHaveLength(2);
+    const fresh = await broll(a, project.id, { regenerate: true });
+    expect(fresh.overlays.map((o) => o.media)).toEqual(["video", "image"]);
+    expect(fresh.creditsUsedCents).toBe(2 + 25 + 1);
+  });
+
+  it("a refresh never buys a second video while one exists", async () => {
+    const deps = makeTestDeps(); // the fake labels beat 1 as video
+    const { a, project } = await plannedProject(deps, "generate");
+    const first = await broll(a, project.id);
+    expect(first.overlays.map((o) => o.media)).toEqual(["image", "video"]);
+    await deps.projects.update(project.id, { overlays: [first.overlays[1]] }); // beat 0's image is gone: it is fetched again
+    deps.llm = new FakeLlm((req) => {
+      const out = fakeLlmResponder(req) as { labels?: { i: number; wantsVideo: boolean }[] };
+      if (out.labels) out.labels = out.labels.map((l) => ({ ...l, wantsVideo: true }));
+      return out;
+    });
+    const again = await broll(a, project.id);
+    expect(again.overlays.map((o) => o.media)).toEqual(["image", "video"]);
+    expect((deps.generator as FakeGenerator).calls.map((c) => c.media)).toEqual(["image", "video", "image"]);
   });
 
   it("regenerate one overlay asks for page 2 and skips the current result", async () => {

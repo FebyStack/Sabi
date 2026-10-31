@@ -5,7 +5,7 @@ import tempfile
 from functools import lru_cache
 
 import whisperx
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from timing import words_from_segments
 
@@ -40,14 +40,19 @@ def health():
     return {"ok": True, "model": MODEL}
 
 
+# A plain def: FastAPI runs it in its threadpool, so /health answers while a clip transcribes (jobs are one at a time).
 @app.post("/transcribe")
-async def transcribe(file: UploadFile = File(...), language: str | None = Form(default=None)):
+def transcribe(file: UploadFile = File(...), language: str | None = Form(default=None)):
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        tmp.write(await file.read())
+        tmp.write(file.file.read())
         path = tmp.name
     try:
         audio = whisperx.load_audio(path)
-        result = asr().transcribe(audio, batch_size=8, language=language)
+        model = asr()  # outside the catch: a bad WHISPERX_MODEL/COMPUTE also raises ValueError, and that is a 500, not the language
+        try:
+            result = model.transcribe(audio, batch_size=8, language=language)
+        except ValueError as err:  # faster-whisper: unknown language code
+            raise HTTPException(status_code=400, detail="unknown_language") from err
         lang = result.get("language") or language or "en"
         align = aligner(lang) if result.get("segments") else None
         if align:

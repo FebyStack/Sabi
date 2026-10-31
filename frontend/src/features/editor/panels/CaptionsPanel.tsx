@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGUAGE_NAMES } from "@shared/contract";
-import type { Action, EmphasisKind, Phrase, Project } from "@shared/types";
+import type { Action, EmphasisKind, Phrase, Project, Services } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { useEditorStore, type EditorStore } from "../store/editorStore";
@@ -26,9 +26,9 @@ export function keepDrafts(prev: Phrase[], next: Phrase[], texts: Record<string,
 }
 export const nextEmphasis = (e: EmphasisKind | undefined) => CYCLE[(CYCLE.indexOf(e ?? null) + 1) % CYCLE.length];
 
-type Props = { project: Project; store: EditorStore; commit: (actions: Action[]) => Promise<void>; busy: boolean; onGenerate: (language: string | null) => void };
+type Props = { project: Project; store: EditorStore; commit: (actions: Action[]) => Promise<void>; busy: boolean; onGenerate: (language: string | null) => void; services?: Services };
 
-export function CaptionsPanel({ project, store, commit, busy, onGenerate }: Props) {
+export function CaptionsPanel({ project, store, commit, busy, onGenerate, services }: Props) {
   const selected = useEditorStore(store, (s) => (s.selection?.kind === "phrase" ? s.selection.id : null));
   const [texts, setTexts] = useState<Record<string, string>>({});
   const shown = useRef(project.phrases);
@@ -53,7 +53,9 @@ export function CaptionsPanel({ project, store, commit, busy, onGenerate }: Prop
     return (
       <section className="space-y-3">
         {spoken}
-        <Notice tone="info" action={{ label: "Generate captions", onClick: () => onGenerate(language || null) }}>No captions yet.</Notice>
+        <Notice tone="info" action={{ label: "Generate captions", onClick: () => onGenerate(language || null) }}>
+          No captions yet.{services?.whisperx === "down" && " whisperX isn't running — start it with npm run ai:whisperx."}
+        </Notice>
       </section>
     );
   }

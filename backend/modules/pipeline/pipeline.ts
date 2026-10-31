@@ -1,4 +1,6 @@
 import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname } from "node:path";
 import { carryEmoji, segmentCaptions } from "../../../shared/captions/segment";
 import { toSrt, toVtt } from "../../../shared/captions/subtitles";
 import { getCaptionTemplate } from "../../../shared/captions/templates";
@@ -6,6 +8,7 @@ import { api } from "../../../shared/contract";
 import { captionVideoProps, subtitleTracks } from "../../../shared/editing/renderProps";
 import type { Actor, Asset, JobState, Project, ProjectStatus } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
+import { assertDiskRoom } from "../../shared/disk";
 import type { JobHandler } from "../../shared/jobs";
 
 export type RunOptions = { language?: string | null; transcribe: boolean; resegment: boolean; scale?: 1 | 2 };
@@ -77,6 +80,7 @@ export async function renderOutputs(deps: AppDeps, project: Project, source: Ass
   const jobKey = `renders/${project.id}/${id}`;
   const outPath = deps.storage.workPath(`renders/${project.id}-${id}.mp4`); // flat: no scratch folder per project left behind
   try {
+    await assertDiskRoom(deps.freeBytes, [tmpdir(), dirname(outPath)]); // Chrome + Remotion chunks in temp, the MP4 in scratch
     await deps.renderer.render({ compositionId: "CaptionVideo", inputProps: props, durationMs: props.durationMs, outPath, scale });
     await deps.storage.put(`${jobKey}.mp4`, outPath);
   } finally {

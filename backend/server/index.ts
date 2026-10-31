@@ -7,6 +7,7 @@ import { parseSpendCap } from "../modules/usage/spend";
 import { seedDemo } from "../modules/demo/seed";
 import { startRetention } from "../modules/retention/sweep";
 import type { AppDeps } from "../shared/deps";
+import { freeBytesOf } from "../shared/disk";
 import { MemoryEventBus } from "../shared/events";
 import { OllamaLlm } from "../shared/llm";
 import { FalGenerator } from "../shared/generator";
@@ -55,6 +56,7 @@ const deps: AppDeps = {
   spendCapCents,
   apiBaseUrl: process.env.API_BASE_URL ?? `http://127.0.0.1:${port}`,
   allowedOrigins,
+  freeBytes: freeBytesOf,
   now: () => new Date(),
   id: randomUUID,
 };

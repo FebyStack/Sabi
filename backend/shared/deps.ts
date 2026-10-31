@@ -29,6 +29,7 @@ export interface AppDeps {
   spendCapCents: number; // monthly cap on paid generation, 0 = none (SPEND_CAP_CENTS)
   apiBaseUrl: string; // where Chromium (Remotion) fetches source media during renders
   allowedOrigins?: string[]; // non-localhost pages allowed to use the API (ALLOWED_ORIGINS), e.g. a phone on the LAN
+  freeBytes: (path: string) => Promise<number>; // the disk floor on renders (spec row 30); statfs, Infinity in tests
   now: () => Date;
   id: () => string;
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { staleOverlays } from "@shared/editing/overlays";
-import type { Action, BrollInput, GenerateInput, MediaSource, Overlay, Project, Shot } from "@shared/types";
+import type { Action, BrollInput, GenerateInput, MediaSource, Overlay, Project, Services, Shot } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Segmented } from "@/components/ui/Segmented";
@@ -27,11 +27,11 @@ export function overlayRows(project: Project): { overlay: Overlay; shot: Shot | 
 // jobBusy: a job is running (not just a commit in flight). The props sheet types through its own commits.
 type Props = {
   project: Project; busy: boolean; jobBusy: boolean; onAdd: (input: BrollInput) => void; onGenerate: (input: GenerateInput) => void;
-  commit: (actions: Action[]) => Promise<void>; onSeek: (ms: number) => void;
+  commit: (actions: Action[]) => Promise<void>; onSeek: (ms: number) => void; services?: Services;
 };
 
 // B-roll and motion graphics, mobile-first; every edit is an action (timing lives on the timeline and its selection bar).
-export function BrollPanel({ project, busy, jobBusy, onAdd, onGenerate, commit, onSeek }: Props) {
+export function BrollPanel({ project, busy, jobBusy, onAdd, onGenerate, commit, onSeek, services }: Props) {
   const [replaceAll, setReplaceAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; action: Action } | null>(null);
@@ -60,6 +60,8 @@ export function BrollPanel({ project, busy, jobBusy, onAdd, onGenerate, commit, 
     <section className="space-y-3">
       <h2 className="text-sm font-medium text-ink-muted">B-roll</h2>
       <Segmented label="Media source" value={project.mediaSource} options={SOURCES} disabled={busy} onChange={(m) => commit([{ type: "setMediaSource", mediaSource: m }])} />
+      {project.mediaSource === "stock" && services?.stock === "unset" && <Notice tone="warn">Pexels isn't set up: add PEXELS_KEY to the API.</Notice>}
+      {project.mediaSource === "generate" && services?.generator === "unset" && <Notice tone="warn">fal.ai isn't set up: add FAL_KEY to the API, or switch B-roll to Stock only.</Notice>}
       {!project.editPlan ? <Notice tone="info">Plan the edit first — B-roll goes on the shots it labels.</Notice> : (
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary" disabled={busy} onClick={() => onAdd({ regenerate: replaceAll })}>{project.overlays.length ? "Refresh B-roll" : "Add B-roll"}</Button>
