@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { LANGUAGE_NAMES, SHOT_KINDS } from "@shared/contract";
-import type { Action, Cut, PlanInput, Project, ShotKind, TranslationLanguage } from "@shared/types";
+import type { Action, Cut, PlanInput, Project, Services, ShotKind, TranslationLanguage } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Notice";
 import { Switch } from "@/components/ui/Switch";
 
 const KIND_TONE: Record<ShotKind, string> = { Hook: "bg-shot-hook", "Talking Head": "bg-shot-th", "B-Roll": "bg-shot-broll", "Talking Head & B-Roll": "bg-shot-thb" };
@@ -12,10 +13,10 @@ const cutLabel = (c: Cut) =>
   c.reason === "pause" ? `Cut pause ${((c.endMs - c.startMs) / 1000).toFixed(1)} s at ${at(c.startMs)}` : `Cut “${c.text}” at ${at(c.startMs)}`;
 const select = "min-h-11 flex-1 rounded-2 bg-surface-2 px-3";
 
-type Props = { project: Project; busy: boolean; onPlan: (input: PlanInput) => void; commit: (actions: Action[]) => Promise<void>; onSeek: (ms: number) => void };
+type Props = { project: Project; busy: boolean; onPlan: (input: PlanInput) => void; commit: (actions: Action[]) => Promise<void>; onSeek: (ms: number) => void; services?: Services };
 
 // The "Plan edit" job (Ollama) plus the plan's cuts and burn-in, each committed at once. Shots are edited on the timeline.
-export function PlanPanel({ project, busy, onPlan, commit, onSeek }: Props) {
+export function PlanPanel({ project, busy, onPlan, commit, onSeek, services }: Props) {
   const plan = project.editPlan;
   const [replan, setReplan] = useState(false);
   const [langs, setLangs] = useState<TranslationLanguage[]>([]);
@@ -52,6 +53,8 @@ export function PlanPanel({ project, busy, onPlan, commit, onSeek }: Props) {
             </select>
           </Field>
         )}
+        {services?.ollama === "down" && <Notice tone="warn">Ollama isn't running — start it with npm run ai:ollama.</Notice>}
+        {services?.ollama === "model_missing" && <Notice tone="warn">Ollama has no {services.ollamaModel} — run ollama pull {services.ollamaModel}.</Notice>}
         <div className="flex flex-wrap gap-2">
           <Button variant="primary" disabled={busy} onClick={() => { onPlan({ languages: langs, burnInLanguage: burnIn }); setReplan(false); }}>Plan edit</Button>
           {plan && <Button onClick={() => setReplan(false)}>Cancel</Button>}

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { editorProject } from "@shared/editing/fixtures";
-import type { Project } from "@shared/types";
+import type { Project, Services } from "@shared/types";
 import { createEditorStore, type Selected } from "../store/editorStore";
 import { CaptionsPanel, keepDrafts, nextEmphasis, phraseEdits } from "./CaptionsPanel";
 
@@ -14,7 +14,18 @@ const panel = (project: Project, selection: Selected | null = null, onGenerate: 
   renderToStaticMarkup(<CaptionsPanel project={project} store={createEditorStore({ selection })} commit={async () => {}} busy={false} onGenerate={onGenerate} />);
 const withProps = (pred: (p: Record<string, unknown>) => boolean) => elements.find((e) => pred(e.props))!.props;
 
+const services = (patch: Partial<Services> = {}): Services => ({ whisperx: "ok", ollama: "ok", ollamaModel: "qwen2.5:3b", stock: "ok", generator: "ok", ...patch });
+
 describe("CaptionsPanel", () => {
+  it("names a stopped whisperX before Generate, which stays available", () => {
+    const empty = editorProject({ phrases: [], transcript: null });
+    const html = (s: Services) => renderToStaticMarkup(<CaptionsPanel project={empty} store={createEditorStore({ selection: null })} commit={async () => {}} busy={false} onGenerate={() => {}} services={s} />);
+    elements.length = 0;
+    expect(html(services({ whisperx: "down" }))).toContain("No captions yet. whisperX isn&#x27;t running — start it with npm run ai:whisperx.");
+    expect(withProps((p) => (p.action as { label?: string } | undefined)?.label === "Generate captions")).toBeTruthy();
+    expect(html(services())).not.toContain("whisperX isn");
+  });
+
   it("phraseEdits emits one editPhrase per changed phrase and ignores emptied text", () => {
     const p = editorProject();
     expect(phraseEdits(p.phrases, { "ph-0": "Morning routines", "ph-1": "  that   sticks ", "ph-2": "   " }))

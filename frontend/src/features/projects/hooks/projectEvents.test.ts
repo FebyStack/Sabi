@@ -39,7 +39,17 @@ describe("reduceProjectEvents", () => {
     expect(jobErrorText("interrupted")).toBe("Interrupted by a restart — run it again.");
     expect(jobErrorText("already_ran")).toBe("It ran, but a restart lost its result — check the B-roll before running it again.");
     expect(jobErrorText("over_cap")).toBe("Monthly spending cap reached — see Usage.");
-    expect(jobErrorText("transcriber_unavailable")).toBe("transcriber_unavailable");
+    expect(jobErrorText("no_source")).toBe("no_source"); // an unknown code reads as itself
+  });
+
+  it("jobErrorText says which local service failed and how", () => {
+    expect(jobErrorText("transcriber_unavailable")).toBe("whisperX isn't running — start it with npm run ai:whisperx.");
+    expect(jobErrorText("transcriber_timeout")).toBe("whisperX took too long (30 min) — try a shorter clip or check the sidecar's log.");
+    expect(jobErrorText("transcriber_rejected")).toBe("whisperX refused the spoken language — pick another in Spoken language.");
+    expect(jobErrorText("llm_unavailable")).toBe("Ollama isn't running — start it with npm run ai:ollama.");
+    expect(jobErrorText("llm_timeout")).toBe("Ollama took too long (10 min) — try again or a smaller model.");
+    expect(jobErrorText("llm_model_missing")).toBe("Ollama has no model to run — ollama pull the OLLAMA_MODEL.");
+    expect(jobErrorText("llm_invalid_output")).toBe("Ollama's answer never fit the plan format — run Plan edit again.");
   });
 
   it("jobErrorText explains a render refused for disk space", () => {

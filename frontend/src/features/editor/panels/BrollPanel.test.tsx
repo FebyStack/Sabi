@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { BrollPanel, overlayRows } from "./BrollPanel";
-import type { MotionGraphic, Overlay, Project, Shot } from "@shared/types";
+import type { MotionGraphic, Overlay, Project, Services, Shot } from "@shared/types";
 
 const shots: Shot[] = [
   { id: "shot-0", kind: "Hook", startMs: 0, endMs: 4000 },
@@ -16,10 +16,19 @@ const project = (patch: Partial<Project> = {}) => ({
   id: "p", mediaSource: "stock", warnings: [], creditsUsedCents: 0, motionGraphics: [], editPlan: { cuts: [], shots },
   overlays: [ov("ov-0", "shot-1", 4300, 9300), ov("ov-1", "shot-0", 300, 2300)], ...patch,
 }) as unknown as Project;
-const panel = (p: Project) => renderToStaticMarkup(
-  <MemoryRouter><BrollPanel project={p} busy={false} jobBusy={false} onAdd={() => {}} onGenerate={() => {}} commit={async () => {}} onSeek={() => {}} /></MemoryRouter>);
+const panel = (p: Project, services?: Services) => renderToStaticMarkup(
+  <MemoryRouter><BrollPanel project={p} busy={false} jobBusy={false} onAdd={() => {}} onGenerate={() => {}} commit={async () => {}} onSeek={() => {}} services={services} /></MemoryRouter>);
+const services = (patch: Partial<Services> = {}): Services => ({ whisperx: "ok", ollama: "ok", ollamaModel: "qwen2.5:3b", stock: "ok", generator: "ok", ...patch });
 
 describe("BrollPanel", () => {
+  it("names the missing key for the project's media source before a click", () => {
+    expect(panel(project(), services({ stock: "unset" }))).toContain("Pexels isn&#x27;t set up: add PEXELS_KEY to the API.");
+    expect(panel(project({ mediaSource: "generate" }), services({ generator: "unset" }))).toContain("fal.ai isn&#x27;t set up: add FAL_KEY to the API, or switch B-roll to Stock only.");
+    expect(panel(project({ mediaSource: "generate" }), services({ stock: "unset" }))).not.toContain("isn&#x27;t set up"); // only the source in use
+    expect(panel(project(), services())).not.toContain("isn&#x27;t set up");
+    expect(panel(project(), undefined)).not.toContain("isn&#x27;t set up"); // health not loaded yet
+  });
+
   it("overlayRows labels overlays with their shot and flags stale ones", () => {
     expect(overlayRows(project()).map((r) => [r.overlay.id, r.label, r.stale])).toEqual([
       ["ov-0", "B-Roll · 0:04–0:09", false],

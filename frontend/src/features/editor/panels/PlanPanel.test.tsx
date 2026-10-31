@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { editorProject } from "@shared/editing/fixtures";
-import type { Action, Project } from "@shared/types";
+import type { Action, Project, Services } from "@shared/types";
 import { PlanPanel } from "./PlanPanel";
 
 // Record every element's props, so handlers can be called without a DOM.
@@ -18,7 +18,20 @@ const render = (project: Project) => {
 };
 const withProps = (pred: (p: Record<string, unknown>) => boolean) => elements.find((e) => pred(e.props))!.props;
 
+const services = (patch: Partial<Services> = {}): Services => ({ whisperx: "ok", ollama: "ok", ollamaModel: "qwen2.5:3b", stock: "ok", generator: "ok", ...patch });
+const withServices = (s: Services) => {
+  elements.length = 0;
+  return renderToStaticMarkup(<PlanPanel project={editorProject({ editPlan: null })} busy={false} onPlan={() => {}} commit={async () => {}} onSeek={() => {}} services={s} />);
+};
+
 describe("PlanPanel", () => {
+  it("names a missing Ollama model or a stopped Ollama; Plan edit stays enabled", () => {
+    expect(withServices(services({ ollama: "model_missing" }))).toContain("Ollama has no qwen2.5:3b — run ollama pull qwen2.5:3b.");
+    expect(withProps((p) => p.children === "Plan edit").disabled).toBe(false);
+    expect(withServices(services({ ollama: "down" }))).toContain("Ollama isn&#x27;t running — start it with npm run ai:ollama.");
+    expect(withServices(services())).not.toContain("Ollama");
+  });
+
   it("cuts toggle through setCut", () => {
     const { html, commit } = render(editorProject());
     expect(html.match(/role="switch"/g)).toHaveLength(2);

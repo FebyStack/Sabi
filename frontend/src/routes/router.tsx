@@ -3,11 +3,13 @@ import { createBrowserRouter } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getHealth } from "@/services/http";
 import { ProjectList } from "@/features/projects/components/ProjectList";
+import { servicesLine } from "@/hooks/useServices";
 import { UsageChip } from "@/features/usage/UsageChip";
 import { UsagePage } from "@/features/usage/UsagePage";
 
 function Home() {
   const health = useQuery({ queryKey: ["health"], queryFn: getHealth, refetchInterval: 10_000 });
+  const missing = servicesLine(health.data?.services);
   return (
     <main className="mx-auto max-w-3xl px-4 py-4 text-neutral-100">
       <header className="mb-6 flex items-center justify-between">
@@ -17,6 +19,7 @@ function Home() {
           <span className="text-xs text-neutral-400">api: {health.isSuccess ? "ok" : health.isError ? "down" : "…"}</span>
         </span>
       </header>
+      {missing && <p className="-mt-4 mb-4 text-xs text-warn">{missing}</p>}
       <ProjectList />
     </main>
   );

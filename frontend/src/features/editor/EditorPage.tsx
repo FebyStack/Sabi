@@ -14,6 +14,7 @@ import { UploadDropzone } from "@/features/projects/components/UploadDropzone";
 import { jobErrorText } from "@/features/projects/hooks/projectEvents";
 import { useProjectEvents } from "@/features/projects/hooks/useProjectEvents";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useServices } from "@/hooks/useServices";
 import { previewOf } from "./actions/preview";
 import { useProjectActions } from "./actions/useProjectActions";
 import { EditorLayout } from "./layout/EditorLayout";
@@ -45,6 +46,7 @@ export default function EditorPage() {
     notice: useEditorStore(store, (x) => x.notice), deleting: useEditorStore(store, (x) => x.deleting), canUndo: useEditorStore(store, (x) => x.undo.length > 0), canRedo: useEditorStore(store, (x) => x.redo.length > 0),
   };
   const project = useQuery({ queryKey: ["project", id], queryFn: () => getProject(id) });
+  const services = useServices(); // whisperX / Ollama / keys, hinted in the panels before a click (spec row 32)
   const exporting = useRef(false); // the next finished captions-kind job is the export render, not a captions run
   const events = useProjectEvents(id, (job) => {
     if (job.kind === "plan") track("plan_done");
@@ -125,11 +127,11 @@ export default function EditorPage() {
   );
   const panels: Record<typeof panelTab, React.ReactNode> = {
     timeline: !s.selection && <p className="text-sm text-ink-muted">Tap a block to edit it; drag its edges to trim; pinch to zoom.</p>,
-    captions: <CaptionsPanel project={p} store={store} commit={edit} busy={busy} onGenerate={(language) => run.mutate(language)} />,
+    captions: <CaptionsPanel project={p} store={store} commit={edit} busy={busy} onGenerate={(language) => run.mutate(language)} services={services} />,
     broll: (
       <div className="space-y-6">
-        {p.transcript && p.phrases.length > 0 && <PlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} commit={edit} onSeek={seek} />}
-        <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} jobBusy={jobBusy} onAdd={(input) => broll.mutate(input)} onGenerate={(input) => generate.mutate(input)} commit={edit} onSeek={seek} />
+        {p.transcript && p.phrases.length > 0 && <PlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} commit={edit} onSeek={seek} services={services} />}
+        <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} jobBusy={jobBusy} onAdd={(input) => broll.mutate(input)} onGenerate={(input) => generate.mutate(input)} commit={edit} onSeek={seek} services={services} />
       </div>
     ),
     style: <StylePanel project={p} commit={edit} busy={busy} />,
