@@ -3,8 +3,8 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream } from "node:stream/web";
-import { api } from "../../shared/contract";
-import type { ApplyActionsInput, ApplyActionsResult, Asset, BrollInput, JobState, PlanInput, Project, RenderInput } from "../../shared/types";
+import { ACTOR_HEADER, api } from "../../shared/contract";
+import type { ApplyActionsInput, ApplyActionsResult, Asset, BrollInput, Catalog, GenerateInput, JobState, PlanInput, Project, RenderInput } from "../../shared/types";
 
 export class SabiUnreachable extends Error {
   constructor(readonly baseUrl: string) { super(`Sabi API not reachable at ${baseUrl}`); }
@@ -22,10 +22,11 @@ export class SabiApi {
   constructor(readonly baseUrl: string, { timeoutMs = 2000 }: { timeoutMs?: number } = {}) { this.timeoutMs = timeoutMs; }
 
   private async req(path: string, init: RequestInit & { timeoutMs?: number | null } = {}) {
-    const { timeoutMs = this.timeoutMs, ...rest } = init;
+    const { timeoutMs = this.timeoutMs, headers, ...rest } = init;
     let res: Response;
     try {
-      res = await fetch(this.baseUrl + path, { ...rest, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined });
+      // Every request says it is the agent: the ledger attributes spend to "agent" (attribution, not auth).
+      res = await fetch(this.baseUrl + path, { ...rest, headers: { ...(headers as Record<string, string>), [ACTOR_HEADER]: "agent" }, signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined });
     } catch {
       throw new SabiUnreachable(this.baseUrl);
     }
@@ -47,6 +48,11 @@ export class SabiApi {
   plan(id: string, input: PlanInput) { return this.json<{ jobId: string }>(api.projectPlan(id), "POST", input); }
   render(id: string, input: RenderInput = {}) { return this.json<{ jobId: string }>(api.projectRender(id), "POST", input); }
   broll(id: string, input: BrollInput) { return this.json<{ jobId: string }>(api.projectBroll(id), "POST", input); }
+  generate(id: string, input: GenerateInput) { return this.json<{ jobId: string }>(api.projectGenerate(id), "POST", input); }
+  getJobById(id: string, jobId: string) { return this.json<JobState>(`${api.projectJob(id)}?id=${encodeURIComponent(jobId)}`); }
+  listAssets(id: string) { return this.json<Asset[]>(api.projectAssets(id)); }
+  catalog() { return this.json<Catalog>(api.catalog); }
+  async assetBytes(assetId: string) { return Buffer.from(await (await this.req(api.assetFile(assetId), { timeoutMs: SLOW_MS })).arrayBuffer()); }
 
   // The API clamps t and w; the header carries the time actually drawn.
   async frame(id: string, t: number, w: number) {

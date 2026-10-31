@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { parseAllowedOrigins } from "../app/app";
 import { MemoryAssetRepository } from "../modules/assets/repository";
 import { MemoryProjectRepository } from "../modules/projects/repository";
+import { JsonlCreditLedger, MemoryCreditLedger } from "../modules/usage/ledger";
+import { parseSpendCap } from "../modules/usage/spend";
 import type { AppDeps } from "./deps";
 import { MemoryEventBus } from "./events";
 import { MemoryJobRunner } from "./jobs";
@@ -31,6 +33,8 @@ export function makeTestDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     renderer: new FakeRenderer(),
     llm: new FakeLlm(fakeLlmResponder),
     ...fakeBroll(),
+    ledger: new MemoryCreditLedger(),
+    spendCapCents: 2000,
     apiBaseUrl: "http://test",
     now: () => new Date("2026-01-01T00:00:00.000Z"),
     id: () => `id-${++n}`,
@@ -107,6 +111,9 @@ export function makeMemoryDeps(dataDir: string, apiBaseUrl = `http://127.0.0.1:$
       stock: process.env.PEXELS_KEY ? new PexelsStock(process.env.PEXELS_KEY, globalThis.fetch) : null,
       generator: process.env.FAL_KEY ? new FalGenerator(process.env.FAL_KEY, globalThis.fetch) : null,
     }),
+    // Real fal spend survives tsx-watch restarts (so the cap does too); the fake generator spends nothing and stays in memory.
+    ledger: fakeAi ? new MemoryCreditLedger() : new JsonlCreditLedger(join(dataDir, "ledger.jsonl")),
+    spendCapCents: parseSpendCap(process.env.SPEND_CAP_CENTS),
     apiBaseUrl: process.env.API_BASE_URL ?? apiBaseUrl,
     allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
     now: () => new Date(),

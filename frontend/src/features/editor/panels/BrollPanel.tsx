@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { staleOverlays } from "@shared/editing/overlays";
-import type { Action, BrollInput, MediaSource, Overlay, Project, Shot } from "@shared/types";
+import type { Action, BrollInput, GenerateInput, MediaSource, Overlay, Project, Shot } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Segmented } from "@/components/ui/Segmented";
 import { Sheet } from "@/components/ui/Sheet";
 import { Switch } from "@/components/ui/Switch";
 import { assetFileUrl, uploadFile } from "@/features/projects/api/projects";
+import { NewOverlaySheet } from "./NewOverlaySheet";
 
 const REPLACE_TYPES = ["image/png", "image/jpeg", "image/webp", "video/mp4"];
 const mss = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, "0")}`;
@@ -21,13 +22,17 @@ export function overlayRows(project: Project): { overlay: Overlay; shot: Shot | 
   });
 }
 
-type Props = { project: Project; busy: boolean; onAdd: (input: BrollInput) => void; commit: (actions: Action[]) => Promise<void>; onSeek: (ms: number) => void };
+type Props = {
+  project: Project; busy: boolean; onAdd: (input: BrollInput) => void; onGenerate: (input: GenerateInput) => void;
+  commit: (actions: Action[]) => Promise<void>; onSeek: (ms: number) => void;
+};
 
 // B-roll and motion graphics, mobile-first; every edit is an action (timing lives on the timeline and its selection bar).
-export function BrollPanel({ project, busy, onAdd, commit, onSeek }: Props) {
+export function BrollPanel({ project, busy, onAdd, onGenerate, commit, onSeek }: Props) {
   const [replaceAll, setReplaceAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; action: Action } | null>(null);
+  const [renew, setRenew] = useState<Overlay | null>(null);
   const rows = overlayRows(project);
   const notFound = project.warnings.filter((w) => w.startsWith("broll_not_found:")).length;
 
@@ -58,6 +63,7 @@ export function BrollPanel({ project, busy, onAdd, commit, onSeek }: Props) {
       )}
       {project.warnings.includes("no_broll_shots") && <Notice tone="warn">Mark shots as B-Roll in the edit plan first.</Notice>}
       {notFound > 0 && <Notice tone="warn">No media found for {notFound} beat(s).</Notice>}
+      {project.warnings.includes("over_cap") && <Notice tone="warn">Monthly spending cap reached — see <a href="/usage" className="underline">Usage</a>.</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
 
       {rows.length > 0 && (
@@ -86,6 +92,7 @@ export function BrollPanel({ project, busy, onAdd, commit, onSeek }: Props) {
                   <input type="file" accept={REPLACE_TYPES.join(",")} className="sr-only" disabled={busy} onChange={(e) => replace(o, e.target.files?.[0])} />
                 </label>
                 <Button size="sm" disabled={busy} onClick={() => onAdd({ overlayId: o.id })}>Another</Button>
+                <Button size="sm" aria-label={`New media for ${label}`} aria-haspopup="dialog" disabled={busy} onClick={() => setRenew(o)}>New…</Button>
                 {del(label, "Delete this B-roll?", { type: "removeOverlay", overlayId: o.id })}
               </div>
             </li>
@@ -108,6 +115,7 @@ export function BrollPanel({ project, busy, onAdd, commit, onSeek }: Props) {
         </>
       )}
       {project.creditsUsedCents > 0 && <p className="text-xs text-ink-muted">${(project.creditsUsedCents / 100).toFixed(2)} used</p>}
+      {renew && <NewOverlaySheet mediaSource={project.mediaSource} overlay={renew} busy={busy} onClose={() => setRenew(null)} onGenerate={onGenerate} />}
       <Sheet open={!!confirm} onClose={() => setConfirm(null)} title={confirm?.title ?? "Delete?"}>
         <p className="mb-4 text-sm text-ink-muted">This can't be undone.</p>
         <div className="flex gap-2">

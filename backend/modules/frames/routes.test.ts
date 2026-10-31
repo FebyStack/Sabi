@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
+import { dirname } from "node:path";
 import request from "supertest";
-import { projectWithSource, readyProject } from "../../shared/apiTestHelpers";
+import { holdJob, projectWithSource, readyProject } from "../../shared/apiTestHelpers";
 import { FakeRenderer } from "../../shared/renderer";
 import { makeTestDeps } from "../../shared/testing";
 
@@ -27,7 +28,7 @@ describe("still frames", () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);
     await Promise.all([1000, 1000, 2000].map((t) => request(a).get(`/api/projects/${project.id}/frame?t=${t}`).expect(200)));
-    const dir = deps.storage.localPath(`frames/${project.id}`);
+    const dir = dirname(deps.storage.workPath(`frames/${project.id}/probe`));
     expect(existsSync(dir) ? readdirSync(dir) : []).toEqual([]);
   });
 
@@ -45,10 +46,8 @@ describe("still frames", () => {
   it("frame while busy is 409", async () => {
     const deps = makeTestDeps();
     const { a, project } = await readyProject(deps);
-    let release!: () => void;
-    const gate = new Promise<void>((r) => { release = r; });
-    deps.jobs.enqueue(project.id, "captions", async ({ report }) => { report(40, "render"); await gate; });
-    await vi.waitFor(() => expect(deps.jobs.active(project.id)?.progress).toBe(40));
+    const release = await holdJob(deps, project.id, { kind: "captions", progress: 40, stage: "render" });
+    await vi.waitFor(async () => expect((await deps.jobs.active(project.id))?.progress).toBe(40));
     const res = await request(a).get(`/api/projects/${project.id}/frame?t=0`);
     expect(res.status).toBe(409);
     expect(res.body).toMatchObject({ error: "busy", job: { kind: "captions", progress: 40, stage: "render" } });
@@ -73,10 +72,8 @@ describe("still frames", () => {
     expect(idle.status).toBe(200);
     expect(idle.body).toBeNull();
     expect((await request(a).get(`/api/projects/${project.id}/job`)).body).toMatchObject({ kind: "captions", state: "COMPLETE" });
-    let release!: () => void;
-    const gate = new Promise<void>((r) => { release = r; });
-    const job = deps.jobs.enqueue(project.id, "plan", async () => { await gate; });
-    await vi.waitFor(() => expect(deps.jobs.active(project.id)).not.toBeNull());
+    const release = await holdJob(deps, project.id, { kind: "plan" });
+    const job = (await deps.jobs.active(project.id))!;
     expect((await request(a).get(`/api/projects/${project.id}/job`)).body).toMatchObject({ id: job.id, kind: "plan", state: "PROCESSING" });
     release();
     await vi.waitFor(async () => expect((await request(a).get(`/api/projects/${project.id}/job`)).body).toMatchObject({ id: job.id, state: "COMPLETE" }));

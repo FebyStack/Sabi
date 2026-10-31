@@ -1,6 +1,6 @@
 import { STAGES, STAGE_LABELS, type Stage } from "./progressModel";
 
-export function StageProgress({ view }: { view: { stage: Stage; pct: number } }) {
+export function StageProgress({ view, queued = false }: { view: { stage: Stage; pct: number }; queued?: boolean }) {
   const current = STAGES.indexOf(view.stage);
   return (
     <div className="space-y-2">
@@ -13,7 +13,7 @@ export function StageProgress({ view }: { view: { stage: Stage; pct: number } })
         ))}
       </ol>
       <div className="h-1.5 w-full overflow-hidden rounded-1 bg-surface-2"><div className="h-full bg-accent transition-all duration-(--duration-slow)" style={{ width: `${view.pct}%` }} /></div>
-      <p role="status" aria-live="polite" className="text-xs text-ink-muted">{STAGE_LABELS[view.stage]} {view.pct}%</p>
+      <p role="status" aria-live="polite" className="text-xs text-ink-muted">{queued ? "Queued — another project's job is running" : `${STAGE_LABELS[view.stage]} ${view.pct}%`}</p>
     </div>
   );
 }

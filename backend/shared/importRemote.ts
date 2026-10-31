@@ -1,6 +1,9 @@
+import { createWriteStream } from "node:fs";
+import { rm } from "node:fs/promises";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { ReadableStream as WebStream } from "node:stream/web";
-import type { OverlayMedia } from "../../shared/types";
+import type { Asset, AssetMeta, OverlayMedia } from "../../shared/types";
 import type { AppDeps } from "./deps";
 import { MAX_IMAGE_PX, type MediaInfo } from "./media";
 import { limitBytes } from "./streams";
@@ -13,7 +16,7 @@ const TYPES: Record<OverlayMedia, Record<string, string>> = {
 
 const isHttps = (url: string) => { try { return new URL(url).protocol === "https:"; } catch { return false; } };
 
-// Stock/generated media is untrusted: https only, capped, typed, probed. It is copied under DATA_DIR so renders never fetch third-party hosts.
+// Stock/generated media is untrusted: https only, capped, typed, probed. It is copied into storage so renders never fetch third-party hosts.
 export async function importRemote(
   deps: Pick<AppDeps, "storage" | "media" | "id" | "fetch">, url: string, opts: { expect: OverlayMedia; maxBytes?: number },
 ): Promise<{ key: string; mimeType: string; info: MediaInfo }> {
@@ -27,17 +30,37 @@ export async function importRemote(
     await res.body?.cancel().catch(() => {});
     throw bad();
   }
-  const key = `broll/${deps.id()}${ext}`;
+  const name = `${deps.id()}${ext}`;
+  const key = `broll/${name}`;
+  const work = deps.storage.workPath(`imports/${name}`); // checked locally, stored only once it passes
+  const clean = deps.storage.workPath(`imports/clean-${name}`);
   try {
     const src = Readable.fromWeb(res.body as WebStream<Uint8Array>);
     const limited = limitBytes(max);
     src.on("error", (err) => limited.destroy(err)); // .pipe() does not forward a dropped connection
-    await deps.storage.write(key, src.pipe(limited));
-    const info = await deps.media.probe(deps.storage.localPath(key), opts.expect === "image" ? "image" : "av");
-    if (!info.width || !info.height || (opts.expect === "image" && Math.max(info.width, info.height) > MAX_IMAGE_PX)) throw bad();
+    await pipeline(src.pipe(limited), createWriteStream(work));
+    const kind = opts.expect === "image" ? "image" : "av";
+    const raw = await deps.media.probe(work, kind);
+    if (!raw.width || !raw.height || (opts.expect === "image" && Math.max(raw.width, raw.height) > MAX_IMAGE_PX)) throw bad();
+    await deps.media.sanitize(work, clean, kind); // stock photos carry camera EXIF too
+    const info = await deps.media.probe(clean, kind);
+    await deps.storage.put(key, clean);
     return { key, mimeType, info };
   } catch {
-    await deps.storage.remove(key);
     throw bad();
+  } finally {
+    await Promise.all([rm(work, { force: true }), rm(clean, { force: true })]);
   }
+}
+
+// importRemote + the asset row, with where it came from (stock attribution, or the generation and its prompt).
+export async function importAsAsset(
+  deps: Pick<AppDeps, "storage" | "media" | "id" | "fetch" | "assets" | "now">, req: { projectId: string; url: string; media: OverlayMedia; meta: AssetMeta },
+): Promise<Asset> {
+  const { key, mimeType, info } = await importRemote(deps, req.url, { expect: req.media });
+  const stored = await deps.storage.stat(key);
+  return deps.assets.create({
+    id: deps.id(), projectId: req.projectId, kind: req.media, key, mimeType, sizeBytes: stored?.size ?? 0, width: info.width, height: info.height,
+    ...(req.media === "video" ? { durationMs: info.durationMs } : {}), meta: req.meta, createdAt: deps.now().toISOString(),
+  });
 }

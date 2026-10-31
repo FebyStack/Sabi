@@ -1,5 +1,5 @@
 import request from "supertest";
-import { readyProject } from "../../shared/apiTestHelpers";
+import { holdJob, readyProject } from "../../shared/apiTestHelpers";
 import { makeTestDeps } from "../../shared/testing";
 import { MemoryProjectRepository } from "../projects/repository";
 import { sweepRetention } from "./sweep";
@@ -26,9 +26,7 @@ describe("retention sweep", () => {
     let clock = new Date("2026-01-01T00:00:00.000Z");
     const deps = makeTestDeps({ projects: new MemoryProjectRepository(() => clock) });
     const { project } = await readyProject(deps);
-    let release!: () => void;
-    deps.jobs.enqueue(project.id, "render", () => new Promise<void>((r) => { release = r; }));
-    await vi.waitFor(() => expect(deps.jobs.active(project.id)).not.toBeNull());
+    const release = await holdJob(deps, project.id);
     clock = new Date(clock.getTime() + 40 * DAY);
     expect(await sweepRetention(deps, new Date(clock.getTime() - 30 * DAY))).toEqual([]);
     expect(await deps.projects.list()).toHaveLength(1);

@@ -9,7 +9,7 @@ import { scalePhrase, setEmphasis } from "./phrases";
 // optimistic edits and drag previews. Pure. Actions needing assets or the MG compiler stay on the server.
 export type LocalError = { error: "unknown_id" | "no_plan" | "no_captions" | "bad_burn_in" | "out_of_shot" | "out_of_range" | "overlap"; id?: string };
 export type LocalResult = { project: Project; rerender: boolean };
-export const SERVER_ONLY = new Set<Action["type"]>(["replaceOverlay", "setBrand", "addMotionGraphic"]);
+export const SERVER_ONLY = new Set<Action["type"]>(["replaceOverlay", "addOverlay", "setBrand", "addMotionGraphic"]);
 
 export const isLocalAction = (a: Action) =>
   !SERVER_ONLY.has(a.type) && !(a.type === "updateMotionGraphic" && (a.code !== undefined || a.props !== undefined));

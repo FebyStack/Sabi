@@ -5,12 +5,13 @@ import { Link, useLocation, useParams } from "react-router";
 import { mapTime } from "@shared/editing/cuts";
 import { enabledCuts } from "@shared/editing/renderProps";
 import { FPS } from "@shared/remotion/CaptionVideo";
-import type { Action, BrollInput, PlanInput, Project, RenderInput } from "@shared/types";
+import type { Action, BrollInput, GenerateInput, PlanInput, Project, RenderInput } from "@shared/types";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { track } from "@/features/consent/analytics";
-import { addBroll, assetFileUrl, getProject, planProject, renderProject, runProject, setSource } from "@/features/projects/api/projects";
+import { addBroll, assetFileUrl, generateAsset, getProject, planProject, renderProject, runProject, setSource } from "@/features/projects/api/projects";
 import { UploadDropzone } from "@/features/projects/components/UploadDropzone";
+import { jobErrorText } from "@/features/projects/hooks/projectEvents";
 import { useProjectEvents } from "@/features/projects/hooks/useProjectEvents";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { previewOf } from "./actions/preview";
@@ -57,6 +58,7 @@ export default function EditorPage() {
   const run = useMutation({ mutationFn: (language?: string | null) => runProject(id, language), onSuccess: refresh });
   const plan = useMutation({ mutationFn: (input: PlanInput) => planProject(id, input), onSuccess: refresh });
   const broll = useMutation({ mutationFn: (input: BrollInput) => addBroll(id, input), onSuccess: refresh });
+  const generate = useMutation({ mutationFn: (input: GenerateInput) => generateAsset(id, input), onSuccess: refresh });
   const render = useMutation({ mutationFn: (input: RenderInput) => renderProject(id, input), onSuccess: () => { exporting.current = true; void refresh(); } });
   const [uploadPct, setUploadPct] = useState<number | null>(null);
   const playerRef = useRef<PlayerRef>(null);
@@ -65,9 +67,11 @@ export default function EditorPage() {
   const onFrame = useCallback((frame: number) => store.set({ playheadMs: (frame / FPS) * 1000 }), [store]);
 
   if (!p || !shown) return <main className="p-4 text-ink-muted">{project.isError ? "Project not found." : "Loading…"}</main>;
-  const mutations = [run, plan, broll, render, source];
-  const busy = RUNNING.includes(p.status) || pending || mutations.some((m) => m.isPending);
-  const failure = events.error ?? mutations.find((m) => m.error)?.error?.message ?? (p.status === "failed" ? "see server logs" : null);
+  const mutations = [run, plan, broll, render, source, generate];
+  // A generate job changes no status: the job events say the project is busy.
+  const busy = RUNNING.includes(p.status) || events.running || pending || mutations.some((m) => m.isPending);
+  const error = events.error ?? mutations.find((m) => m.error)?.error?.message;
+  const failure = error ? jobErrorText(error) : p.status === "failed" ? "see server logs" : null;
   const sourceUrl = p.sourceAssetId ? assetFileUrl(p.sourceAssetId) : null;
   const durationMs = p.sourceDurationMs ?? sourceDuration(p);
   const cuts = enabledCuts(p);
@@ -82,7 +86,7 @@ export default function EditorPage() {
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-4">
         <Header p={p} />
         <UploadDropzone projectId={id} onUploaded={(a) => source.mutate(a.id)} onProgress={setUploadPct} />
-        {progress && <StageProgress view={progress} />}
+        {progress && <StageProgress view={progress} queued={events.queued} />}
         {failure && <Notice tone="error">Failed: {failure}</Notice>}
       </main>
     );
@@ -100,7 +104,7 @@ export default function EditorPage() {
         <Button size="sm" aria-label="Undo" disabled={!s.canUndo || busy} onClick={() => void undo()}>↶</Button>
         <Button size="sm" aria-label="Redo" disabled={!s.canRedo || busy} onClick={() => void redo()}>↷</Button>
       </span>
-      {progress && <div className="basis-full"><StageProgress view={progress} /></div>}
+      {progress && <div className="basis-full"><StageProgress view={progress} queued={events.queued} /></div>}
     </div>
   );
   const banner = (
@@ -124,7 +128,7 @@ export default function EditorPage() {
     broll: (
       <div className="space-y-6">
         {p.transcript && p.phrases.length > 0 && <PlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} commit={edit} onSeek={seek} />}
-        <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} onAdd={(input) => broll.mutate(input)} commit={edit} onSeek={seek} />
+        <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} onAdd={(input) => broll.mutate(input)} onGenerate={(input) => generate.mutate(input)} commit={edit} onSeek={seek} />
       </div>
     ),
     style: <StylePanel project={p} commit={edit} busy={busy} />,

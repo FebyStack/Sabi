@@ -1,5 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { createApp } from "../../app/app";
+import request from "supertest";
+import { holdJob } from "../../shared/apiTestHelpers";
 import { makeTestDeps } from "../../shared/testing";
 
 async function readFrames(res: Response, count: number): Promise<string[]> {
@@ -26,10 +28,8 @@ describe("project events (SSE)", () => {
     const deps = makeTestDeps();
     const server = createApp(deps).listen(0);
     const port = (server.address() as AddressInfo).port;
-    let release!: () => void;
-    const gate = new Promise<void>((r) => { release = r; });
-    deps.jobs.enqueue("p1", "captions", async () => { await gate; });
-    await vi.waitFor(() => expect(deps.jobs.active("p1")).not.toBeNull());
+    const release = await holdJob(deps, "p1", { kind: "captions" });
+    await vi.waitFor(async () => expect(await deps.jobs.active("p1")).not.toBeNull());
 
     const res = await fetch(`http://127.0.0.1:${port}/api/projects/p1/events`);
     expect(res.headers.get("content-type")).toContain("text/event-stream");
@@ -39,5 +39,20 @@ describe("project events (SSE)", () => {
     expect(frames[0]).toContain('"state":"PROCESSING"');
     expect(frames[1]).toContain('"state":"COMPLETE"');
     server.close();
+  });
+
+  it("GET /job?id= returns that job after another finished", async () => {
+    const deps = makeTestDeps();
+    const a = createApp(deps);
+    deps.jobs.handle("quick", async () => ({ assetIds: ["x"] }));
+    const first = await deps.jobs.enqueue("p1", "quick", { input: {}, actor: "web", prevStatus: "ready" });
+    await vi.waitFor(async () => expect(await deps.jobs.active("p1")).toBeNull());
+    const second = await deps.jobs.enqueue("p1", "quick", { input: {}, actor: "web", prevStatus: "ready" });
+    await vi.waitFor(async () => expect((await deps.jobs.last("p1"))?.id).toBe(second.id));
+    const res = await request(a).get(`/api/projects/p1/job?id=${first.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: first.id, state: "COMPLETE", result: { assetIds: ["x"] } });
+    expect((await request(a).get("/api/projects/p1/job?id=nope")).status).toBe(404);
+    expect((await request(a).get("/api/projects/p1/job")).body.id).toBe(second.id); // without id: active ?? last, as before
   });
 });

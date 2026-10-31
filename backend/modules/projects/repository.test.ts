@@ -16,6 +16,14 @@ describe("ProjectRepository.failStuck", () => {
     expect((await repo.get("p1"))?.status).toBe("failed");
     expect((await repo.get("p3"))?.status).toBe("ready");
   });
+
+  it("skips projects whose job a durable queue will resume", async () => {
+    const repo = new MemoryProjectRepository();
+    await repo.create(base);
+    await repo.create({ ...base, id: "p2", status: "rendering" });
+    expect(await repo.failStuck(["p2"])).toBe(1);
+    expect((await repo.get("p2"))?.status).toBe("rendering");
+  });
 });
 
 describe("MemoryProjectRepository.update", () => {

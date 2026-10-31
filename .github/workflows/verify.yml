@@ -1,0 +1,29 @@
+# Typecheck, tests (incl. the whisperX sidecar's pytest) and the web build on every PR and on main.
+# No renders and no infra here: render:sample needs Chrome, test:infra needs `make db`; both stay manual.
+name: verify
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0 (setup-uv publishes no floating major tag)
+      - name: ffmpeg (probe, sanitize and audio tests)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run build
+      - run: npm run build:server # was broken until plan 5; the Docker api image runs its output
