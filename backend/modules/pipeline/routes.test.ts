@@ -28,6 +28,15 @@ describe("pipeline routes", () => {
     expect((await request(a).post(`/api/projects/${project.id}/render`).send({ scale: 3 })).body.error).toBe("invalid_input");
   });
 
+  it("a spoken language that isn't a Whisper code is 400 invalid_input and starts no job", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const res = await request(a).post(`/api/projects/${project.id}/run`).send({ language: "xx" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("invalid_input");
+    expect(await deps.jobs.active(project.id)).toBeNull();
+  });
+
   it("the retired routes are 404", async () => {
     const { a, project } = await readyProject(makeTestDeps());
     expect((await request(a).put(`/api/projects/${project.id}/phrases`).send({ phrases: project.phrases })).status).toBe(404);

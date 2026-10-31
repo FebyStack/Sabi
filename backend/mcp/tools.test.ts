@@ -128,6 +128,13 @@ describe("sabi mcp tools", () => {
     expect((deps.transcriber as FakeTranscriber).languages.at(-1)).toBe("tl");
   });
 
+  it("run_job captions refuses a language that isn't a Whisper code", async () => {
+    const res = await callTool(api, "run_job", { projectId: project.id, kind: "captions", language: "xx" });
+    expect(res.isError).toBe(true);
+    expect(res.text).toMatch(/^invalid input: language/);
+    expect((await callTool(api, "run_job", { projectId: project.id, kind: "captions", language: "ru" })).isError).toBeFalsy(); // not a translation language, still spoken
+  });
+
   it("wait_job reports a failed plan job with its error", async () => {
     deps.llm = new FakeLlm(() => { throw new Error("llm_unavailable"); });
     expect((await callTool(api, "run_job", { projectId: project.id, kind: "plan", languages: ["es"] })).isError).toBeFalsy();

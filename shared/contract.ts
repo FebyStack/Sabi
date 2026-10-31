@@ -1,5 +1,6 @@
 // Single wire contract shared by frontend and backend. Never mirror per tier.
 import { z } from "zod";
+import { WHISPER_LANGUAGES } from "./lang/whisper";
 
 export const AspectRatio = z.enum(["9:16", "16:9"]);
 export const MediaSource = z.enum(["generate", "stock"]); // per-project: fal.ai generation or Pexels stock only
@@ -129,7 +130,8 @@ export const ProjectSchema = z.object({
 
 export const SetSourceInput = z.object({ assetId: z.string().min(1) });
 // language: force the spoken language; null = auto-detect again; absent = the project's last language.
-export const RunInput = z.object({ language: z.string().min(2).max(8).nullable().optional() });
+export const SpokenLanguage = z.enum(WHISPER_LANGUAGES);
+export const RunInput = z.object({ language: SpokenLanguage.nullable().optional() }); // null = detect again
 export const RenderInput = z.object({ scale: z.union([z.literal(1), z.literal(2)]).optional() }); // 2 = 4K; absent = the last export's resolution
 export const PlanInput = z
   .object({ languages: z.array(TranslationLanguage).max(3).default([]), burnInLanguage: TranslationLanguage.nullable().default(null) })

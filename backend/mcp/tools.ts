@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { dirname, extname, join, sep } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
-import { ActionSchema, MAX_ACTIONS, TranslationLanguage } from "../../shared/contract";
+import { ActionSchema, MAX_ACTIONS, SpokenLanguage, TranslationLanguage } from "../../shared/contract";
 import { deriveBeats } from "../../shared/editing/beats";
 import { keptSegments, mapTime } from "../../shared/editing/cuts";
 import { staleOverlays } from "../../shared/editing/overlays";
@@ -246,7 +246,7 @@ const TOOLS = {
     inputSchema: {
       projectId,
       kind: z.enum(["captions", "plan", "render", "broll"]),
-      language: TranslationLanguage.optional().describe('captions only: the spoken language, e.g. "tl" for Tagalog/Taglish, instead of auto-detect'),
+      language: SpokenLanguage.optional().describe('captions only: the spoken language (a Whisper code), e.g. "tl" for Tagalog/Taglish, instead of auto-detect'),
       languages: z.array(TranslationLanguage).max(3).optional().describe("plan only: translated subtitle tracks"),
       burnInLanguage: TranslationLanguage.nullable().optional().describe("plan only: burn this translation into the MP4"),
       regenerate: z.boolean().optional().describe("broll only: replace every overlay instead of keeping matching ones"),
@@ -256,7 +256,7 @@ const TOOLS = {
       scale: z.union([z.literal(1), z.literal(2)]).optional().describe("render only: 2 = 4K, 1 = 1080p (default: the last export's resolution)"),
     },
     run: async (api: SabiApi, i: {
-      projectId: string; kind: "captions" | "plan" | "render" | "broll"; language?: z.infer<typeof TranslationLanguage>; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;
+      projectId: string; kind: "captions" | "plan" | "render" | "broll"; language?: z.infer<typeof SpokenLanguage>; languages?: z.infer<typeof TranslationLanguage>[]; burnInLanguage?: z.infer<typeof TranslationLanguage> | null;
       regenerate?: boolean; overlayId?: string; query?: string; prompt?: string; scale?: 1 | 2;
     }) => {
       const { jobId } = i.kind === "captions" ? await api.run(i.projectId, i.language ? { language: i.language } : {})
