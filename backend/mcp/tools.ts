@@ -141,7 +141,7 @@ function brollSection(p: Project) {
   return [
     "beats:", ...(beats.length ? beats.map((x) => `  ${x.id} ${x.shotId} ${x.placement} ${mmssd(x.startMs)}–${mmssd(x.endMs)}`) : [p.editPlan ? "  none (no B-Roll shots)" : "  none (run_job plan)"]),
     "overlays:", ...(p.overlays.length ? p.overlays.map((o) => `  ${o.id} ${o.shotId} ${o.media} ${o.source} ${o.placement} ${mmssd(o.startMs)}–${mmssd(o.endMs)} ${o.enabled ? "on" : "off"}` +
-      ` "${o.query}"${o.attribution ? ` (Photo: ${o.attribution.author} / Pexels)` : ""}${stale.has(o.id) ? " stale" : ""}`) : ["  none (run_job broll)"]),
+      ` "${o.query}"${o.attribution ? ` (${o.media === "video" ? "Video" : "Photo"}: ${o.attribution.author} / Pexels)` : ""}${stale.has(o.id) ? " stale" : ""}`) : ["  none (run_job broll)"]),
     "motion graphics:", ...(p.motionGraphics.length ? p.motionGraphics.map((m) => `  ${m.id} "${m.name}" ${mmssd(m.startMs)}–${mmssd(m.endMs)} box ${m.box.x},${m.box.y} ${m.box.w}×${m.box.h}` +
       ` ${m.enabled ? "on" : "off"} props: ${m.props.map((x) => x.key).join(",") || "none"}${m.box.y + m.box.h > CAPTION_BAND_Y ? " ⚠ overlaps captions" : ""}`) : ["  none"]),
     b ? `brand: primary ${b.palette.primary} accent ${b.palette.accent} text ${b.palette.text} background ${b.palette.background} font ${b.fontFamily} logo ${b.logoAssetId ?? "none"} grade ${b.grade}`

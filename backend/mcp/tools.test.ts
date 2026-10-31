@@ -255,6 +255,17 @@ describe("sabi mcp tools", () => {
     expect(summary.text).toContain("media source generate");
   });
 
+  it("inspect broll credits a Pexels video as Video:", async () => {
+    const p = await planned();
+    const shot = p.editPlan!.shots.find((s) => s.kind === "B-Roll")!;
+    await deps.projects.update(p.id, { overlays: [{
+      id: "ov-0", shotId: shot.id, assetId: "a1", media: "video", source: "stock", startMs: shot.startMs + 300, endMs: shot.startMs + 2300,
+      placement: "full", transition: "fade", enabled: true, query: "pour", prompt: "p", intent: "i", attribution: { author: "Vid Eo", url: "https://www.pexels.com/video/1" },
+    }] });
+    const res = await callTool(api, "inspect_project", { projectId: p.id, section: "broll" });
+    expect(res.text).toContain(`"pour" (Video: Vid Eo / Pexels)`);
+  });
+
   it("run_job broll reaches ready with overlays", async () => {
     await planned();
     const started = await callTool(api, "run_job", { projectId: project.id, kind: "broll" });
