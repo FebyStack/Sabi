@@ -54,7 +54,7 @@ export default function EditorPage() {
   const { commit, undo, redo, retry, dismissConflict, pending } = useProjectActions(id, store);
   const refresh = () => qc.invalidateQueries({ queryKey: ["project", id] });
   const source = useMutation({ mutationFn: (assetId: string) => setSource(id, assetId), onSuccess: refresh });
-  const run = useMutation({ mutationFn: () => runProject(id), onSuccess: refresh });
+  const run = useMutation({ mutationFn: (language?: string | null) => runProject(id, language), onSuccess: refresh });
   const plan = useMutation({ mutationFn: (input: PlanInput) => planProject(id, input), onSuccess: refresh });
   const broll = useMutation({ mutationFn: (input: BrollInput) => addBroll(id, input), onSuccess: refresh });
   const render = useMutation({ mutationFn: (input: RenderInput) => renderProject(id, input), onSuccess: () => { exporting.current = true; void refresh(); } });
@@ -113,13 +113,14 @@ export default function EditorPage() {
         {failure && <Notice tone="error">Failed: {failure}</Notice>}
       </div>
       {p.warnings.includes("no_speech") && <Notice tone="warn">No speech detected in this clip.</Notice>}
+      {p.warnings.includes("timing_estimated") && <Notice tone="warn">Word timing is approximate for part of this clip (no alignment model for its language, or alignment failed).</Notice>}
       {s.selection && <SelectionBar project={p} selected={s.selection} commit={edit} onAdd={(input) => broll.mutate(input)}
         confirming={s.deleting} onConfirming={(deleting) => store.set({ deleting })} />}
     </div>
   );
   const panels: Record<typeof panelTab, React.ReactNode> = {
     timeline: !s.selection && <p className="text-sm text-ink-muted">Tap a block to edit it; drag its edges to trim; pinch to zoom.</p>,
-    captions: <CaptionsPanel project={p} store={store} commit={edit} busy={busy} onGenerate={() => run.mutate()} />,
+    captions: <CaptionsPanel project={p} store={store} commit={edit} busy={busy} onGenerate={(language) => run.mutate(language)} />,
     broll: (
       <div className="space-y-6">
         {p.transcript && p.phrases.length > 0 && <PlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} commit={edit} onSeek={seek} />}

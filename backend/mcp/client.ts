@@ -43,7 +43,7 @@ export class SabiApi {
   createProject(title: string) { return this.json<Project>(api.projects, "POST", { title }); }
   setSource(id: string, assetId: string) { return this.json<Project>(api.projectSource(id), "POST", { assetId }); }
   applyActions(id: string, input: ApplyActionsInput) { return this.json<ApplyActionsResult>(api.projectActions(id), "POST", input); }
-  run(id: string) { return this.json<{ jobId: string }>(api.projectRun(id), "POST", {}); }
+  run(id: string, input: { language?: string } = {}) { return this.json<{ jobId: string }>(api.projectRun(id), "POST", input); }
   plan(id: string, input: PlanInput) { return this.json<{ jobId: string }>(api.projectPlan(id), "POST", input); }
   render(id: string, input: RenderInput = {}) { return this.json<{ jobId: string }>(api.projectRender(id), "POST", input); }
   broll(id: string, input: BrollInput) { return this.json<{ jobId: string }>(api.projectBroll(id), "POST", input); }

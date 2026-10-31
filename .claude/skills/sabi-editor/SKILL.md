@@ -71,6 +71,15 @@ Agent-written Remotion components drawn between the B-roll and the captions. Rea
 - `400 bad_code {detail}` — the motion-graphic code broke a rule in `motion-graphics.md`; fix what `detail` names. `400 bad_asset` — the asset is missing or the wrong kind (logos and image props need an image). `400 out_of_range` — an MG must end inside the source, a shot edge broke the 500 ms / fixed-ends rule, or a phrase got shorter than 200 ms. `400 overlap` — a phrase range ran into its neighbour.
 - `wait_job` → `broll FAILED: stock_unavailable` / `generator_unavailable` — the key for the project's media source is not set on the API; switch with `setMediaSource` or ask the user to set it. Warnings `broll_not_found:beat-n` / `no_broll_shots` mean a beat got no media / there is no B-roll shot.
 
+## Tagalog & Taglish
+
+- **Force the language** when `inspect_project` says `en` but the phrases read like Tagalog (`ng`, `mga`, `ang`, `hindi`), or the user says the clip is Taglish: `run_job {kind: "captions", language: "tl"}` → `wait_job`. It re-transcribes, so the plan, translations and B-roll go (motion graphics and the brand kit stay); do it before any fine edits. Later runs keep `tl`.
+- **`timing_estimated` warning:** part of the clip could not be aligned, so those words got timings spread over their segment. Karaoke highlights can drift there; check those spots with `render_frame`.
+- **Fillers:** `ano / kasi / parang / ganun / eh` are cut automatically only when pauses isolate them, never when they end a sentence or open one with just a comma after them; everything else is your call. Keep "Ano?" (a question), "Ano ang…", a "kasi" that explains, and a sentence-final "ganun." that is the answer. `'yung` is never cut automatically: cut a stalling `'yung` yourself, but keep the one right before its noun ("Kinuha ko 'yung libro"). `kuwan` / `kwan` (a stand-in for a forgotten word) is usually worth cutting together with the stall around it. `inspect_project {section: "plan"}` lists every cut; toggle with `setCut`.
+- **Common whisperX errors, fixed with `editPhrase`:** `ng` ↔ `nang`; `'yung` written `young` / `yong`; `din`/`rin` and `daw`/`raw` swapped; `po`/`ho` dropped; hyphenated affixes split (`mag aaral` → `mag-aaral`); English loanwords respelled (`kompyuter` vs `computer`: keep what the speaker said); proper names lower-cased.
+- **Phrasing:** keep the code-switching as spoken. Never translate Taglish into pure Tagalog or pure English, and never drop `po`; fix spelling and punctuation only.
+- **Captions:** line breaks already keep `ng / sa / ang / mga` with their noun, and emphasis never lands on particles. A stranded particle in a frame comes from an `editPhrase` that changed the word count (its timings are spread): re-check that phrase's text.
+
 ## Examples
 
 **Fix a misspelling** ("it says 'mourning', should be 'morning'"):

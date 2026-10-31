@@ -14,7 +14,8 @@ export const ShotKind = z.enum(SHOT_KINDS);
 
 export const WordSchema = z.object({ id: z.string(), text: z.string(), startMs: z.number(), endMs: z.number(), confidence: z.number().optional(), emphasis: EmphasisKind.optional() });
 export const PhraseSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), words: z.array(WordSchema).min(1), lineBreaksAfter: z.array(z.number()), emoji: z.string().max(16).optional() });
-export const TranscriptSchema = z.object({ language: z.string(), words: z.array(WordSchema) });
+// estimatedWords: words of segments whisperX could not align at all, so their timings were spread (absent when none).
+export const TranscriptSchema = z.object({ language: z.string(), words: z.array(WordSchema), estimatedWords: z.number().int().nonnegative().optional() });
 
 export const CutSchema = z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), reason: z.enum(["pause", "filler"]), text: z.string(), shouldTrim: z.boolean() });
 export const ShotSchema = z.object({ id: z.string(), kind: ShotKind, startMs: z.number(), endMs: z.number() });
@@ -124,7 +125,8 @@ export const ProjectSchema = z.object({
 });
 
 export const SetSourceInput = z.object({ assetId: z.string().min(1) });
-export const RunInput = z.object({ language: z.string().min(2).max(8).optional() });
+// language: force the spoken language; null = auto-detect again; absent = the project's last language.
+export const RunInput = z.object({ language: z.string().min(2).max(8).nullable().optional() });
 export const RenderInput = z.object({ scale: z.union([z.literal(1), z.literal(2)]).optional() }); // 2 = 4K; absent = the last export's resolution
 export const PlanInput = z
   .object({ languages: z.array(TranslationLanguage).max(3).default([]), burnInLanguage: TranslationLanguage.nullable().default(null) })

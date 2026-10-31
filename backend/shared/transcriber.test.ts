@@ -26,6 +26,18 @@ describe("WhisperXTranscriber", () => {
     expect(t.words[0]).toEqual({ id: "w-0", text: "Here", startMs: 40, endMs: 290, confidence: 0.98 });
   });
 
+  it("maps estimated_words to estimatedWords and omits it when zero", async () => {
+    const body = (n: number) => JSON.stringify({ ...JSON.parse(sidecarBody), estimated_words: n });
+    const some = await serve(200, body(3));
+    const t = await new WhisperXTranscriber(some.url).transcribe(__filename);
+    some.server.close();
+    expect(t.estimatedWords).toBe(3);
+    const none = await serve(200, body(0));
+    const u = await new WhisperXTranscriber(none.url).transcribe(__filename);
+    none.server.close();
+    expect("estimatedWords" in u).toBe(false);
+  });
+
   it("rejects with transcriber_unavailable on a 500", async () => {
     const { server, url } = await serve(500, "boom");
     await expect(new WhisperXTranscriber(url).transcribe(__filename)).rejects.toThrow("transcriber_unavailable");

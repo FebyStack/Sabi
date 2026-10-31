@@ -7,6 +7,34 @@ const words: Word[] = ["Here", "is", "the", "thing", "about", "morning", "routin
   .map((t, i) => w(t, i * 300 + (i >= 10 ? 900 : 0), i * 300 + 250 + (i >= 10 ? 900 : 0), i));
 const layout: CaptionLayout = { maxCharsPerLine: 24, maxWordsPerLine: 5, maxLines: 2, pauseSplitMs: 700 };
 
+describe("segmentCaptions in Tagalog", () => {
+  const tl: CaptionLayout = { maxCharsPerLine: 16, maxWordsPerLine: 5, maxLines: 2, pauseSplitMs: 700 };
+  const say = (text: string) => text.split(" ").map((t, i) => w(t, i * 300, i * 300 + 250, i));
+  const texts = (phrases: ReturnType<typeof segmentCaptions>) => phrases.map((p) => p.words.map((x) => x.text).join(" "));
+
+  it("keeps a particle with the word it governs", () => {
+    expect(segmentCaptions(say("Pumunta kami sa palengke"), tl, "tl")[0].lineBreaksAfter).toEqual([1]);
+    expect(segmentCaptions(say("Pumunta kami sa palengke"), tl)[0].lineBreaksAfter).toEqual([2]);
+  });
+
+  it("moves the particle to the next phrase at maxLines", () => {
+    const one = { ...tl, maxLines: 1 };
+    const phrases = segmentCaptions(say("Pumunta kami sa palengke"), one, "tl");
+    expect(texts(phrases)).toEqual(["Pumunta kami", "sa palengke"]);
+    expect(phrases[0].endMs).toBe(550);
+    expect(phrases[1]).toMatchObject({ id: "ph-1", startMs: 600, lineBreaksAfter: [] });
+    expect(texts(segmentCaptions(say("Pumunta kami sa palengke"), one))).toEqual(["Pumunta kami sa", "palengke"]);
+  });
+
+  it("falls back when the particle and its word do not fit", () => {
+    expect(segmentCaptions(say("Ito ang pinakamahalaga"), tl, "tl")[0].lineBreaksAfter).toEqual([1]);
+  });
+
+  it("a particle alone on its line stays", () => {
+    expect(segmentCaptions(say("Ang pinakamahalaga"), tl, "tl")[0].lineBreaksAfter).toEqual([0]);
+  });
+});
+
 describe("segmentCaptions", () => {
   it("returns [] for no words", () => {
     expect(segmentCaptions([], layout)).toEqual([]);

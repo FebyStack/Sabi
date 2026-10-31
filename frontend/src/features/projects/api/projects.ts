@@ -5,8 +5,9 @@ import { json } from "@/services/http";
 export const getProject = (id: string) => json<unknown>(api.project(id)).then(ProjectSchema.parse);
 export const setSource = (id: string, assetId: string) =>
   json<unknown>(api.projectSource(id), { method: "POST", body: JSON.stringify({ assetId }) }).then(ProjectSchema.parse);
-export const runProject = (id: string, language?: string) =>
-  json<{ jobId: string }>(api.projectRun(id), { method: "POST", body: JSON.stringify(language ? { language } : {}) });
+// language: a code forces it, null re-detects, undefined keeps the project's last language.
+export const runProject = (id: string, language?: string | null) =>
+  json<{ jobId: string }>(api.projectRun(id), { method: "POST", body: JSON.stringify(language === undefined ? {} : { language }) });
 export const planProject = (id: string, input: PlanInput) =>
   json<{ jobId: string }>(api.projectPlan(id), { method: "POST", body: JSON.stringify(input) });
 export const addBroll = (id: string, input: BrollInput) =>
