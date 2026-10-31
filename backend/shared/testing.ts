@@ -8,6 +8,7 @@ import { MemoryProjectRepository } from "../modules/projects/repository";
 import { JsonlCreditLedger, MemoryCreditLedger } from "../modules/usage/ledger";
 import { parseSpendCap } from "../modules/usage/spend";
 import type { AppDeps } from "./deps";
+import { freeBytesOf } from "./disk";
 import { MemoryEventBus } from "./events";
 import { MemoryJobRunner } from "./jobs";
 import { FakeGenerator, FalGenerator } from "./generator";
@@ -36,6 +37,7 @@ export function makeTestDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     ledger: new MemoryCreditLedger(),
     spendCapCents: 2000,
     apiBaseUrl: "http://test",
+    freeBytes: async () => Infinity,
     now: () => new Date("2026-01-01T00:00:00.000Z"),
     id: () => `id-${++n}`,
     ...overrides,
@@ -116,6 +118,7 @@ export function makeMemoryDeps(dataDir: string, apiBaseUrl = `http://127.0.0.1:$
     spendCapCents: parseSpendCap(process.env.SPEND_CAP_CENTS),
     apiBaseUrl: process.env.API_BASE_URL ?? apiBaseUrl,
     allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
+    freeBytes: freeBytesOf,
     now: () => new Date(),
     id: randomUUID,
   };

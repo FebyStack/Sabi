@@ -25,5 +25,6 @@ const ERRORS: Record<string, string> = {
   generator_unavailable: "fal.ai isn't set up: add FAL_KEY to the API, or switch B-roll to Stock only.",
   stock_unavailable: "Pexels isn't set up: add PEXELS_KEY to the API.",
   generator_timeout: "fal.ai took too long; the attempt was still charged. Try again, or use stock.",
+  disk_low: "Not enough free disk for a render — free 2 GB on this Mac (npm run doctor).",
 };
 export const jobErrorText = (error: string) => ERRORS[error] ?? error;

@@ -47,6 +47,7 @@ const JOB_ERRORS: Record<string, string> = {
   already_ran: `it ran, but an API restart lost its result; check inspect_project {section: "assets"} before running it again (it may have spent credits)`,
   over_cap: "monthly cap reached — raise SPEND_CAP_CENTS on the API",
   generator_timeout: "fal.ai did not finish in time; it was still charged (see model_catalog). Try once more later, or use stock",
+  disk_low: "under 2 GiB free on this Mac's temp or scratch volume — free space (npm run doctor), then run it again",
 };
 const jobError = (error: string) => JOB_ERRORS[error] ?? error;
 // One line per stored media asset: id, kind, where it came from, size, its prompt or search words, credit.

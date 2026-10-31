@@ -37,6 +37,22 @@ describe("pipeline routes", () => {
     expect(await deps.jobs.active(project.id)).toBeNull();
   });
 
+  it("a render refuses to start under 2 GiB free, keeps the transcript and the old MP4, and stills still work", async () => {
+    const deps = makeTestDeps();
+    const { a, project } = await readyProject(deps);
+    const renderer = deps.renderer as FakeRenderer;
+    const renders = renderer.calls.length;
+    deps.freeBytes = async () => 1024 ** 3;
+    expect((await request(a).post(`/api/projects/${project.id}/render`).send({})).status).toBe(202);
+    await vi.waitFor(async () => expect((await request(a).get(`/api/projects/${project.id}/job`)).body).toMatchObject({ state: "FAILED", error: "disk_low" }), { timeout: 5000 });
+    const after = (await request(a).get(`/api/projects/${project.id}`)).body;
+    expect(after.status).toBe("failed");
+    expect(after.outputs.mp4AssetId).toBe(project.outputs.mp4AssetId);
+    expect(after.phrases).toEqual(project.phrases);
+    expect(renderer.calls).toHaveLength(renders);
+    expect((await request(a).get(`/api/projects/${project.id}/frame?t=1000`)).status).toBe(200); // stills are not gated
+  });
+
   it("the retired routes are 404", async () => {
     const { a, project } = await readyProject(makeTestDeps());
     expect((await request(a).put(`/api/projects/${project.id}/phrases`).send({ phrases: project.phrases })).status).toBe(404);

@@ -42,6 +42,10 @@ describe("reduceProjectEvents", () => {
     expect(jobErrorText("transcriber_unavailable")).toBe("transcriber_unavailable");
   });
 
+  it("jobErrorText explains a render refused for disk space", () => {
+    expect(jobErrorText("disk_low")).toBe("Not enough free disk for a render — free 2 GB on this Mac (npm run doctor).");
+  });
+
   it("jobErrorText names the missing key and a fal timeout", () => {
     expect(jobErrorText("generator_unavailable")).toBe("fal.ai isn't set up: add FAL_KEY to the API, or switch B-roll to Stock only.");
     expect(jobErrorText("stock_unavailable")).toBe("Pexels isn't set up: add PEXELS_KEY to the API.");

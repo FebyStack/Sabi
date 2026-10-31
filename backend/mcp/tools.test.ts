@@ -369,6 +369,14 @@ describe("sabi mcp tools", () => {
     expect(res.text).toContain("last job broll FAILED: interrupted by an API restart (nothing was charged twice); run it again");
   });
 
+  it("wait_job explains a render refused for disk space", async () => {
+    deps.jobs.handle("render", async () => { throw new Error("disk_low"); });
+    await deps.jobs.enqueue(project.id, "render", { input: {}, actor: "agent", prevStatus: "ready" });
+    const res = await callTool(api, "wait_job", { projectId: project.id });
+    expect(res.isError).toBe(true);
+    expect(res.text).toContain("last job render FAILED: under 2 GiB free on this Mac's temp or scratch volume — free space (npm run doctor), then run it again");
+  });
+
   it("wait_job explains a job whose result a restart lost", async () => {
     deps.jobs.handle("broll", async () => { throw new Error("already_ran"); });
     await deps.jobs.enqueue(project.id, "broll", { input: {}, actor: "agent", prevStatus: "ready" });
