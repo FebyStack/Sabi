@@ -2,10 +2,12 @@
 
 A motion graphic (MG) is a small Remotion component you write. Sabi draws it inside the same `CaptionVideo` composition as everything else, so `render_frame`, the browser preview and the MP4 show the same pixels. Order, back to front: footage → B-roll overlays → brand tint → **motion graphics** → captions. The brand grade never touches an MG.
 
+**Each MG runs in its own sandbox**: a sandboxed frame over its box with no network at all and no access to Sabi's page. The page hands it the bundled fonts and its images. The same sandbox draws it in `render_frame`, the preview and the export.
+
 ## Contract
 
 - `code` is plain JavaScript with JSX: no TypeScript annotations, no `import`/`export`, at most 20 000 characters. It must declare a top-level `const Component`.
-- The server transpiles and vets it (never runs it). Rejected with `400 bad_code` and a `detail`:
+- The server transpiles and checks it (never runs it) — an early warning, not the security boundary (the sandbox is). Rejected with `400 bad_code` and a `detail`:
   - network, storage and global names: `window document globalThis self top parent frames opener open location navigator fetch XMLHttpRequest WebSocket EventSource Image Audio Worker SharedWorker BroadcastChannel importScripts postMessage localStorage sessionStorage indexedDB`;
   - code from strings and reflection: `eval Function constructor __proto__ Reflect Proxy require process`, timers `setTimeout setInterval setImmediate queueMicrotask`, `with`, dynamic `import()`;
   - HTML from strings: `dangerouslySetInnerHTML innerHTML outerHTML insertAdjacentHTML srcDoc`, `{...spread}` JSX attributes, `<script> <iframe> <object> <embed> <frame> <link> <meta> <base> <form>`, `javascript:` URLs, property names built from strings (`x["a" + "b"]`).
@@ -15,7 +17,7 @@ A motion graphic (MG) is a small Remotion component you write. Sabi draws it ins
   - `item.props` — your declared props as `{ key: value }` (image props arrive as URLs);
   - `item.brand` — `{ primary, accent, text, background, fontFamily, logoUrl, grade }`, the kit or the caption template's colours when there is none; `fontFamily` is the loaded CSS family of a bundled font (e.g. `Montserrat Variable`), so use it as `` `${b.fontFamily}, system-ui, sans-serif` ``;
   - `item.width`, `item.height` — the box in pixels; `item.durationInFrames` — the MG's own length (30 fps).
-  `useCurrentFrame()` counts from the MG's start.
+  `useCurrentFrame()` counts from the MG's start. `useVideoConfig()` is `{ id, width, height, fps, durationInFrames }`: the frame's size, 30 fps and the MG's own length (nothing about the rest of the project).
 - Skeleton:
   ```jsx
   const Component = ({ item }) => {
@@ -24,9 +26,12 @@ A motion graphic (MG) is a small Remotion component you write. Sabi draws it ins
     return <div style={{ position: "absolute", inset: 0 }}>{props.title}</div>;
   };
   ```
-- `props` (max 20): `{ key, type: "text"|"number"|"color"|"boolean"|"image", value }`, keys `camelCase`. Make every visible text, number and colour a prop so it can be changed with `updateMotionGraphic {props}` without touching code. `image` values are asset ids from `upload_asset`. `<Img>` sources come only from image props and `item.brand.logoUrl`.
+- `props` (max 20): `{ key, type: "text"|"number"|"color"|"boolean"|"image", value }`, keys `camelCase`. Make every visible text, number and colour a prop: the user can change props in the web B-roll panel (**Edit**), and you with `updateMotionGraphic {props}`, without touching code. `image` values are asset ids from `upload_asset`.
+- Images come only from image props and `item.brand.logoUrl` (as `<Img>`, `<img>` or a CSS `url()`); any other URL is blocked — an `<Img>` then shows `⚠ image` — and `render_frame` names it.
+- Always set `fontFamily` (from `item.brand.fontFamily`): text without one is the browser's default serif, in the preview and the export alike.
 - `box` = `{x, y, w, h}` as fractions of the frame (default the whole frame). `startMs`/`endMs` are **source** time and must end inside the source.
-- A runtime error never breaks the frame: the box shows a red `⚠ mg-<n>` label instead; an `<Img>` that cannot load shows `⚠ image` in its place. An endless loop fails the render after about 40 s.
+- A runtime error never breaks the frame: the box shows a red `⚠ mg-<n>` label instead; an `<Img>` that cannot load shows `⚠ image` in its place. An MG that tries to navigate, or stops answering for 5 s, also shows `⚠ mg-<n>`. An endless loop fails the render after about 40 s.
+- `render_frame` lists each MG's problems under the frame: `⚠ mg-<n> threw: <message>`, `image failed: <url>`, `was refused <directive> <url>`, `tried to navigate`, `stopped answering`. Fix what each line names, then verify again.
 
 ## Craft rules
 

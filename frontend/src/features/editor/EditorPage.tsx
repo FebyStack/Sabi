@@ -69,7 +69,8 @@ export default function EditorPage() {
   if (!p || !shown) return <main className="p-4 text-ink-muted">{project.isError ? "Project not found." : "Loading…"}</main>;
   const mutations = [run, plan, broll, render, source, generate];
   // A generate job changes no status: the job events say the project is busy.
-  const busy = RUNNING.includes(p.status) || events.running || pending || mutations.some((m) => m.isPending);
+  const jobBusy = RUNNING.includes(p.status) || events.running || mutations.some((m) => m.isPending);
+  const busy = jobBusy || pending;
   const error = events.error ?? mutations.find((m) => m.error)?.error?.message;
   const failure = error ? jobErrorText(error) : p.status === "failed" ? "see server logs" : null;
   const sourceUrl = p.sourceAssetId ? assetFileUrl(p.sourceAssetId) : null;
@@ -128,7 +129,7 @@ export default function EditorPage() {
     broll: (
       <div className="space-y-6">
         {p.transcript && p.phrases.length > 0 && <PlanPanel key={p.id} project={p} busy={busy} onPlan={(input) => plan.mutate(input)} commit={edit} onSeek={seek} />}
-        <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} onAdd={(input) => broll.mutate(input)} onGenerate={(input) => generate.mutate(input)} commit={edit} onSeek={seek} />
+        <BrollPanel key={`broll-${p.id}`} project={p} busy={busy} jobBusy={jobBusy} onAdd={(input) => broll.mutate(input)} onGenerate={(input) => generate.mutate(input)} commit={edit} onSeek={seek} />
       </div>
     ),
     style: <StylePanel project={p} commit={edit} busy={busy} />,

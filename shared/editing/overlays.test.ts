@@ -63,7 +63,17 @@ describe("motionGraphicTimeline", () => {
       props: [{ key: "logo", type: "image", value: "img-1" }, { key: "title", type: "text", value: "Hi" }, { key: "n", type: "number", value: 3 }],
     };
     expect(motionGraphicTimeline([mg, { ...mg, id: "mg-1", enabled: false }], [cut(5000, 6000)], url)).toEqual([
-      { id: "mg-0", compiled: "c", startMs: 4300, endMs: 8300, box: { x: 0, y: 0, w: 1, h: 0.5 }, props: { logo: "http://api/assets/img-1", title: "Hi", n: 3 } },
+      { id: "mg-0", compiled: "c", startMs: 4300, endMs: 8300, box: { x: 0, y: 0, w: 1, h: 0.5 }, props: { logo: "http://api/assets/img-1", title: "Hi", n: 3 }, images: ["http://api/assets/img-1"] },
     ]);
+  });
+
+  it("motionGraphicTimeline lists its image props' URLs", () => {
+    const mg: MotionGraphic = {
+      id: "mg-0", name: "Card", code: "", compiled: "c", startMs: 0, endMs: 2000, box: { x: 0, y: 0, w: 1, h: 1 }, enabled: true,
+      props: [{ key: "photo", type: "image", value: "a1" }, { key: "title", type: "text", value: "x" }, { key: "badge", type: "image", value: "a2" }],
+    };
+    const [m] = motionGraphicTimeline([mg], [], (id) => "/f/" + id);
+    expect(m.images).toEqual(["/f/a1", "/f/a2"]);
+    expect(m.props.photo).toBe("/f/a1");
   });
 });

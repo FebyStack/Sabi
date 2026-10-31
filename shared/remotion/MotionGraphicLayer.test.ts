@@ -1,28 +1,58 @@
-import type { ReactElement } from "react";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { getCaptionTemplate } from "../captions/templates";
 import { templateLook } from "../editing/brand";
 import type { MotionGraphicProps } from "../editing/overlays";
-import { MotionGraphicLayer } from "./MotionGraphicLayer";
+import { MotionGraphicLayer, mgWindow, sandboxKey } from "./MotionGraphicLayer";
 
-vi.mock("remotion", async (orig) => ({ ...(await orig<typeof import("remotion")>()), useVideoConfig: () => ({ fps: 30, width: 1080, height: 1920 }) }));
+const at = vi.hoisted(() => ({ frame: 45, rendering: false }));
+vi.mock("remotion", async (orig) => ({
+  ...(await orig<typeof import("remotion")>()),
+  useCurrentFrame: () => at.frame,
+  useVideoConfig: () => ({ fps: 30, width: 1080, height: 1920 }),
+  getRemotionEnvironment: () => ({ isRendering: at.rendering }),
+}));
 
-const mg = (compiled: string): MotionGraphicProps => ({ id: "mg-0", compiled, startMs: 0, endMs: 1000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {} });
-// Sequence → box div → error boundary
-const boundaryKey = (m: MotionGraphicProps) => {
-  const seq = MotionGraphicLayer({ mg: m, brand: templateLook(getCaptionTemplate("clean")), width: 1080, height: 1920 }) as ReactElement<{ children: ReactElement<{ children: ReactElement }> }>;
-  return seq.props.children.props.children.key;
-};
+const brand = templateLook(getCaptionTemplate("clean"));
+const mg = (extra: Partial<MotionGraphicProps> = {}): MotionGraphicProps =>
+  ({ id: "mg-0", compiled: "const Component = () => null;", startMs: 1000, endMs: 2000, box: { x: 0, y: 0, w: 1, h: 0.2 }, props: { title: "Hi" }, images: [], ...extra });
+const layer = (m: MotionGraphicProps) => renderToStaticMarkup(createElement(MotionGraphicLayer, { mg: m, brand, width: 1080, height: 1920 }));
 
-describe("MotionGraphicLayer", () => {
-  it("a code fix remounts the error boundary, so the preview drops the ⚠", () => {
-    const broken = "const Component = () => { throw new Error('x'); };";
-    const fixed = "const Component = () => null;";
-    expect(boundaryKey(mg(broken))).not.toBe(boundaryKey(mg(fixed)));
-    expect(boundaryKey(mg(fixed))).toBe(boundaryKey(mg(fixed)));
+describe("MotionGraphicLayer (the page side of an MG sandbox)", () => {
+  it("mgWindow places the MG's range on the timeline", () => {
+    expect(mgWindow(mg(), 30, 29)).toMatchObject({ active: false, local: -1 });
+    expect(mgWindow(mg(), 30, 30)).toMatchObject({ active: true, local: 0, from: 30, durationInFrames: 30 });
+    expect(mgWindow(mg(), 30, 59)).toMatchObject({ active: true, local: 29 });
+    expect(mgWindow(mg(), 30, 60)).toMatchObject({ active: false });
+    expect(mgWindow(mg({ endMs: 1010 }), 30, 30).durationInFrames).toBe(0);
   });
 
-  it("motion graphics get the bundled font's css family", () => {
-    const seq = MotionGraphicLayer({ mg: mg("const Component = () => null;"), brand: { ...templateLook(getCaptionTemplate("clean")), fontFamily: "Montserrat" }, width: 1080, height: 1920 }) as ReactElement<{ children: ReactElement<{ children: ReactElement<{ children: ReactElement<{ item: { brand: { fontFamily: string } } }> }> }> }>;
-    expect(seq.props.children.props.children.props.children.props.item.brand.fontFamily).toBe("Montserrat Variable");
+  it("a new sandbox only for new code, a new image or a new logo", () => {
+    const k = sandboxKey(mg(), brand);
+    expect(sandboxKey(mg({ compiled: "const Component = () => 1;" }), brand)).not.toBe(k);
+    expect(sandboxKey(mg({ images: ["/f/a1"] }), brand)).not.toBe(k);
+    expect(sandboxKey(mg(), { ...brand, logoUrl: "/f/logo" })).not.toBe(k);
+    expect(sandboxKey(mg({ props: { title: "Other" } }), { ...brand, accent: "#000000" })).toBe(k);
+  });
+
+  it("draws the sandbox page's iframe over the MG's box, hidden outside its range", () => {
+    at.frame = 45;
+    const html = layer(mg());
+    for (const s of ['src="/mg-sandbox.html"', 'title="mg-0"', 'aria-hidden="true"', 'tabindex="-1"',
+      "width:1080px", "height:384px", "pointer-events:none", "color-scheme:normal", "visibility:visible"]) expect(html).toContain(s);
+    at.frame = 100;
+    expect(layer(mg())).toContain("visibility:hidden");
+    expect(layer(mg({ endMs: 1010 }))).toBe("");
+  });
+
+  // The attribute keeps every navigation of the frame sandboxed: without it an MG could navigate its frame to another
+  // same-origin page that has no sandbox header and run there as the editor (security review, 2026-10-23).
+  it("the frame is sandboxed by its attribute in the editor and in renders", () => {
+    at.frame = 45;
+    for (const rendering of [true, false]) {
+      at.rendering = rendering;
+      expect(layer(mg())).toContain('sandbox="allow-scripts"');
+    }
+    at.rendering = false;
   });
 });

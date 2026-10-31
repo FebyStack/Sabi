@@ -3,7 +3,8 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream } from "node:stream/web";
-import { ACTOR_HEADER, api } from "../../shared/contract";
+import { z } from "zod";
+import { ACTOR_HEADER, MG_PROBLEMS_HEADER, MgProblemSchema, api } from "../../shared/contract";
 import type { ApplyActionsInput, ApplyActionsResult, Asset, BrollInput, Catalog, GenerateInput, JobState, PlanInput, Project, RenderInput } from "../../shared/types";
 
 export class SabiUnreachable extends Error {
@@ -17,6 +18,15 @@ export class SabiHttpError extends Error {
 const SLOW_MS = 300_000;
 
 // Thin HTTP client of the running API (never an in-process import): works against dev:lite and dev:server alike.
+const mgProblems = (raw: string | null) => {
+  try {
+    const r = z.array(MgProblemSchema).safeParse(JSON.parse(raw ?? "[]"));
+    return r.success ? r.data : [];
+  } catch {
+    return [];
+  }
+};
+
 export class SabiApi {
   private timeoutMs: number;
   constructor(readonly baseUrl: string, { timeoutMs = 2000 }: { timeoutMs?: number } = {}) { this.timeoutMs = timeoutMs; }
@@ -54,10 +64,10 @@ export class SabiApi {
   catalog() { return this.json<Catalog>(api.catalog); }
   async assetBytes(assetId: string) { return Buffer.from(await (await this.req(api.assetFile(assetId), { timeoutMs: SLOW_MS })).arrayBuffer()); }
 
-  // The API clamps t and w; the header carries the time actually drawn.
+  // The API clamps t and w; the headers carry the time actually drawn and what its motion graphics reported.
   async frame(id: string, t: number, w: number) {
     const res = await this.req(`${api.projectFrame(id)}?t=${Math.round(t)}&w=${Math.round(w)}`, { timeoutMs: SLOW_MS });
-    return { data: Buffer.from(await res.arrayBuffer()), ms: Number(res.headers.get("x-sabi-frame-ms")) };
+    return { data: Buffer.from(await res.arrayBuffer()), ms: Number(res.headers.get("x-sabi-frame-ms")), problems: mgProblems(res.headers.get(MG_PROBLEMS_HEADER)) };
   }
 
   // start → PUT (streamed) → done, through the same routes and limits as the browser upload.

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { BrollPanel, overlayRows } from "./BrollPanel";
-import type { Overlay, Project, Shot } from "@shared/types";
+import type { MotionGraphic, Overlay, Project, Shot } from "@shared/types";
 
 const shots: Shot[] = [
   { id: "shot-0", kind: "Hook", startMs: 0, endMs: 4000 },
@@ -17,7 +17,7 @@ const project = (patch: Partial<Project> = {}) => ({
   overlays: [ov("ov-0", "shot-1", 4300, 9300), ov("ov-1", "shot-0", 300, 2300)], ...patch,
 }) as unknown as Project;
 const panel = (p: Project) => renderToStaticMarkup(
-  <MemoryRouter><BrollPanel project={p} busy={false} onAdd={() => {}} onGenerate={() => {}} commit={async () => {}} onSeek={() => {}} /></MemoryRouter>);
+  <MemoryRouter><BrollPanel project={p} busy={false} jobBusy={false} onAdd={() => {}} onGenerate={() => {}} commit={async () => {}} onSeek={() => {}} /></MemoryRouter>);
 
 describe("BrollPanel", () => {
   it("overlayRows labels overlays with their shot and flags stale ones", () => {
@@ -37,6 +37,14 @@ describe("BrollPanel", () => {
 
   it("replace input only accepts images and mp4", () => {
     expect(panel(project())).toContain('accept="image/png,image/jpeg,image/webp,video/mp4"');
+  });
+
+  it("Edit appears only for motion graphics with props", () => {
+    const mg = (id: string, name: string, props: MotionGraphic["props"]): MotionGraphic =>
+      ({ id, name, code: "", compiled: "", startMs: 4000, endMs: 6000, box: { x: 0, y: 0, w: 1, h: 1 }, enabled: true, props });
+    const html = panel(project({ motionGraphics: [mg("mg-0", "Stat", [{ key: "label", type: "text", value: "x" }]), mg("mg-1", "Plain", [])] }));
+    expect(html).toContain('aria-label="Edit Stat"');
+    expect(html).not.toContain('aria-label="Edit Plain"');
   });
 
   it("lists motion graphics with a switch", () => {

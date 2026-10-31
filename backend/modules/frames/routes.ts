@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { readFile, rm } from "node:fs/promises";
-import { api } from "../../../shared/contract";
+import { MG_PROBLEMS_HEADER, api } from "../../../shared/contract";
 import { captionVideoProps } from "../../../shared/editing/renderProps";
+import { mgProblemsHeader } from "../../../shared/remotion/mgProtocol";
+import type { MgProblem } from "../../../shared/types";
 import type { AppDeps } from "../../shared/deps";
 import { projectLoader } from "../../shared/routes";
 
@@ -27,14 +29,16 @@ export function framesRouter(deps: AppDeps) {
     // One scratch file per request, deleted once read: on the ExFAT DATA_DIR every file or folder costs 1 MiB, so stills must never
     // accumulate, nor a folder per project (removing one could race a concurrent request's still).
     const outPath = deps.storage.workPath(`frames/${project.id}-${deps.id()}.png`);
-    let png: Buffer;
+    let png: Buffer, mgProblems: MgProblem[];
     try {
-      await deps.renderer.renderStill({ compositionId: "CaptionVideo", inputProps: props, timestampMs: t, width: w, outPath });
+      ({ mgProblems } = await deps.renderer.renderStill({ compositionId: "CaptionVideo", inputProps: props, timestampMs: t, width: w, outPath }));
       png = await readFile(outPath);
     } finally {
       await rm(outPath, { force: true });
     }
-    res.set({ "content-type": "image/png", "cache-control": "no-store", "x-sabi-frame-ms": String(t) }).send(png);
+    res.set({ "content-type": "image/png", "cache-control": "no-store", "x-sabi-frame-ms": String(t) });
+    if (mgProblems.length) res.set(MG_PROBLEMS_HEADER, mgProblemsHeader(mgProblems)); // why an MG shows ⚠, for the agent
+    res.send(png);
   });
 
   return r;

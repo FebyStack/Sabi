@@ -50,7 +50,7 @@ describe("captionVideoProps layers", () => {
       motionGraphics: [{ id: "mg-0", name: "x", code: "", compiled: "c", startMs: 1000, endMs: 3000, box: { x: 0, y: 0, w: 1, h: 1 }, props: [], enabled: true }],
     }), opts);
     expect(props.overlays).toEqual([{ id: "ov-0", src: "http://x/a/img", media: "image", startMs: 300, endMs: 5300, placement: "top", transition: "fade" }]);
-    expect(props.motionGraphics).toEqual([{ id: "mg-0", compiled: "c", startMs: 1000, endMs: 3000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {} }]);
+    expect(props.motionGraphics).toEqual([{ id: "mg-0", compiled: "c", startMs: 1000, endMs: 3000, box: { x: 0, y: 0, w: 1, h: 1 }, props: {}, images: [] }]);
     expect(props.brand).toMatchObject({ primary: "#1E90FF", grade: 0.4, logoUrl: null });
     expect(props.template.colors.text).toBe("#FAFAFA");
     expect(captionVideoProps(project(), opts)).toMatchObject({ overlays: [], motionGraphics: [], brand: { grade: 0 } });

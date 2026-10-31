@@ -2,8 +2,9 @@ import ts from "typescript";
 import { MAX_MG_COMPILED } from "../../../shared/contract";
 
 // Names the agent's code may not mention: network, storage, timers, globals and code-from-string.
-// `constructor`/`__proto__` close the `[].map.constructor("…")` route back to Function. A denylist is a guard rail,
-// not a sandbox: the code runs only in Chrome (render, frames, Player), never on the server.
+// `constructor`/`__proto__` close the `[].map.constructor("…")` route back to Function. This is the agent's early warning
+// (a clear 400 before anything runs), not the boundary: MG code runs only inside its own sandboxed iframe
+// (spec row 24: opaque origin, no network), never in a Sabi page and never on the server.
 export const DENY: ReadonlySet<string> = new Set([
   "window", "document", "globalThis", "self", "fetch", "XMLHttpRequest", "WebSocket", "eval", "Function", "require", "process",
   "localStorage", "sessionStorage", "indexedDB", "navigator", "setTimeout", "setInterval", "setImmediate", "queueMicrotask",

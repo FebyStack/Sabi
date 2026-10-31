@@ -76,6 +76,25 @@ describe("sabi mcp tools", () => {
     expect(res.text).toBe("frame at 0:01.0 (output timeline)");
   });
 
+  it("render_frame lists each MG problem with a hint", async () => {
+    (deps.renderer as FakeRenderer).stillProblems = [
+      { mg: "mg-0", kind: "threw", detail: "TypeError: x is undefined" },
+      { mg: "mg-1", kind: "image", detail: "http://127.0.0.1:3001/api/assets/a1/file" },
+      { mg: "mg-2", kind: "blocked", detail: "img-src https://images.pexels.com/x.jpg" },
+      { mg: "mg-3", kind: "navigated", detail: "tried to leave its frame" },
+      { mg: "mg-4", kind: "silent", detail: "no answer for 5 s" },
+    ];
+    const res = await callTool(api, "render_frame", { projectId: project.id, timestampMs: 1000 });
+    expect(res.text).toBe([
+      "frame at 0:01.0 (output timeline)",
+      "⚠ mg-0 threw: TypeError: x is undefined — fix the code; it draws its ⚠ label",
+      "⚠ mg-1 image failed: http://127.0.0.1:3001/api/assets/a1/file — use an image prop (upload_asset) or item.brand.logoUrl",
+      "mg-2 was refused img-src https://images.pexels.com/x.jpg — MGs have no network; images come only from image props or item.brand.logoUrl",
+      "⚠ mg-3 tried to navigate — MGs can't leave their frame; it draws ⚠",
+      "⚠ mg-4 stopped answering (no answer for 5 s) — look for a loop that never ends; it draws ⚠",
+    ].join("\n"));
+  });
+
   it("apply_actions reports stale and busy as errors", async () => {
     const ok = await callTool(api, "apply_actions", { projectId: project.id, baseVersion: project.updatedAt, actions: [{ type: "setTitle", title: "New" }] });
     expect(ok.isError).toBeFalsy();
