@@ -75,7 +75,7 @@ Checks, in order:
 - `SabiApi.req`: a `TimeoutError` → `SabiTimeout`; `callTool` prints `Sabi API did not answer in 2 s at <url> — it may be warming the renderer or running a job; try again` instead of the not-reachable text, which stays for refused connections.
 - `wait_job` ends its text with `\nbaseVersion: <updatedAt>` (the project it just read). `run_job` does not: a queued or running job keeps changing `updatedAt` and `apply_actions` answers `409 busy` meanwhile, so any version it printed would be unusable (builder check; amends the first draft of row 29).
 - whisperX `/health` must answer while a clip transcribes, or every first captions job would show "whisperX off": `server.py`'s `transcribe` becomes a plain `def` (FastAPI runs it in its threadpool; jobs are one at a time, row 22), reading the upload through `file.file`. Implementer's call (builder check).
-- Web copy (`projectEvents.ts` `ERRORS`): `transcriber_unavailable: "whisperX isn't running — start it with npm run ai:whisperx."`, `transcriber_timeout: "whisperX took too long (30 min) — try a shorter clip or check the sidecar's log."`, `transcriber_rejected: "whisperX refused the spoken language — pick another in Spoken language."`, `llm_unavailable: "Ollama isn't running — start it with npm run ai:ollama."`, `llm_timeout: "Ollama took too long (10 min) — try again or a smaller model."`, `llm_model_missing: "Ollama has no model to run — ollama pull the OLLAMA_MODEL."`, `llm_invalid_output: "Ollama's answer never fit the plan format — run Plan edit again."`, `disk_low` as above.
+- Web copy (`projectEvents.ts` `ERRORS`): `transcriber_unavailable: "whisperX isn't answering — start it with npm run ai:whisperx, or check its tab for an error."` (was "isn't running"; changed after the real run, see below), `transcriber_timeout: "whisperX took too long (30 min) — try a shorter clip or check the sidecar's log."`, `transcriber_rejected: "whisperX refused the spoken language — pick another in Spoken language."`, `llm_unavailable: "Ollama isn't answering — start it with npm run ai:ollama, or check its tab for an error."`, `llm_timeout: "Ollama took too long (10 min) — try again or a smaller model."`, `llm_model_missing: "Ollama has no model to run — ollama pull the OLLAMA_MODEL."`, `llm_invalid_output: "Ollama's answer never fit the plan format — run Plan edit again."`, `disk_low` as above.
 - `JOB_ERRORS` in `tools.ts` gets the same six codes in agent voice; `SKILL.md` "When something fails" lists them.
 
 ### 4. Spoken language
@@ -143,6 +143,15 @@ Complete without the owner's parts: R5 passes with `broll skipped`, R7 stays ski
 - `language` must be a Whisper code (`400 invalid input` otherwise).
 - A B-roll refresh keeps what is there; only `regenerate` may change the media kind.
 - `disk_low`: tell the user to free space (`npm run doctor`), then run again.
+
+## After the real run (2026-10-31)
+
+What the first run and the final review changed, each test-first:
+- **Copy:** a sidecar that is up but answers 500 (the run's broken venv) read "isn't running — start it"; `transcriber_unavailable` / `llm_unavailable` now say "isn't answering … or check its tab for an error" (web) / "not answering (not running, or it failed: see its log)" (agent). The services hint keeps "isn't running": `/health` not answering means exactly that.
+- **`transcriber_rejected` = the sidecar's 400 only:** another 4xx (a wrong `WHISPERX_URL`, another server on :8010) is `transcriber_unavailable`; and the sidecar loads its model outside the unknown-language catch, so a bad `WHISPERX_MODEL`/`WHISPERX_COMPUTE` is a 500, not "pick another language" (review).
+- **`TORCH_HOME` on the SSD:** `ai:whisperx` sets it beside `HF_HOME`; torchaudio had put the 360 MB English aligner in `~/.cache/torch` on the Mac.
+- **SSE replays a failed last job** when the editor connects, only while the project's status is `failed` and nothing newer has streamed (a reload said "see server logs"; a failed plan restores the old status, so it is not replayed).
+- **Test temp:** one `TMPDIR` per vitest run (a `globalSetup`), removed after it, instead of tracking `makeTestDeps`' dirs — nine more suites leaked.
 
 ## Blueprint
 
