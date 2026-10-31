@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import type { Server } from "node:http";
+import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -122,6 +122,32 @@ describe("sabi mcp tools", () => {
     expect(waited.text).toMatch(/^status ready after \d+s/);
   });
 
+  it("a slow API is 'did not answer', not 'not reachable'", async () => {
+    const hung = createServer(() => {});
+    await new Promise<void>((r) => hung.listen(0, "127.0.0.1", r));
+    const url = `http://127.0.0.1:${(hung.address() as AddressInfo).port}`;
+    const res = await callTool(new SabiApi(url, { timeoutMs: 1000 }), "list_projects", {});
+    hung.closeAllConnections(); hung.close();
+    expect(res).toEqual({ isError: true, text: `Sabi API did not answer in 1 s at ${url} — it may be warming the renderer or running a job; try again` });
+  });
+
+  it("wait_job ends with the project's baseVersion; run_job does not", async () => {
+    const started = await callTool(api, "run_job", { projectId: project.id, kind: "render" });
+    expect(started.text).not.toContain("baseVersion");
+    const waited = await callTool(api, "wait_job", { projectId: project.id });
+    const p = (await deps.projects.get(project.id))!;
+    expect(waited.text.endsWith(`\nbaseVersion: ${p.updatedAt}`)).toBe(true);
+  });
+
+  it("wait_job explains provider failures", async () => {
+    deps.jobs.handle("plan", async () => { throw new Error("llm_model_missing"); });
+    await callTool(api, "run_job", { projectId: project.id, kind: "plan" });
+    const res = await callTool(api, "wait_job", { projectId: project.id });
+    expect(res.isError).toBe(true);
+    expect(res.text).toContain("last job plan FAILED: Ollama has no OLLAMA_MODEL to run — ask the user to ollama pull it");
+    expect(res.text).toMatch(/\nbaseVersion: \S+$/); // a failed job's text carries it too
+  });
+
   it("run_job captions forwards the spoken language", async () => {
     await callTool(api, "run_job", { projectId: project.id, kind: "captions", language: "tl" });
     expect((await callTool(api, "wait_job", { projectId: project.id })).text).toMatch(/^status ready/);
@@ -140,7 +166,7 @@ describe("sabi mcp tools", () => {
     expect((await callTool(api, "run_job", { projectId: project.id, kind: "plan", languages: ["es"] })).isError).toBeFalsy();
     const waited = await callTool(api, "wait_job", { projectId: project.id });
     expect(waited.isError).toBe(true);
-    expect(waited.text).toMatch(/^status ready after \d+s; last job plan FAILED: llm_unavailable/);
+    expect(waited.text).toMatch(/^status ready after \d+s; last job plan FAILED: Ollama is not running — ask the user to start it \(npm run ai:ollama\)/);
   });
 
   it("creates a project from a local file and exports its outputs", async () => {

@@ -10,7 +10,7 @@ import { keptSegments, mapTime } from "../../shared/editing/cuts";
 import { staleOverlays } from "../../shared/editing/overlays";
 import { enabledCuts } from "../../shared/editing/renderProps";
 import type { Asset, Catalog, JobState, MgProblem, Project } from "../../shared/types";
-import { SabiHttpError, SabiUnreachable, type SabiApi } from "./client";
+import { SabiHttpError, SabiTimeout, SabiUnreachable, type SabiApi } from "./client";
 
 export type ToolResult = { text: string; images?: { data: Buffer; mimeType: string }[]; isError?: boolean };
 
@@ -48,6 +48,13 @@ const JOB_ERRORS: Record<string, string> = {
   over_cap: "monthly cap reached — raise SPEND_CAP_CENTS on the API",
   generator_timeout: "fal.ai did not finish in time; it was still charged (see model_catalog). Try once more later, or use stock",
   disk_low: "under 2 GiB free on this Mac's temp or scratch volume — free space (npm run doctor), then run it again",
+  transcriber_unavailable: "whisperX is not running — ask the user to start it (npm run ai:whisperx)",
+  transcriber_timeout: "whisperX did not finish in 30 min — try a shorter clip or check the sidecar's log",
+  transcriber_rejected: "whisperX refused the spoken language — run_job captions with another Whisper code, or none to auto-detect",
+  llm_unavailable: "Ollama is not running — ask the user to start it (npm run ai:ollama)",
+  llm_timeout: "Ollama did not answer in 10 min — try again, or a smaller OLLAMA_MODEL",
+  llm_model_missing: "Ollama has no OLLAMA_MODEL to run — ask the user to ollama pull it",
+  llm_invalid_output: "Ollama's answers never fit the plan format — run_job plan again",
 };
 const jobError = (error: string) => JOB_ERRORS[error] ?? error;
 // One line per stored media asset: id, kind, where it came from, size, its prompt or search words, credit.
@@ -280,7 +287,8 @@ const TOOLS = {
         if (!running && !RUNNING.includes(p.status)) {
           // A failed plan restores the previous status, so the job's own state is the only sign it failed.
           const outcome = job ? `; last job ${job.kind} ${job.state}${job.error ? `: ${jobError(job.error)}` : ""}` : "";
-          const text = `status ${p.status} after ${secs}s${outcome}${p.warnings.length ? `; warnings: ${p.warnings.join(", ")}` : ""}`;
+          // The version just read: the next apply_actions can use it without a fresh inspect_project.
+          const text = `status ${p.status} after ${secs}s${outcome}${p.warnings.length ? `; warnings: ${p.warnings.join(", ")}` : ""}\nbaseVersion: ${p.updatedAt}`;
           return p.status === "failed" || job?.state === "FAILED" ? fail(text) : { text };
         }
         const stage = job ? `; ${jobLine(job)}` : "";
@@ -421,6 +429,7 @@ export async function callTool(api: SabiApi, name: ToolName, input: unknown): Pr
     return await (tool.run as (api: SabiApi, i: unknown) => Promise<ToolResult>)(api, parsed);
   } catch (e) {
     if (e instanceof SabiUnreachable) return fail(UNREACHABLE(e.baseUrl));
+    if (e instanceof SabiTimeout) return fail(`Sabi API did not answer in ${e.timeoutMs / 1000} s at ${e.baseUrl} — it may be warming the renderer or running a job; try again`);
     if (e instanceof SabiHttpError) {
       const { error, job, ...rest } = e.body as { error?: string; job?: JobState };
       if (error === "busy") return fail(`busy: ${job ? jobLine(job) : "a job is running"}; call wait_job, then re-run inspect_project`);
