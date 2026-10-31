@@ -21,6 +21,8 @@ export function pipelineRouter(deps: AppDeps) {
     if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
     const project = await load(req, res);
     if (!project) return;
+    const job = await deps.jobs.active(project.id); // a queued or running job loads the project expecting its plan and source
+    if (job) return res.status(409).json({ error: "busy", job });
     const asset = await deps.assets.get(parsed.data.assetId);
     if (!asset || (asset.kind !== "video" && asset.kind !== "audio")) return res.status(400).json({ error: "bad_asset" });
     const aspectRatio = asset.width && asset.height && asset.width > asset.height ? "16:9" : "9:16";

@@ -19,6 +19,7 @@ export interface JobRunner {
   get(projectId: string, jobId: string): Promise<JobState | null>;
   forget(projectId: string): Promise<void>; // drop the project's finished jobs (their data holds prompts)
   start?(): Promise<void>; // queues that need it begin consuming once handlers are registered
+  onAbandoned?(fn: (projectId: string, data: JobData) => Promise<void>): void; // a job the queue failed without running its handler
 }
 
 const KEEP_FINISHED = 20;

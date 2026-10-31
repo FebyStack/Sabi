@@ -6,7 +6,7 @@ import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-import { checkKey, type ByteRange, type Storage } from "./storage";
+import { checkKey, sweepScratch, type ByteRange, type Storage } from "./storage";
 
 const notFound = (err: unknown) => {
   const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
@@ -18,12 +18,14 @@ export class S3Storage implements Storage {
   private client: S3Client;
   private bucket: string;
 
-  constructor(private o: { endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string; region?: string; workDir: string }) {
+  constructor(private o: { endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string; region?: string; workDir: string; requestTimeoutMs?: number }) {
     this.bucket = o.bucket;
     this.client = new S3Client({
       endpoint: o.endpoint, region: o.region ?? "auto", forcePathStyle: true,
       credentials: { accessKeyId: o.accessKeyId, secretAccessKey: o.secretAccessKey },
-      requestHandler: { connectionTimeout: 5000 }, // a black-holed host fails the boot check instead of hanging it
+      // A black-holed host fails the boot check, and a wedged store fails a request (retried twice), instead of hanging them.
+      // The request timeout runs until the response headers (an upload part's whole body), never through a streamed read.
+      requestHandler: { connectionTimeout: 5000, requestTimeout: o.requestTimeoutMs ?? 60_000, throwOnRequestTimeout: true },
     });
   }
 
@@ -79,6 +81,8 @@ export class S3Storage implements Storage {
     mkdirSync(dirname(p), { recursive: true });
     return p;
   }
+
+  sweepWork() { return sweepScratch(this.o.workDir); }
 
   // By bucket alone: the same MinIO is localhost:9000 from the Mac and minio:9000 from the api container.
   describe() { return `s3:${this.bucket}`; }

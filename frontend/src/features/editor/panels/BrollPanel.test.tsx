@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router";
 import { BrollPanel, overlayRows } from "./BrollPanel";
 import type { Overlay, Project, Shot } from "@shared/types";
 
@@ -15,7 +16,8 @@ const project = (patch: Partial<Project> = {}) => ({
   id: "p", mediaSource: "stock", warnings: [], creditsUsedCents: 0, motionGraphics: [], editPlan: { cuts: [], shots },
   overlays: [ov("ov-0", "shot-1", 4300, 9300), ov("ov-1", "shot-0", 300, 2300)], ...patch,
 }) as unknown as Project;
-const panel = (p: Project) => renderToStaticMarkup(<BrollPanel project={p} busy={false} onAdd={() => {}} onGenerate={() => {}} commit={async () => {}} onSeek={() => {}} />);
+const panel = (p: Project) => renderToStaticMarkup(
+  <MemoryRouter><BrollPanel project={p} busy={false} onAdd={() => {}} onGenerate={() => {}} commit={async () => {}} onSeek={() => {}} /></MemoryRouter>);
 
 describe("BrollPanel", () => {
   it("overlayRows labels overlays with their shot and flags stale ones", () => {
@@ -75,7 +77,8 @@ describe("BrollPanel", () => {
   });
 
   it("says when the monthly cap stopped generation", () => {
-    expect(panel(project({ warnings: ["over_cap"] }))).toMatch(/Monthly spending cap reached — see <a href="\/usage"[^>]*>Usage<\/a>\./);
+    // A router link (data-discover), not a page load that would drop the open editor.
+    expect(panel(project({ warnings: ["over_cap"] }))).toMatch(/Monthly spending cap reached — see <a [^>]*href="\/usage"[^>]*data-discover="true"[^>]*>Usage<\/a>\./);
   });
 });
 

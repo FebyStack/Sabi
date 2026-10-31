@@ -24,8 +24,9 @@ export function framesRouter(deps: AppDeps) {
     const props = captionVideoProps(project, { videoSrc: `${deps.apiBaseUrl}${api.assetFile(source.id)}`, sourceDurationMs: source.durationMs ?? 0, assetUrl: (id) => `${deps.apiBaseUrl}${api.assetFile(id)}` });
     const t = Math.round(clamp(Number(req.query.t) || 0, 0, props.durationMs));
     const w = Math.round(clamp(Number(req.query.w) || 540, 160, 1080));
-    // One scratch file per request, deleted once read: on the ExFAT DATA_DIR every file costs 1 MiB, so stills must never accumulate.
-    const outPath = deps.storage.workPath(`frames/${project.id}/${deps.id()}.png`);
+    // One scratch file per request, deleted once read: on the ExFAT DATA_DIR every file or folder costs 1 MiB, so stills must never
+    // accumulate, nor a folder per project (removing one could race a concurrent request's still).
+    const outPath = deps.storage.workPath(`frames/${project.id}-${deps.id()}.png`);
     let png: Buffer;
     try {
       await deps.renderer.renderStill({ compositionId: "CaptionVideo", inputProps: props, timestampMs: t, width: w, outPath });

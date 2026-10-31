@@ -1,6 +1,7 @@
 // npm run demo:pack -- <projectId> [--api http://127.0.0.1:3001]
-// Turns a finished project into the committed demo bundle (database/seed/demo, spec row 17): fixed ids, files fetched
-// from the API, the MP4 re-encoded at -crf 26, stills ≤ 1 MB. Refuses to write a bundle over 25 MB.
+// Turns a finished project into the committed demo bundle (database/seed/demo, spec row 17): files fetched from the API,
+// the MP4 re-encoded at -crf 26, stills ≤ 1 MB. Refuses to write a bundle over 25 MB. Asset ids are new on every pack:
+// browsers keep an asset's file for good (immutable), so new bytes under an old id would never be fetched.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -15,6 +16,8 @@ if (!projectId) throw new Error("usage: npm run demo:pack -- <projectId> [--api 
 const apiUrl = flag("--api", "http://127.0.0.1:3001");
 const out = resolve("database/seed/demo");
 const tmp = join(out, ".pack");
+const pack = Date.now().toString(36);
+const idOf = (name: string) => `demo-${name}-${pack}`;
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "video/mp4": "mp4" };
 
 async function download(assetId: string, path: string): Promise<string> {
@@ -38,7 +41,7 @@ mkdirSync(tmp, { recursive: true });
 const assets: Asset[] = [];
 
 const srcMime = await download(p.sourceAssetId, join(out, "clip.mp4"));
-assets.push(asset("demo-src", "video", "clip.mp4", srcMime, probe(join(out, "clip.mp4"))));
+assets.push(asset(idOf("src"), "video", "clip.mp4", srcMime, probe(join(out, "clip.mp4"))));
 
 const overlays = [];
 for (const [i, o] of p.overlays.entries()) {
@@ -52,7 +55,7 @@ for (const [i, o] of p.overlays.entries()) {
       if (statSync(join(out, key)).size <= MAX_STILL) break;
     }
   } else execFileSync("cp", [raw, join(out, key)]);
-  const id = `demo-ov-${i}`;
+  const id = idOf(`ov-${i}`);
   assets.push(asset(id, o.media, key, o.media === "image" ? "image/jpeg" : mime, probe(join(out, key))));
   overlays.push({ ...o, assetId: id });
 }
@@ -60,11 +63,11 @@ for (const [i, o] of p.overlays.entries()) {
 const mp4Raw = join(tmp, "render.mp4");
 await download(mp4AssetId, mp4Raw);
 execFileSync("ffmpeg", ["-v", "error", "-y", "-i", mp4Raw, "-c:v", "libx264", "-crf", "26", "-preset", "slow", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", join(out, "demo.mp4")]);
-assets.push(asset("demo-mp4", "render", "demo.mp4", "video/mp4", probe(join(out, "demo.mp4"))));
+assets.push(asset(idOf("mp4"), "render", "demo.mp4", "video/mp4", probe(join(out, "demo.mp4"))));
 await download(srtAssetId, join(out, "demo.srt"));
-assets.push(asset("demo-srt", "subtitle", "demo.srt", "text/plain"));
+assets.push(asset(idOf("srt"), "subtitle", "demo.srt", "text/plain"));
 await download(vttAssetId, join(out, "demo.vtt"));
-assets.push(asset("demo-vtt", "subtitle", "demo.vtt", "text/vtt"));
+assets.push(asset(idOf("vtt"), "subtitle", "demo.vtt", "text/vtt"));
 rmSync(tmp, { recursive: true, force: true });
 
 const total = assets.reduce((n, a) => n + a.sizeBytes, 0);
@@ -73,9 +76,9 @@ if (total > MAX_BYTES) {
   throw new Error(`bundle is ${(total / 1024 ** 2).toFixed(1)} MB (> 25 MB); nothing written`);
 }
 const project: Project = {
-  ...p, id: "demo", demo: true, status: "ready", sourceAssetId: "demo-src", overlays,
+  ...p, id: "demo", demo: true, status: "ready", sourceAssetId: idOf("src"), overlays,
   brand: p.brand && { ...p.brand, logoAssetId: null }, // a logo would be one more file; the demo has none
-  outputs: { mp4AssetId: "demo-mp4", srtAssetId: "demo-srt", vttAssetId: "demo-vtt", resolution: "1080p" },
+  outputs: { mp4AssetId: idOf("mp4"), srtAssetId: idOf("srt"), vttAssetId: idOf("vtt"), resolution: "1080p" },
   translations: [], burnInLanguage: null, warnings: [], createdAt: "2026-10-21T00:00:00.000Z", updatedAt: "2026-10-21T00:00:00.000Z",
 };
 writeFileSync(join(out, "manifest.json"), `${JSON.stringify({ project, assets }, null, 2)}\n`);
