@@ -56,10 +56,13 @@ describe("WhisperXTranscriber", () => {
     server.closeAllConnections(); server.close();
   });
 
-  it("rejects with transcriber_rejected when the sidecar refuses the request (4xx)", async () => {
+  it("rejects with transcriber_rejected only on the sidecar's 400 (unknown language); another 4xx is not whisperX refusing", async () => {
     const { server, url } = await serve(400, JSON.stringify({ detail: "unknown_language" }));
     await expect(new WhisperXTranscriber(url).transcribe(__filename, { language: "xx" })).rejects.toThrow("transcriber_rejected");
     server.close();
+    const other = await serve(404, JSON.stringify({ detail: "Not Found" })); // a wrong WHISPERX_URL, or another server on :8010
+    await expect(new WhisperXTranscriber(other.url).transcribe(__filename)).rejects.toThrow("transcriber_unavailable");
+    other.server.close();
   });
 
   it("health() is ok on a 2xx /health, down when refused, down within 1.5 s when hung", async () => {

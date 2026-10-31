@@ -23,7 +23,7 @@ export class WhisperXTranscriber implements Transcriber {
     // CPU int8 whisperX on a 10-minute clip can take a while; a hung sidecar must still fail the job.
     const res = await fetch(`${this.baseUrl}/transcribe`, { method: "POST", body: form, signal: AbortSignal.timeout(this.opts.timeoutMs ?? 30 * 60_000) })
       .catch((err: Error) => { throw new Error(err.name === "TimeoutError" ? "transcriber_timeout" : "transcriber_unavailable"); });
-    if (res.status >= 400 && res.status < 500) throw new Error("transcriber_rejected"); // e.g. 400 unknown_language
+    if (res.status === 400) throw new Error("transcriber_rejected"); // the sidecar's unknown_language; a 404/422 is not whisperX refusing
     if (!res.ok) throw unavailable();
     const body: { language?: unknown; words?: unknown; estimated_words?: unknown } = await res.json().catch(() => { throw unavailable(); });
     if (typeof body.language !== "string" || !Array.isArray(body.words)) throw unavailable();
