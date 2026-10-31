@@ -41,6 +41,28 @@ describe("project events (SSE)", () => {
     server.close();
   });
 
+  it("replays the last job on connect when it failed (a reload still says why), never a finished one", async () => {
+    const deps = makeTestDeps();
+    const server = createApp(deps).listen(0);
+    const port = (server.address() as AddressInfo).port;
+    deps.jobs.handle("boom", async () => { throw new Error("transcriber_unavailable"); });
+    deps.jobs.handle("quick", async () => {});
+    await deps.jobs.enqueue("p1", "boom", { input: {}, actor: "web", prevStatus: "ready" });
+    await deps.jobs.enqueue("p2", "quick", { input: {}, actor: "web", prevStatus: "ready" });
+    await vi.waitFor(async () => expect((await deps.jobs.last("p1"))?.state).toBe("FAILED"));
+    await vi.waitFor(async () => expect((await deps.jobs.last("p2"))?.state).toBe("COMPLETE"));
+
+    const failed = await readFrames(await fetch(`http://127.0.0.1:${port}/api/projects/p1/events`), 1);
+    expect(failed[0]).toContain('"state":"FAILED"');
+    expect(failed[0]).toContain('"error":"transcriber_unavailable"');
+    const ctrl = new AbortController();
+    const replayed = fetch(`http://127.0.0.1:${port}/api/projects/p2/events`, { signal: ctrl.signal }).then((res) => readFrames(res, 1)).catch(() => []);
+    const first = await Promise.race([replayed, new Promise<string[]>((r) => setTimeout(() => r([]), 300))]);
+    ctrl.abort();
+    expect(first).toEqual([]); // a COMPLETE job is not replayed: it would re-fire "done" side effects
+    server.close();
+  });
+
   it("GET /job?id= returns that job after another finished", async () => {
     const deps = makeTestDeps();
     const a = createApp(deps);
