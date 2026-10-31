@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { WhisperXTranscriber } from "./transcriber";
+import { FakeTranscriber, WhisperXTranscriber } from "./transcriber";
 import fixture from "./fixtures/transcript-sample.json";
 
 // Sidecar wire format: seconds, "start"/"end"/"score"
@@ -15,6 +15,12 @@ function serve(status: number, body: string): Promise<{ server: Server; url: str
     server.listen(0, "127.0.0.1", () => resolve({ server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
   });
 }
+
+// A sidecar that accepts the connection and never answers (a hung or busy process).
+const hang = (): Promise<{ server: Server; url: string }> => new Promise((resolve) => {
+  const server = createServer(() => {});
+  server.listen(0, "127.0.0.1", () => resolve({ server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
+});
 
 describe("WhisperXTranscriber", () => {
   it("maps sidecar seconds to ms words with ids", async () => {
@@ -44,12 +50,29 @@ describe("WhisperXTranscriber", () => {
     server.close();
   });
 
-  it("rejects with transcriber_unavailable when the sidecar hangs past the timeout", async () => {
-    const server = createServer(() => { /* never responds */ });
-    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    await expect(new WhisperXTranscriber(url, { timeoutMs: 200 }).transcribe(__filename)).rejects.toThrow("transcriber_unavailable");
+  it("rejects with transcriber_timeout when the sidecar hangs past the timeout", async () => {
+    const { server, url } = await hang();
+    await expect(new WhisperXTranscriber(url, { timeoutMs: 200 }).transcribe(__filename)).rejects.toThrow("transcriber_timeout");
     server.closeAllConnections(); server.close();
+  });
+
+  it("rejects with transcriber_rejected when the sidecar refuses the request (4xx)", async () => {
+    const { server, url } = await serve(400, JSON.stringify({ detail: "unknown_language" }));
+    await expect(new WhisperXTranscriber(url).transcribe(__filename, { language: "xx" })).rejects.toThrow("transcriber_rejected");
+    server.close();
+  });
+
+  it("health() is ok on a 2xx /health, down when refused, down within 1.5 s when hung", async () => {
+    const up = await serve(200, JSON.stringify({ ok: true, model: "small" }));
+    expect(await new WhisperXTranscriber(up.url).health()).toBe("ok");
+    up.server.close();
+    expect(await new WhisperXTranscriber("http://127.0.0.1:1").health()).toBe("down");
+    const hung = await hang();
+    const t0 = Date.now();
+    expect(await new WhisperXTranscriber(hung.url).health()).toBe("down"); // the 1500 ms probe timeout, not the 30 min transcribe one
+    expect(Date.now() - t0).toBeLessThan(2500);
+    hung.server.closeAllConnections(); hung.server.close();
+    expect(await new FakeTranscriber({ language: "en", words: [] }).health()).toBe("ok");
   });
 
   it("rejects with transcriber_unavailable on a malformed 200 body", async () => {

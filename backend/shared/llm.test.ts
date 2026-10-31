@@ -12,7 +12,7 @@ function serve(status: number, body: string, seen: Seen = {}): Promise<{ server:
       req.on("data", (c) => (raw += c));
       req.on("end", () => {
         seen.path = req.url;
-        seen.body = JSON.parse(raw);
+        seen.body = raw ? JSON.parse(raw) : undefined; // a GET has no body
         res.writeHead(status, { "content-type": "application/json" });
         res.end(body);
       });
@@ -51,7 +51,7 @@ describe("OllamaLlm", () => {
     server.close();
   });
 
-  it("maps 500, a bad body, timeout and a down server to llm_unavailable", async () => {
+  it("maps 500, a bad body and a down server to llm_unavailable, a timeout to llm_timeout", async () => {
     const { server: s500, url: u500 } = await serve(500, "boom");
     await expect(new OllamaLlm(u500, "m").chat(req)).rejects.toThrow("llm_unavailable");
     s500.close();
@@ -63,10 +63,23 @@ describe("OllamaLlm", () => {
     const hung = createServer(() => { /* never responds */ });
     await new Promise<void>((r) => hung.listen(0, "127.0.0.1", r));
     const uHung = `http://127.0.0.1:${(hung.address() as AddressInfo).port}`;
-    await expect(new OllamaLlm(uHung, "m", { timeoutMs: 200 }).chat(req)).rejects.toThrow("llm_unavailable");
+    await expect(new OllamaLlm(uHung, "m", { timeoutMs: 200 }).chat(req)).rejects.toThrow("llm_timeout");
     hung.closeAllConnections(); hung.close();
 
     await expect(new OllamaLlm("http://127.0.0.1:1", "m").chat(req)).rejects.toThrow("llm_unavailable");
+  });
+});
+
+describe("OllamaLlm.health", () => {
+  it("reads /api/tags for the configured model", async () => {
+    const tags = (names: string[]) => JSON.stringify({ models: names.map((name) => ({ name })) });
+    const has = await serve(200, tags(["qwen2.5:3b", "llama3:latest"]));
+    expect(await new OllamaLlm(has.url, "qwen2.5:3b").health()).toEqual({ status: "ok", model: "qwen2.5:3b" });
+    expect(await new OllamaLlm(has.url, "llama3").health()).toEqual({ status: "ok", model: "llama3" }); // a bare name is :latest
+    expect(await new OllamaLlm(has.url, "qwen2.5:7b").health()).toEqual({ status: "model_missing", model: "qwen2.5:7b" });
+    has.server.close();
+    expect(await new OllamaLlm("http://127.0.0.1:1", "m").health()).toEqual({ status: "down", model: "m" });
+    expect(await new FakeLlm(() => ({})).health()).toEqual({ status: "ok", model: "fake" });
   });
 });
 

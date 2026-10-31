@@ -47,7 +47,7 @@ describe("caption pipeline", () => {
   it("run while busy returns 409", async () => {
     const deps = makeTestDeps();
     let release!: () => void;
-    deps.transcriber = { transcribe: () => new Promise<void>((r) => { release = r; }).then(() => ({ language: "en", words: [] })) };
+    deps.transcriber = { transcribe: () => new Promise<void>((r) => { release = r; }).then(() => ({ language: "en", words: [] })), health: async () => "ok" };
     const { a, project } = await projectWithSource(deps);
     expect((await request(a).post(`/api/projects/${project.id}/run`).send({})).status).toBe(202);
     await vi.waitFor(() => expect(release).toBeTypeOf("function")); // job reached the transcribe stage
@@ -58,7 +58,7 @@ describe("caption pipeline", () => {
   });
 
   it("transcriber failure marks project failed", async () => {
-    const deps = makeTestDeps({ transcriber: { transcribe: async () => { throw new Error("transcriber_unavailable"); } } });
+    const deps = makeTestDeps({ transcriber: { transcribe: async () => { throw new Error("transcriber_unavailable"); }, health: async () => "down" } });
     const { a, project } = await projectWithSource(deps);
     await request(a).post(`/api/projects/${project.id}/run`).send({});
     const failed = await untilStatus(a, project.id, "failed");
@@ -136,7 +136,7 @@ describe("caption pipeline", () => {
     class WritingMedia extends FakeMedia {
       async extractAudio(_input: string, outWav: string) { writeFileSync(outWav, "RIFF"); }
     }
-    const transcriber = { transcribe: async (path: string) => { wavPath = path; expect(existsSync(path)).toBe(true); return { language: "en", words: sample.words }; } };
+    const transcriber = { transcribe: async (path: string) => { wavPath = path; expect(existsSync(path)).toBe(true); return { language: "en", words: sample.words }; }, health: async () => "ok" as const };
     const deps = makeTestDeps({ media: new WritingMedia({ durationMs: 21000, width: 1080, height: 1920 }), transcriber });
     const { a, project } = await projectWithSource(deps);
     await request(a).post(`/api/projects/${project.id}/run`).send({});
