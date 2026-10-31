@@ -14,5 +14,6 @@ export default defineConfig({
     include: ["frontend/src/**/*.test.{ts,tsx}", "backend/**/*.test.ts", "shared/**/*.test.ts", "ai/**/*.test.ts", "tests/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/dist*/**", "**/._*"], // ExFAT SSD: macOS drops AppleDouble ._ files next to sources
     setupFiles: ["frontend/src/test/setup.ts"],
+    globalSetup: ["frontend/src/test/globalSetup.ts"], // one TMPDIR per run, removed after it
   },
 });
