@@ -166,7 +166,7 @@ describe("sabi mcp tools", () => {
     expect((await callTool(api, "run_job", { projectId: project.id, kind: "plan", languages: ["es"] })).isError).toBeFalsy();
     const waited = await callTool(api, "wait_job", { projectId: project.id });
     expect(waited.isError).toBe(true);
-    expect(waited.text).toMatch(/^status ready after \d+s; last job plan FAILED: Ollama is not running — ask the user to start it \(npm run ai:ollama\)/);
+    expect(waited.text).toMatch(/^status ready after \d+s; last job plan FAILED: Ollama is not answering \(not running, or it failed: see its log\) — ask the user to start it \(npm run ai:ollama\) or check its tab/);
   });
 
   it("creates a project from a local file and exports its outputs", async () => {
